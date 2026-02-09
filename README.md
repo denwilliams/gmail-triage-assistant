@@ -29,10 +29,16 @@ AI-powered email management system that automatically categorizes, labels, and p
 3. **Configure environment**
    ```bash
    cp .env.example .env
-   # Edit .env with your credentials and DATABASE_URL
+   # Edit .env with your Google OAuth credentials, OpenAI API key, and DATABASE_URL
    ```
 
-4. **Build and run**
+4. **Authenticate with Gmail**
+   ```bash
+   make auth
+   # Follow the prompts to authorize the application
+   ```
+
+5. **Build and run**
    ```bash
    make build
    make run
@@ -42,6 +48,7 @@ AI-powered email management system that automatically categorizes, labels, and p
 
 ```bash
 make help              # Show all available commands
+make auth              # Run OAuth authentication with Gmail
 make build             # Build the application
 make run               # Run the application
 make test              # Run tests
@@ -51,10 +58,22 @@ make clean             # Clean build artifacts
 make install-tools     # Install development tools (air, golangci-lint)
 ```
 
+## Gmail API Setup
+
+To use this application, you need to set up a Google Cloud Project and enable the Gmail API:
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Create a new project or select an existing one
+3. Enable the Gmail API
+4. Create OAuth 2.0 credentials (Desktop application)
+5. Download the credentials and use the Client ID and Client Secret in your `.env` file
+
 ## Project Structure
 
 ```
-├── cmd/server/          # Application entry point
+├── cmd/
+│   ├── server/         # Application entry point
+│   └── auth/           # OAuth authentication setup
 ├── internal/
 │   ├── config/         # Configuration management
 │   ├── database/       # Database models and queries

@@ -23,6 +23,9 @@ go.work
 # Environment variables
 .env
 
+# OAuth tokens
+token.json
+
 # Database files
 *.db
 *.db-shm

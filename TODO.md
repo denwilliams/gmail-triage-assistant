@@ -11,13 +11,13 @@ Update the README.md after each phase is completed to reflect the current state 
 - [x] Set up environment variable configuration (.env support)
 - [x] Add .gitignore for Go projects
 
-## Phase 2: Gmail OAuth & API Integration
-- [ ] Implement Google OAuth flow
-- [ ] Create Gmail API client wrapper
-- [ ] Implement email fetching (monitor new emails)
-- [ ] Implement email labeling operations
-- [ ] Implement inbox bypass functionality
-- [ ] Test Gmail API integration with real mailbox
+## Phase 2: Gmail OAuth & API Integration ✅
+- [x] Implement Google OAuth flow
+- [x] Create Gmail API client wrapper
+- [x] Implement email fetching (monitor new emails)
+- [x] Implement email labeling operations
+- [x] Implement inbox bypass functionality
+- [ ] Test Gmail API integration with real mailbox (requires actual Gmail account setup)
 
 ## Phase 3: OpenAI Integration
 - [ ] Create OpenAI client wrapper (nano v5 models)

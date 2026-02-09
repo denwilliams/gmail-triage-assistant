@@ -1,4 +1,4 @@
-.PHONY: help build run test lint clean dev install-tools
+.PHONY: help build run test lint clean dev install-tools auth
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -8,6 +8,12 @@ help: ## Show this help message
 
 build: ## Build the application
 	go build -o bin/gmail-triage-assistant cmd/server/main.go
+
+build-auth: ## Build the auth command
+	go build -o bin/gmail-auth cmd/auth/main.go
+
+auth: build-auth ## Run OAuth authentication
+	./bin/gmail-auth
 
 run: ## Run the application
 	go run cmd/server/main.go
