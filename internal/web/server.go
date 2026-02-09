@@ -69,6 +69,11 @@ func (s *Server) routes() {
 
 	// Dashboard (requires auth)
 	s.router.HandleFunc("/dashboard", s.requireAuth(s.handleDashboard)).Methods("GET")
+
+	// Labels management (requires auth)
+	s.router.HandleFunc("/labels", s.requireAuth(s.handleLabels)).Methods("GET")
+	s.router.HandleFunc("/labels/create", s.requireAuth(s.handleCreateLabel)).Methods("POST")
+	s.router.HandleFunc("/labels/{id}/delete", s.requireAuth(s.handleDeleteLabel)).Methods("POST")
 }
 
 func (s *Server) handleHome(w http.ResponseWriter, r *http.Request) {
@@ -196,7 +201,12 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	<main class="container">
 		<nav>
 			<ul><li><strong>Gmail Triage</strong></li></ul>
-			<ul><li>%s</li><li><a href="/auth/logout">Logout</a></li></ul>
+			<ul>
+				<li><a href="/dashboard">Dashboard</a></li>
+				<li><a href="/labels">Labels</a></li>
+				<li>%s</li>
+				<li><a href="/auth/logout">Logout</a></li>
+			</ul>
 		</nav>
 		<article>
 			<h2>Dashboard</h2>
@@ -221,6 +231,145 @@ func (s *Server) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 		}
 		next(w, r)
 	}
+}
+
+func (s *Server) handleLabels(w http.ResponseWriter, r *http.Request) {
+	session, _ := s.sessionStore.Get(r, "session")
+	userEmail := session.Values["user_email"].(string)
+	userID := session.Values["user_id"].(int64)
+
+	ctx := context.Background()
+	labels, err := s.db.GetAllLabels(ctx, userID)
+	if err != nil {
+		http.Error(w, "Failed to load labels", http.StatusInternalServerError)
+		return
+	}
+
+	labelsHTML := ""
+	for _, label := range labels {
+		labelsHTML += fmt.Sprintf(`
+		<tr>
+			<td><strong>%s</strong></td>
+			<td>%s</td>
+			<td>
+				<form method="POST" action="/labels/%d/delete" style="margin: 0;">
+					<button type="submit" class="secondary" onclick="return confirm('Delete this label?')">Delete</button>
+				</form>
+			</td>
+		</tr>`, label.Name, label.Description, label.ID)
+	}
+
+	if labelsHTML == "" {
+		labelsHTML = `<tr><td colspan="3"><em>No labels configured yet</em></td></tr>`
+	}
+
+	html := fmt.Sprintf(`<!DOCTYPE html>
+<html>
+<head>
+	<title>Labels - Gmail Triage Assistant</title>
+	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+</head>
+<body>
+	<main class="container">
+		<nav>
+			<ul><li><strong>Gmail Triage</strong></li></ul>
+			<ul>
+				<li><a href="/dashboard">Dashboard</a></li>
+				<li><a href="/labels">Labels</a></li>
+				<li>%s</li>
+				<li><a href="/auth/logout">Logout</a></li>
+			</ul>
+		</nav>
+		<article>
+			<h2>Label Management</h2>
+			<p>Configure labels that the AI can apply to your emails.</p>
+
+			<h3>Create New Label</h3>
+			<form method="POST" action="/labels/create">
+				<label>
+					Label Name
+					<input type="text" name="name" placeholder="e.g., Work, Personal, Newsletter" required>
+				</label>
+				<label>
+					Description (helps AI understand when to use this label)
+					<textarea name="description" placeholder="e.g., Work-related emails from colleagues and clients" rows="3"></textarea>
+				</label>
+				<button type="submit">Create Label</button>
+			</form>
+		</article>
+
+		<article>
+			<h3>Your Labels</h3>
+			<table>
+				<thead>
+					<tr>
+						<th>Name</th>
+						<th>Description</th>
+						<th>Actions</th>
+					</tr>
+				</thead>
+				<tbody>
+					%s
+				</tbody>
+			</table>
+		</article>
+	</main>
+</body>
+</html>`, userEmail, labelsHTML)
+
+	w.Header().Set("Content-Type", "text/html")
+	w.Write([]byte(html))
+}
+
+func (s *Server) handleCreateLabel(w http.ResponseWriter, r *http.Request) {
+	session, _ := s.sessionStore.Get(r, "session")
+	userID := session.Values["user_id"].(int64)
+
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Invalid form", http.StatusBadRequest)
+		return
+	}
+
+	name := r.FormValue("name")
+	description := r.FormValue("description")
+
+	if name == "" {
+		http.Error(w, "Label name is required", http.StatusBadRequest)
+		return
+	}
+
+	ctx := context.Background()
+	label := &database.Label{
+		UserID:      userID,
+		Name:        name,
+		Description: description,
+		Reasons:     []string{},
+	}
+
+	if err := s.db.CreateLabel(ctx, label); err != nil {
+		log.Printf("Failed to create label: %v", err)
+		http.Error(w, "Failed to create label", http.StatusInternalServerError)
+		return
+	}
+
+	http.Redirect(w, r, "/labels", http.StatusSeeOther)
+}
+
+func (s *Server) handleDeleteLabel(w http.ResponseWriter, r *http.Request) {
+	session, _ := s.sessionStore.Get(r, "session")
+	userID := session.Values["user_id"].(int64)
+
+	vars := mux.Vars(r)
+	labelID := vars["id"]
+
+	ctx := context.Background()
+	if err := s.db.DeleteLabel(ctx, userID, labelID); err != nil {
+		log.Printf("Failed to delete label: %v", err)
+		http.Error(w, "Failed to delete label", http.StatusInternalServerError)
+		return
+	}
+
+	http.Redirect(w, r, "/labels", http.StatusSeeOther)
 }
 
 func (s *Server) Start() error {

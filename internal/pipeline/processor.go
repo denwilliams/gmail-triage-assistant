@@ -115,9 +115,33 @@ func (p *Processor) applyActionsToGmail(ctx context.Context, user *database.User
 
 	// Apply labels
 	if len(actions.Labels) > 0 {
-		// TODO: Map label names to Gmail label IDs
-		// For now, just log what we would do
-		log.Printf("[%s] Would apply labels %v to message %s", user.Email, actions.Labels, messageID)
+		labelIDs := make([]string, 0, len(actions.Labels))
+
+		for _, labelName := range actions.Labels {
+			// Try to get existing label ID
+			labelID, err := client.GetLabelID(ctx, labelName)
+			if err != nil {
+				// Label doesn't exist, create it
+				log.Printf("[%s] Creating new label: %s", user.Email, labelName)
+				newLabel, createErr := client.CreateLabel(ctx, labelName)
+				if createErr != nil {
+					log.Printf("[%s] Failed to create label %s: %v", user.Email, labelName, createErr)
+					continue
+				}
+				labelID = newLabel.Id
+				log.Printf("[%s] Created label %s with ID %s", user.Email, labelName, labelID)
+			}
+
+			labelIDs = append(labelIDs, labelID)
+		}
+
+		// Apply all labels to the message
+		if len(labelIDs) > 0 {
+			if err := client.AddLabels(ctx, messageID, labelIDs); err != nil {
+				return fmt.Errorf("failed to add labels: %w", err)
+			}
+			log.Printf("[%s] Applied labels %v to message %s", user.Email, actions.Labels, messageID)
+		}
 	}
 
 	// Bypass inbox (archive)
