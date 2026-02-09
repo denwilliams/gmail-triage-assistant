@@ -33,9 +33,9 @@ type EmailAnalysis struct {
 
 // EmailActions represents the Stage 2 AI output
 type EmailActions struct {
-	Labels        []string `json:"labels"`
-	BypassInbox   bool     `json:"bypass_inbox"`
-	Reasoning     string   `json:"reasoning"`
+	Labels      []string `json:"labels"`
+	BypassInbox bool     `json:"bypass_inbox"`
+	Reasoning   string   `json:"reasoning"`
 }
 
 // AnalyzeEmail runs Stage 1: Content analysis
@@ -64,8 +64,8 @@ Analyze this email and provide the slug, keywords, and summary.`, from, subject,
 			openai.SystemMessage(systemPrompt),
 			openai.UserMessage(userPrompt),
 		},
-		Temperature: openai.Float(0.3),
-		MaxTokens:   openai.Int(200),
+		// Temperature:         openai.Float(0.3),
+		MaxCompletionTokens: openai.Int(5000),
 	})
 
 	if err != nil {
@@ -114,8 +114,8 @@ What actions should be taken for this email?`, slug, keywords, summary)
 			openai.SystemMessage(systemPrompt),
 			openai.UserMessage(userPrompt),
 		},
-		Temperature: openai.Float(0.3),
-		MaxTokens:   openai.Int(150),
+		// Temperature:         openai.Float(0.3),
+		MaxCompletionTokens: openai.Int(1000),
 	})
 
 	if err != nil {

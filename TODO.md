@@ -29,8 +29,9 @@ Update the README.md after each phase is completed to reflect the current state 
 - [x] Implement Stage 1 AI: Content analysis (slug, keywords, summary)
 - [x] Implement Stage 2 AI: Action generation (labels, inbox bypass)
 - [x] Create email processing pipeline that orchestrates both stages
-- [ ] Test AI pipeline with real emails (requires OpenAI API key)
-- [ ] Implement Gmail label ID mapping for applying labels
+- [x] Test AI pipeline with real emails
+- [x] Fixed checkpoint update to only happen when all messages process successfully
+- [ ] Implement Gmail label ID mapping for applying labels (currently just logs)
 
 ## Phase 4: Email Processing Pipeline
 - [ ] Build email monitoring service (watch for new emails)

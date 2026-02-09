@@ -151,13 +151,20 @@ func (m *MultiUserMonitor) checkUserMessages(ctx context.Context, user *database
 		}
 	}
 
-	// Process each message
+	// Process each message and track errors
+	var processingErrors []error
 	for _, message := range messages {
 		if err := m.handler(ctx, user, message); err != nil {
 			log.Printf("Error handling message %s for user %s: %v", message.ID, user.Email, err)
+			processingErrors = append(processingErrors, err)
 			// Continue processing other messages even if one fails
-			continue
 		}
+	}
+
+	// Only update checkpoint if there were no processing errors
+	if len(processingErrors) > 0 {
+		log.Printf("Skipping checkpoint update for %s due to %d error(s) during processing", user.Email, len(processingErrors))
+		return fmt.Errorf("failed to process %d message(s)", len(processingErrors))
 	}
 
 	// Update last checked timestamp to the newest email's timestamp
@@ -165,9 +172,9 @@ func (m *MultiUserMonitor) checkUserMessages(ctx context.Context, user *database
 	newCheckpoint := time.Unix(0, newestTimestamp*1000000)
 	if err := m.db.UpdateLastCheckedAt(ctx, user.ID, newCheckpoint); err != nil {
 		log.Printf("Error updating last_checked_at for %s: %v", user.Email, err)
-	} else {
-		log.Printf("Updated checkpoint for %s to %v", user.Email, newCheckpoint.Format(time.RFC3339))
+		return fmt.Errorf("failed to update checkpoint: %w", err)
 	}
 
+	log.Printf("Updated checkpoint for %s to %v", user.Email, newCheckpoint.Format(time.RFC3339))
 	return nil
 }
