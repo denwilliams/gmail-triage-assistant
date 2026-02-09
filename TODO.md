@@ -12,11 +12,16 @@ Update the README.md after each phase is completed to reflect the current state 
 - [x] Add .gitignore for Go projects
 
 ## Phase 2: Gmail OAuth & API Integration ✅
-- [x] Implement Google OAuth flow
+- [x] Implement Google OAuth flow (redesigned for multi-user web application)
 - [x] Create Gmail API client wrapper
-- [x] Implement email fetching (monitor new emails)
+- [x] Implement email fetching (monitor new emails for multiple users)
 - [x] Implement email labeling operations
 - [x] Implement inbox bypass functionality
+- [x] Build web server with OAuth callback endpoints
+- [x] Create users table with refresh token storage
+- [x] Update all database models to support multi-user (user_id foreign keys)
+- [x] Implement multi-user monitor that polls Gmail for all active users
+- [x] Add automatic token refresh when tokens expire
 - [ ] Test Gmail API integration with real mailbox (requires actual Gmail account setup)
 
 ## Phase 3: OpenAI Integration
@@ -36,10 +41,13 @@ Update the README.md after each phase is completed to reflect the current state 
 - [ ] Implement processing queue/worker pattern
 
 ## Phase 5: Web UI - Basic Setup
-- [ ] Set up HTMX web server
-- [ ] Create base HTML templates with Pico CSS (https://picocss.com/ - lightweight, semantic HTML, no build tools)
-- [ ] Implement authentication (Google OAuth for web)
-- [ ] Create dashboard/home page
+- [x] Set up HTMX web server (completed in Phase 2)
+- [x] Create base HTML templates with Pico CSS (https://picocss.com/ - lightweight, semantic HTML, no build tools)
+- [x] Implement authentication (Google OAuth for web)
+- [x] Create dashboard/home page
+- [ ] Add email processing history view
+- [ ] Build label configuration interface
+- [ ] Create system prompt configuration pages
 
 ## Phase 6: Web UI - Configuration
 - [ ] Build system prompt configuration page (using Pico CSS forms)
