@@ -24,6 +24,7 @@ AI-powered email management system that automatically categorizes, labels, and p
 
    # Run migrations
    psql -d gmail_triage -f migrations/001_initial_schema.sql
+   psql -d gmail_triage -f migrations/002_add_users.sql
    ```
 
 3. **Configure environment**
@@ -32,23 +33,16 @@ AI-powered email management system that automatically categorizes, labels, and p
    # Edit .env with your Google OAuth credentials, OpenAI API key, and DATABASE_URL
    ```
 
-4. **Authenticate with Gmail**
+4. **Run the application**
    ```bash
-   make auth
-   # Follow the prompts to authorize the application
-   ```
-
-5. **Build and run**
-   ```bash
-   make build
    make run
+   # Visit http://localhost:8080 and click "Sign in with Google"
    ```
 
 ## Development Commands
 
 ```bash
 make help              # Show all available commands
-make auth              # Run OAuth authentication with Gmail
 make build             # Build the application
 make run               # Run the application
 make test              # Run tests
@@ -64,25 +58,31 @@ To use this application, you need to set up a Google Cloud Project and enable th
 
 1. Go to [Google Cloud Console](https://console.cloud.google.com/)
 2. Create a new project or select an existing one
-3. Enable the Gmail API
-4. Create OAuth 2.0 credentials (Desktop application)
-5. Download the credentials and use the Client ID and Client Secret in your `.env` file
+3. Enable the **Gmail API**
+4. Go to **Credentials** → **Create Credentials** → **OAuth 2.0 Client ID**
+5. Choose **Web application**
+6. Add authorized redirect URI: `http://localhost:8080/auth/callback`
+7. Download the credentials and use the Client ID and Client Secret in your `.env` file
+
+## How It Works
+
+1. Users visit the web interface and sign in with Google
+2. OAuth tokens are stored securely in the database per user
+3. The application monitors Gmail for all authenticated users
+4. Each user's emails are processed independently with their own AI configuration
+5. Users can configure prompts, labels, and processing rules via the web UI
 
 ## Project Structure
 
 ```
-├── cmd/
-│   ├── server/         # Application entry point
-│   └── auth/           # OAuth authentication setup
+├── cmd/server/         # Application entry point
 ├── internal/
 │   ├── config/         # Configuration management
-│   ├── database/       # Database models and queries
-│   ├── gmail/          # Gmail API integration
-│   ├── openai/         # OpenAI API integration
-│   └── pipeline/       # Email processing pipeline
-├── web/
-│   ├── templates/      # HTMX templates
-│   └── static/         # Static assets
+│   ├── database/       # Database models and queries (multi-user)
+│   ├── gmail/          # Gmail API integration (multi-user monitor)
+│   ├── web/            # Web server with OAuth and Pico CSS UI
+│   ├── openai/         # OpenAI API integration (TODO)
+│   └── pipeline/       # Email processing pipeline (TODO)
 └── migrations/         # Database migrations (PostgreSQL)
 ```
 
