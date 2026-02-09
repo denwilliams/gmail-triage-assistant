@@ -37,12 +37,12 @@ Update the README.md after each phase is completed to reflect the current state 
 
 ## Phase 5: Web UI - Basic Setup
 - [ ] Set up HTMX web server
-- [ ] Create base HTML templates
+- [ ] Create base HTML templates with Pico CSS (https://picocss.com/ - lightweight, semantic HTML, no build tools)
 - [ ] Implement authentication (Google OAuth for web)
 - [ ] Create dashboard/home page
 
 ## Phase 6: Web UI - Configuration
-- [ ] Build system prompt configuration page
+- [ ] Build system prompt configuration page (using Pico CSS forms)
 - [ ] Create label management interface (add/edit/delete)
 - [ ] Implement label reason configuration
 - [ ] Add configuration persistence to database

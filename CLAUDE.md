@@ -10,6 +10,7 @@ Gmail Triage Assistant - An AI-powered email management system that automaticall
 
 - **Language**: Go (for small memory footprint)
 - **Web UI**: HTMX (to avoid complex frontend builds)
+- **CSS Framework**: Pico CSS (lightweight, classless/semantic HTML styling, no build tools required)
 - **Authentication**: OAuth with Google (requires client ID and secret)
 - **AI Provider**: OpenAI nano models (v5 is latest, for cost saving)
 - **Database**: PostgreSQL - stores email analysis results, slugs, keywords, and memories with native JSONB support
