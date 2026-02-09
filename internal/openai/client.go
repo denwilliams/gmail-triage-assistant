@@ -143,3 +143,26 @@ What actions should be taken for this email?`, slug, keywords, summary)
 
 	return &actions, nil
 }
+
+// GenerateMemory creates a memory summary from email analysis
+func (c *Client) GenerateMemory(ctx context.Context, systemPrompt, userPrompt string) (string, error) {
+	response, err := c.client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
+		Model: shared.ChatModel(c.model),
+		Messages: []openai.ChatCompletionMessageParamUnion{
+			openai.SystemMessage(systemPrompt),
+			openai.UserMessage(userPrompt),
+		},
+		// Temperature: openai.Float(0.5),
+		MaxTokens: openai.Int(2000),
+	})
+
+	if err != nil {
+		return "", fmt.Errorf("openai api error: %w", err)
+	}
+
+	if len(response.Choices) == 0 {
+		return "", fmt.Errorf("no response from openai")
+	}
+
+	return response.Choices[0].Message.Content, nil
+}

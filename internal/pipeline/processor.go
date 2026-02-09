@@ -55,6 +55,23 @@ func (p *Processor) ProcessEmail(ctx context.Context, user *database.User, messa
 		actionsPrompt = prompt.Content
 	}
 
+	// Get recent memories to provide context (1 yearly, 1 monthly, 1 weekly, up to 7 daily)
+	allMemories, err := p.db.GetRecentMemoriesForContext(ctx, user.ID)
+	if err == nil && len(allMemories) > 0 {
+		memoryContext := "\n\nInsights from past email processing:\n"
+		for _, mem := range allMemories {
+			memoryContext += fmt.Sprintf("- [%s] %s\n", mem.Type, mem.Content)
+		}
+
+		// Append memory context to prompts
+		if analyzePrompt != "" {
+			analyzePrompt += memoryContext
+		}
+		if actionsPrompt != "" {
+			actionsPrompt += memoryContext
+		}
+	}
+
 	// Stage 1: Get past slugs from this sender for reuse
 	pastSlugs, err := p.db.GetPastSlugsFromSender(ctx, user.ID, message.From, 5)
 	if err != nil {

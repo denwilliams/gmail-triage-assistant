@@ -11,6 +11,7 @@ import (
 	"github.com/den/gmail-triage-assistant/internal/config"
 	"github.com/den/gmail-triage-assistant/internal/database"
 	"github.com/den/gmail-triage-assistant/internal/gmail"
+	"github.com/den/gmail-triage-assistant/internal/memory"
 	"github.com/den/gmail-triage-assistant/internal/openai"
 	"github.com/den/gmail-triage-assistant/internal/pipeline"
 	"github.com/den/gmail-triage-assistant/internal/web"
@@ -62,6 +63,10 @@ func main() {
 	openaiClient := openai.NewClient(cfg.OpenAIAPIKey, cfg.OpenAIModel, cfg.OpenAIBaseURL)
 	log.Printf("✓ OpenAI client initialized (model: %s)", cfg.OpenAIModel)
 
+	// Initialize memory service
+	memoryService := memory.NewService(db, openaiClient)
+	log.Printf("✓ Memory service initialized")
+
 	// Initialize email processor pipeline
 	processor := pipeline.NewProcessor(db, openaiClient, oauthConfig)
 	log.Printf("✓ Email processing pipeline initialized")
@@ -76,7 +81,7 @@ func main() {
 	monitor := gmail.NewMultiUserMonitor(db, oauthConfig, checkInterval, messageHandler)
 
 	// Initialize web server
-	server := web.NewServer(db, cfg)
+	server := web.NewServer(db, cfg, memoryService)
 
 	log.Printf("✓ Multi-user Gmail monitor initialized (checking every %v)", checkInterval)
 	log.Printf("✓ Web server ready on: http://%s:%s", cfg.ServerHost, cfg.ServerPort)

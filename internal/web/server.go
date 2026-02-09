@@ -9,6 +9,7 @@ import (
 
 	"github.com/den/gmail-triage-assistant/internal/config"
 	"github.com/den/gmail-triage-assistant/internal/database"
+	"github.com/den/gmail-triage-assistant/internal/memory"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/sessions"
 	"golang.org/x/oauth2"
@@ -19,15 +20,16 @@ import (
 )
 
 type Server struct {
-	router       *mux.Router
-	db           *database.DB
-	config       *config.Config
-	sessionStore *sessions.CookieStore
-	oauthConfig  *oauth2.Config
-	templates    *template.Template
+	router        *mux.Router
+	db            *database.DB
+	config        *config.Config
+	sessionStore  *sessions.CookieStore
+	oauthConfig   *oauth2.Config
+	templates     *template.Template
+	memoryService *memory.Service
 }
 
-func NewServer(db *database.DB, cfg *config.Config) *Server {
+func NewServer(db *database.DB, cfg *config.Config, memoryService *memory.Service) *Server {
 	// Generate a random session key in production
 	// For now, use a static key (replace in production!)
 	store := sessions.NewCookieStore([]byte("replace-with-32-byte-random-key-in-production"))
@@ -54,12 +56,13 @@ func NewServer(db *database.DB, cfg *config.Config) *Server {
 	tmpl := template.Must(template.ParseGlob("web/templates/*.html"))
 
 	s := &Server{
-		router:       mux.NewRouter(),
-		db:           db,
-		config:       cfg,
-		sessionStore: store,
-		oauthConfig:  oauthConfig,
-		templates:    tmpl,
+		router:        mux.NewRouter(),
+		db:            db,
+		config:        cfg,
+		sessionStore:  store,
+		oauthConfig:   oauthConfig,
+		templates:     tmpl,
+		memoryService: memoryService,
 	}
 
 	s.routes()
@@ -88,6 +91,10 @@ func (s *Server) routes() {
 	s.router.HandleFunc("/prompts", s.requireAuth(s.handlePrompts)).Methods("GET")
 	s.router.HandleFunc("/prompts/update", s.requireAuth(s.handleUpdatePrompt)).Methods("POST")
 	s.router.HandleFunc("/prompts/defaults", s.requireAuth(s.handleInitDefaults)).Methods("GET")
+
+	// Memories (requires auth)
+	s.router.HandleFunc("/memories", s.requireAuth(s.handleMemories)).Methods("GET")
+	s.router.HandleFunc("/memories/generate", s.requireAuth(s.handleGenerateMemory)).Methods("POST")
 }
 
 func (s *Server) handleHome(w http.ResponseWriter, r *http.Request) {
@@ -395,6 +402,47 @@ func (s *Server) handleInitDefaults(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.Redirect(w, r, "/prompts", http.StatusSeeOther)
+}
+
+func (s *Server) handleMemories(w http.ResponseWriter, r *http.Request) {
+	session, _ := s.sessionStore.Get(r, "session")
+	userEmail := session.Values["user_email"].(string)
+	userID := session.Values["user_id"].(int64)
+
+	ctx := context.Background()
+	memories, err := s.db.GetAllMemories(ctx, userID, 100)
+	if err != nil {
+		log.Printf("Failed to load memories: %v", err)
+		http.Error(w, "Failed to load memories", http.StatusInternalServerError)
+		return
+	}
+
+	data := map[string]interface{}{
+		"Title":        "Memories",
+		"ShowNav":      true,
+		"UserEmail":    userEmail,
+		"Memories":     memories,
+		"TemplateName": "memories",
+	}
+
+	if err := s.templates.ExecuteTemplate(w, "memories", data); err != nil {
+		log.Printf("Template error: %v", err)
+		http.Error(w, "Error rendering template", http.StatusInternalServerError)
+	}
+}
+
+func (s *Server) handleGenerateMemory(w http.ResponseWriter, r *http.Request) {
+	session, _ := s.sessionStore.Get(r, "session")
+	userID := session.Values["user_id"].(int64)
+
+	ctx := context.Background()
+	if err := s.memoryService.GenerateDailyMemory(ctx, userID); err != nil {
+		log.Printf("Failed to generate memory: %v", err)
+		http.Error(w, "Failed to generate memory", http.StatusInternalServerError)
+		return
+	}
+
+	http.Redirect(w, r, "/memories", http.StatusSeeOther)
 }
 
 func (s *Server) Start() error {
