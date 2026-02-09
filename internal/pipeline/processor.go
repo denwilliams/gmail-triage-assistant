@@ -45,6 +45,16 @@ func (p *Processor) ProcessEmail(ctx context.Context, user *database.User, messa
 		body = body[:2000] + "..."
 	}
 
+	// Get custom system prompts
+	analyzePrompt := ""
+	actionsPrompt := ""
+	if prompt, err := p.db.GetSystemPrompt(ctx, user.ID, database.PromptTypeEmailAnalyze); err == nil {
+		analyzePrompt = prompt.Content
+	}
+	if prompt, err := p.db.GetSystemPrompt(ctx, user.ID, database.PromptTypeEmailActions); err == nil {
+		actionsPrompt = prompt.Content
+	}
+
 	// Stage 1: Get past slugs from this sender for reuse
 	pastSlugs, err := p.db.GetPastSlugsFromSender(ctx, user.ID, message.From, 5)
 	if err != nil {
@@ -53,7 +63,7 @@ func (p *Processor) ProcessEmail(ctx context.Context, user *database.User, messa
 	}
 
 	// Stage 1: Analyze email content
-	analysis, err := p.openai.AnalyzeEmail(ctx, message.From, message.Subject, body, pastSlugs)
+	analysis, err := p.openai.AnalyzeEmail(ctx, message.From, message.Subject, body, pastSlugs, analyzePrompt)
 	if err != nil {
 		return fmt.Errorf("stage 1 failed: %w", err)
 	}
@@ -68,7 +78,7 @@ func (p *Processor) ProcessEmail(ctx context.Context, user *database.User, messa
 	}
 
 	// Stage 2: Determine actions
-	actions, err := p.openai.DetermineActions(ctx, analysis.Slug, analysis.Keywords, analysis.Summary, availableLabels)
+	actions, err := p.openai.DetermineActions(ctx, analysis.Slug, analysis.Keywords, analysis.Summary, availableLabels, actionsPrompt)
 	if err != nil {
 		return fmt.Errorf("stage 2 failed: %w", err)
 	}

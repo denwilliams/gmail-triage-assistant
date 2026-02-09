@@ -83,6 +83,11 @@ func (s *Server) routes() {
 
 	// Email history (requires auth)
 	s.router.HandleFunc("/history", s.requireAuth(s.handleHistory)).Methods("GET")
+
+	// System prompts (requires auth)
+	s.router.HandleFunc("/prompts", s.requireAuth(s.handlePrompts)).Methods("GET")
+	s.router.HandleFunc("/prompts/update", s.requireAuth(s.handleUpdatePrompt)).Methods("POST")
+	s.router.HandleFunc("/prompts/defaults", s.requireAuth(s.handleInitDefaults)).Methods("GET")
 }
 
 func (s *Server) handleHome(w http.ResponseWriter, r *http.Request) {
@@ -95,11 +100,12 @@ func (s *Server) handleHome(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := map[string]interface{}{
-		"Title":   "Home",
-		"ShowNav": false,
+		"Title":        "Home",
+		"ShowNav":      false,
+		"TemplateName": "home",
 	}
 
-	if err := s.templates.ExecuteTemplate(w, "base.html", data); err != nil {
+	if err := s.templates.ExecuteTemplate(w, "home", data); err != nil {
 		log.Printf("Template error: %v", err)
 		http.Error(w, "Error rendering template", http.StatusInternalServerError)
 	}
@@ -192,12 +198,13 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	userEmail := session.Values["user_email"].(string)
 
 	data := map[string]interface{}{
-		"Title":     "Dashboard",
-		"ShowNav":   true,
-		"UserEmail": userEmail,
+		"Title":        "Dashboard",
+		"ShowNav":      true,
+		"UserEmail":    userEmail,
+		"TemplateName": "dashboard",
 	}
 
-	if err := s.templates.ExecuteTemplate(w, "base.html", data); err != nil {
+	if err := s.templates.ExecuteTemplate(w, "dashboard", data); err != nil {
 		log.Printf("Template error: %v", err)
 		http.Error(w, "Error rendering template", http.StatusInternalServerError)
 	}
@@ -229,13 +236,14 @@ func (s *Server) handleLabels(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := map[string]interface{}{
-		"Title":     "Labels",
-		"ShowNav":   true,
-		"UserEmail": userEmail,
-		"Labels":    labels,
+		"Title":        "Labels",
+		"ShowNav":      true,
+		"UserEmail":    userEmail,
+		"Labels":       labels,
+		"TemplateName": "labels",
 	}
 
-	if err := s.templates.ExecuteTemplate(w, "base.html", data); err != nil {
+	if err := s.templates.ExecuteTemplate(w, "labels", data); err != nil {
 		log.Printf("Template error: %v", err)
 		http.Error(w, "Error rendering template", http.StatusInternalServerError)
 	}
@@ -306,16 +314,87 @@ func (s *Server) handleHistory(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := map[string]interface{}{
-		"Title":     "Email History",
-		"ShowNav":   true,
-		"UserEmail": userEmail,
-		"Emails":    emails,
+		"Title":        "Email History",
+		"ShowNav":      true,
+		"UserEmail":    userEmail,
+		"Emails":       emails,
+		"TemplateName": "history",
 	}
 
-	if err := s.templates.ExecuteTemplate(w, "base.html", data); err != nil {
+	if err := s.templates.ExecuteTemplate(w, "history", data); err != nil {
 		log.Printf("Template error: %v", err)
 		http.Error(w, "Error rendering template", http.StatusInternalServerError)
 	}
+}
+
+func (s *Server) handlePrompts(w http.ResponseWriter, r *http.Request) {
+	session, _ := s.sessionStore.Get(r, "session")
+	userEmail := session.Values["user_email"].(string)
+	userID := session.Values["user_id"].(int64)
+
+	ctx := context.Background()
+	prompts, err := s.db.GetAllSystemPrompts(ctx, userID)
+	if err != nil {
+		log.Printf("Failed to load system prompts: %v", err)
+		http.Error(w, "Failed to load system prompts", http.StatusInternalServerError)
+		return
+	}
+
+	data := map[string]interface{}{
+		"Title":        "System Prompts",
+		"ShowNav":      true,
+		"UserEmail":    userEmail,
+		"Prompts":      prompts,
+		"TemplateName": "prompts",
+	}
+
+	if err := s.templates.ExecuteTemplate(w, "prompts", data); err != nil {
+		log.Printf("Template error: %v", err)
+		http.Error(w, "Error rendering template", http.StatusInternalServerError)
+	}
+}
+
+func (s *Server) handleUpdatePrompt(w http.ResponseWriter, r *http.Request) {
+	session, _ := s.sessionStore.Get(r, "session")
+	userID := session.Values["user_id"].(int64)
+
+	if err := r.ParseForm(); err != nil {
+		log.Printf("Failed to parse form: %v", err)
+		http.Error(w, "Invalid form", http.StatusBadRequest)
+		return
+	}
+
+	promptType := r.FormValue("type")
+	content := r.FormValue("content")
+
+	ctx := context.Background()
+	prompt := &database.SystemPrompt{
+		UserID:  userID,
+		Type:    database.PromptType(promptType),
+		Content: content,
+	}
+
+	if err := s.db.UpsertSystemPrompt(ctx, prompt); err != nil {
+		log.Printf("Failed to update system prompt: %v", err)
+		http.Error(w, "Failed to update system prompt", http.StatusInternalServerError)
+		return
+	}
+
+	http.Redirect(w, r, "/prompts", http.StatusSeeOther)
+}
+
+func (s *Server) handleInitDefaults(w http.ResponseWriter, r *http.Request) {
+	session, _ := s.sessionStore.Get(r, "session")
+	userID := session.Values["user_id"].(int64)
+
+	ctx := context.Background()
+	if err := s.db.InitializeDefaultPrompts(ctx, userID); err != nil {
+		log.Printf("Failed to initialize default prompts: %v", err)
+		http.Error(w, "Failed to initialize default prompts", http.StatusInternalServerError)
+		return
+	}
+
+	http.Redirect(w, r, "/prompts", http.StatusSeeOther)
 }
 
 func (s *Server) Start() error {

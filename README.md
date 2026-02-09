@@ -1,6 +1,18 @@
 # Gmail Triage Assistant
 
-AI-powered email management system that automatically categorizes, labels, and processes Gmail messages using a multi-stage AI pipeline.
+AI-powered email management system that automatically categorizes, labels, and processes Gmail messages using a two-stage AI pipeline with OpenAI.
+
+## ✨ Features
+
+- 🤖 **Two-Stage AI Processing**: Emails are analyzed for content, then actions are determined
+- 🏷️ **Smart Labeling**: Automatically applies Gmail labels based on email content
+- 📧 **Inbox Management**: Can bypass inbox (archive) emails that don't need immediate attention
+- 👥 **Multi-User Support**: Each user has independent processing with their own configuration
+- ⚙️ **Customizable AI Prompts**: Configure how the AI analyzes and processes emails
+- 📊 **Processing History**: Review AI decisions and see why labels were applied
+- 🎨 **Clean Web UI**: Built with Pico CSS for a lightweight, semantic interface
+- 🔄 **Automatic Monitoring**: Polls Gmail every minute for new emails
+- 🔐 **Secure OAuth**: Uses Google OAuth 2.0 for authentication
 
 ## Quick Start
 
@@ -25,6 +37,10 @@ AI-powered email management system that automatically categorizes, labels, and p
    # Run migrations
    psql -d gmail_triage -f migrations/001_initial_schema.sql
    psql -d gmail_triage -f migrations/002_add_users.sql
+   psql -d gmail_triage -f migrations/003_add_last_checked_at.sql
+
+   # Add unique constraint for system prompts
+   psql -d gmail_triage -c "CREATE UNIQUE INDEX IF NOT EXISTS idx_system_prompts_user_type ON system_prompts(user_id, type);"
    ```
 
 3. **Configure environment**
@@ -66,11 +82,28 @@ To use this application, you need to set up a Google Cloud Project and enable th
 
 ## How It Works
 
-1. Users visit the web interface and sign in with Google
-2. OAuth tokens are stored securely in the database per user
-3. The application monitors Gmail for all authenticated users
-4. Each user's emails are processed independently with their own AI configuration
-5. Users can configure prompts, labels, and processing rules via the web UI
+### Two-Stage AI Pipeline
+
+1. **Stage 1: Content Analysis**
+   - Extracts sender, subject, and body from email
+   - Generates a slug (category) for consistent classification
+   - Identifies 3-5 keywords describing the content
+   - Creates a one-sentence summary
+
+2. **Stage 2: Action Determination**
+   - Reviews available labels configured by the user
+   - Decides which labels to apply based on content
+   - Determines if email should bypass inbox (archive)
+   - Provides reasoning for decisions
+
+### User Workflow
+
+1. Sign in with Google OAuth at http://localhost:8080
+2. Configure labels at [/labels](http://localhost:8080/labels) (e.g., "Work", "Newsletter", "Urgent")
+3. Optionally customize AI prompts at [/prompts](http://localhost:8080/prompts)
+4. The system automatically monitors your Gmail and processes new emails
+5. Review AI decisions at [/history](http://localhost:8080/history)
+6. Check Gmail to see labels applied and emails archived
 
 ## Project Structure
 
@@ -80,10 +113,33 @@ To use this application, you need to set up a Google Cloud Project and enable th
 │   ├── config/         # Configuration management
 │   ├── database/       # Database models and queries (multi-user)
 │   ├── gmail/          # Gmail API integration (multi-user monitor)
-│   ├── web/            # Web server with OAuth and Pico CSS UI
-│   ├── openai/         # OpenAI API integration (TODO)
-│   └── pipeline/       # Email processing pipeline (TODO)
+│   ├── openai/         # OpenAI API integration (two-stage pipeline)
+│   ├── pipeline/       # Email processing pipeline orchestration
+│   └── web/            # Web server with OAuth and Pico CSS UI
+├── web/templates/      # HTML templates (home, dashboard, labels, prompts, history)
 └── migrations/         # Database migrations (PostgreSQL)
+```
+
+## Environment Variables
+
+Create a `.env` file in the project root with the following variables:
+
+```bash
+# Database
+DATABASE_URL=postgres://user:password@localhost:5432/gmail_triage?sslmode=disable
+
+# Google OAuth (Web Application)
+GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=your-client-secret
+GOOGLE_REDIRECT_URL=http://localhost:8080/auth/callback
+
+# OpenAI
+OPENAI_API_KEY=sk-your-openai-api-key
+OPENAI_MODEL=gpt-4.1-nano  # or gpt-4-turbo, gpt-3.5-turbo
+
+# Server
+SERVER_HOST=localhost
+SERVER_PORT=8080
 ```
 
 ## Architecture

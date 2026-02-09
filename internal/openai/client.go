@@ -39,14 +39,18 @@ type EmailActions struct {
 }
 
 // AnalyzeEmail runs Stage 1: Content analysis
-func (c *Client) AnalyzeEmail(ctx context.Context, from, subject, body string, pastSlugs []string) (*EmailAnalysis, error) {
-	systemPrompt := `You are an email classification assistant. Analyze the email and provide:
+func (c *Client) AnalyzeEmail(ctx context.Context, from, subject, body string, pastSlugs []string, customSystemPrompt string) (*EmailAnalysis, error) {
+	systemPrompt := customSystemPrompt
+	if systemPrompt == "" {
+		// Default prompt if none provided
+		systemPrompt = `You are an email classification assistant. Analyze the email and provide:
 1. A snake_case_slug that categorizes this type of email (e.g., "marketing_newsletter", "invoice_due", "meeting_request")
 2. An array of 3-5 keywords that describe the email content
 3. A single line summary (max 100 chars)
 
 Respond ONLY with valid JSON in this format:
 {"slug": "example_slug", "keywords": ["word1", "word2", "word3"], "summary": "Brief summary here"}`
+	}
 
 	userPrompt := fmt.Sprintf(`From: %s
 Subject: %s
@@ -87,8 +91,11 @@ Analyze this email and provide the slug, keywords, and summary.`, from, subject,
 }
 
 // DetermineActions runs Stage 2: Action generation
-func (c *Client) DetermineActions(ctx context.Context, slug string, keywords []string, summary string, availableLabels []string) (*EmailActions, error) {
-	systemPrompt := `You are an email automation assistant. Based on the email analysis, determine what actions to take.
+func (c *Client) DetermineActions(ctx context.Context, slug string, keywords []string, summary string, availableLabels []string, customSystemPrompt string) (*EmailActions, error) {
+	systemPrompt := customSystemPrompt
+	if systemPrompt == "" {
+		// Default prompt if none provided
+		systemPrompt = `You are an email automation assistant. Based on the email analysis, determine what actions to take.
 
 Available labels: %v
 
@@ -99,6 +106,7 @@ Decide:
 
 Respond ONLY with valid JSON in this format:
 {"labels": ["label1", "label2"], "bypass_inbox": false, "reasoning": "Brief explanation"}`
+	}
 
 	systemPrompt = fmt.Sprintf(systemPrompt, availableLabels)
 

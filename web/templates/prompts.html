@@ -1,0 +1,42 @@
+{{define "prompts"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>System Prompts - Gmail Triage Assistant</title>
+	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+</head>
+<body>
+	{{template "nav" .}}
+	<main class="container">
+		<article>
+			<h2>System Prompt Configuration</h2>
+			<p>Customize the AI prompts that control email processing behavior.</p>
+		</article>
+
+		{{range .Prompts}}
+		<article>
+			<h3>{{.Type}}</h3>
+			<form method="POST" action="/prompts/update">
+				<input type="hidden" name="type" value="{{.Type}}">
+				<label>
+					System Prompt
+					<textarea name="content" rows="8" required>{{.Content}}</textarea>
+					<small>This prompt guides the AI for {{.Type}} operations.</small>
+				</label>
+				<button type="submit">Update Prompt</button>
+			</form>
+		</article>
+		{{end}}
+
+		{{if not .Prompts}}
+		<article>
+			<p><em>No prompts configured. Default prompts are being used.</em></p>
+			<a href="/prompts/defaults" role="button">Initialize Default Prompts</a>
+		</article>
+		{{end}}
+	</main>
+</body>
+</html>
+{{end}}

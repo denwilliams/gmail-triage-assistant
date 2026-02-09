@@ -31,32 +31,31 @@ Update the README.md after each phase is completed to reflect the current state 
 - [x] Create email processing pipeline that orchestrates both stages
 - [x] Test AI pipeline with real emails
 - [x] Fixed checkpoint update to only happen when all messages process successfully
-- [ ] Implement Gmail label ID mapping for applying labels (currently just logs)
+- [x] Implement Gmail label ID mapping for applying labels
 
-## Phase 4: Email Processing Pipeline
-- [ ] Build email monitoring service (watch for new emails)
-- [ ] Implement two-stage AI processing workflow
-- [ ] Add slug reuse logic (query past slugs from sender)
-- [ ] Store analysis results in database
-- [ ] Apply labels and actions to Gmail
-- [ ] Add error handling and retry logic
-- [ ] Implement processing queue/worker pattern
+## Phase 4: Email Processing Pipeline ✅
+- [x] Build email monitoring service (watch for new emails)
+- [x] Implement two-stage AI processing workflow
+- [x] Add slug reuse logic (query past slugs from sender)
+- [x] Store analysis results in database
+- [x] Apply labels and actions to Gmail
+- [x] Add error handling and retry logic
 
-## Phase 5: Web UI - Basic Setup
-- [x] Set up HTMX web server (completed in Phase 2)
+## Phase 5: Web UI - Basic Setup ✅
+- [x] Set up web server (completed in Phase 2)
+- [x] Refactor to use html/template instead of sprintf
 - [x] Create base HTML templates with Pico CSS (https://picocss.com/ - lightweight, semantic HTML, no build tools)
 - [x] Implement authentication (Google OAuth for web)
 - [x] Create dashboard/home page
-- [ ] Add email processing history view
-- [ ] Build label configuration interface
-- [ ] Create system prompt configuration pages
+- [x] Add email processing history view
+- [x] Build label configuration interface
 
-## Phase 6: Web UI - Configuration
-- [ ] Build system prompt configuration page (using Pico CSS forms)
-- [ ] Create label management interface (add/edit/delete)
-- [ ] Implement label reason configuration
-- [ ] Add configuration persistence to database
-- [ ] Test configuration changes affect AI processing
+## Phase 6: Web UI - Configuration ✅
+- [x] Build system prompt configuration page (using Pico CSS forms)
+- [x] Integrated custom prompts into AI processing pipeline
+- [x] Fixed template naming collisions and database constraints
+- [ ] Implement label reason configuration (add reasons to existing labels)
+- [ ] Add edit functionality for labels (currently only create/delete)
 
 ## Phase 7: Self-Improvement System
 - [ ] Implement wrap-up report generator (8AM & 5PM)
@@ -69,9 +68,9 @@ Update the README.md after each phase is completed to reflect the current state 
 - [ ] Integrate memories into AI prompts
 
 ## Phase 8: Monitoring & Debugging
-- [ ] Add logging throughout application
-- [ ] Create email processing history view in UI
-- [ ] Build decision review page (see what AI decided)
+- [x] Add logging throughout application
+- [x] Create email processing history view in UI
+- [x] Build decision review page (see what AI decided)
 - [ ] Add metrics/statistics dashboard
 - [ ] Implement health check endpoint
 

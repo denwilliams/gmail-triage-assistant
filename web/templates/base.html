@@ -1,24 +1,13 @@
-<!DOCTYPE html>
-<html>
-<head>
-	<title>{{.Title}} - Gmail Triage Assistant</title>
-	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
-</head>
-<body>
-	<main class="container">
-		{{if .ShowNav}}
-		<nav>
-			<ul><li><strong>Gmail Triage</strong></li></ul>
-			<ul>
-				<li><a href="/dashboard">Dashboard</a></li>
-				<li><a href="/labels">Labels</a></li>
-				<li><a href="/history">History</a></li>
-				<li>{{.UserEmail}}</li>
-				<li><a href="/auth/logout">Logout</a></li>
-			</ul>
-		</nav>
-		{{end}}
-		{{template "content" .}}
-	</main>
-</body>
-</html>
+{{define "nav"}}
+<nav>
+	<ul><li><strong>Gmail Triage</strong></li></ul>
+	<ul>
+		<li><a href="/dashboard">Dashboard</a></li>
+		<li><a href="/labels">Labels</a></li>
+		<li><a href="/prompts">Prompts</a></li>
+		<li><a href="/history">History</a></li>
+		<li>{{.UserEmail}}</li>
+		<li><a href="/auth/logout">Logout</a></li>
+	</ul>
+</nav>
+{{end}}
