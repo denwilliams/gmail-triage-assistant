@@ -3,6 +3,7 @@ package gmail
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"golang.org/x/oauth2"
 	"google.golang.org/api/gmail/v1"
@@ -61,6 +62,45 @@ func (c *Client) GetUnreadMessages(ctx context.Context, maxResults int64) ([]*Me
 	}
 
 	return messages, nil
+}
+
+// GetMessagesSince fetches messages received after a specific timestamp
+func (c *Client) GetMessagesSince(ctx context.Context, since int64, maxResults int64) ([]*Message, error) {
+	// Gmail query format: after:YYYY/MM/DD
+	// But we'll use "newer_than" with a relative timestamp
+	query := fmt.Sprintf("in:inbox newer_than:%dd", daysAgo(since))
+
+	req := c.service.Users.Messages.List(c.userID).Q(query).MaxResults(maxResults)
+	res, err := req.Do()
+	if err != nil {
+		return nil, fmt.Errorf("failed to list messages: %w", err)
+	}
+
+	messages := make([]*Message, 0, len(res.Messages))
+	for _, m := range res.Messages {
+		msg, err := c.GetMessage(ctx, m.Id)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get message %s: %w", m.Id, err)
+		}
+
+		// Filter by exact timestamp (Gmail query is approximate)
+		if msg.InternalDate >= since {
+			messages = append(messages, msg)
+		}
+	}
+
+	return messages, nil
+}
+
+// daysAgo calculates how many days ago a timestamp was (for Gmail query)
+func daysAgo(timestamp int64) int {
+	now := time.Now().Unix()
+	secondsAgo := now - (timestamp / 1000) // InternalDate is in milliseconds
+	daysAgo := int(secondsAgo / 86400)
+	if daysAgo < 1 {
+		return 1
+	}
+	return daysAgo
 }
 
 // GetMessage fetches a single message by ID

@@ -48,14 +48,15 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("DATABASE_URL is required")
 	}
 	if cfg.GoogleClientID == "" {
-		return nil, fmt.Errorf("GOOGLE_CLIENT_ID is required")
+		return nil, fmt.Errorf("GOOGLE_CLIENT_ID is required - see README for Google Cloud setup instructions")
 	}
 	if cfg.GoogleClientSecret == "" {
-		return nil, fmt.Errorf("GOOGLE_CLIENT_SECRET is required")
+		return nil, fmt.Errorf("GOOGLE_CLIENT_SECRET is required - see README for Google Cloud setup instructions")
 	}
-	if cfg.OpenAIAPIKey == "" {
-		return nil, fmt.Errorf("OPENAI_API_KEY is required")
-	}
+	// OpenAI is not required yet (Phase 3)
+	// if cfg.OpenAIAPIKey == "" {
+	//     return nil, fmt.Errorf("OPENAI_API_KEY is required")
+	// }
 
 	return cfg, nil
 }

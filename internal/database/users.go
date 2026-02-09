@@ -52,7 +52,7 @@ func (db *DB) GetUserByEmail(ctx context.Context, email string) (*User, error) {
 	user := &User{}
 
 	query := `
-		SELECT id, email, google_id, access_token, refresh_token, token_expiry, is_active, created_at, updated_at
+		SELECT id, email, google_id, access_token, refresh_token, token_expiry, is_active, last_checked_at, created_at, updated_at
 		FROM users
 		WHERE email = $1
 	`
@@ -65,6 +65,7 @@ func (db *DB) GetUserByEmail(ctx context.Context, email string) (*User, error) {
 		&user.RefreshToken,
 		&user.TokenExpiry,
 		&user.IsActive,
+		&user.LastCheckedAt,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -81,7 +82,7 @@ func (db *DB) GetUserByGoogleID(ctx context.Context, googleID string) (*User, er
 	user := &User{}
 
 	query := `
-		SELECT id, email, google_id, access_token, refresh_token, token_expiry, is_active, created_at, updated_at
+		SELECT id, email, google_id, access_token, refresh_token, token_expiry, is_active, last_checked_at, created_at, updated_at
 		FROM users
 		WHERE google_id = $1
 	`
@@ -94,6 +95,7 @@ func (db *DB) GetUserByGoogleID(ctx context.Context, googleID string) (*User, er
 		&user.RefreshToken,
 		&user.TokenExpiry,
 		&user.IsActive,
+		&user.LastCheckedAt,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -133,7 +135,7 @@ func (db *DB) UpdateUserToken(ctx context.Context, userID int64, token *oauth2.T
 // GetAllActiveUsers retrieves all users with monitoring enabled
 func (db *DB) GetAllActiveUsers(ctx context.Context) ([]*User, error) {
 	query := `
-		SELECT id, email, google_id, access_token, refresh_token, token_expiry, is_active, created_at, updated_at
+		SELECT id, email, google_id, access_token, refresh_token, token_expiry, is_active, last_checked_at, created_at, updated_at
 		FROM users
 		WHERE is_active = true
 		ORDER BY created_at ASC
@@ -156,6 +158,7 @@ func (db *DB) GetAllActiveUsers(ctx context.Context) ([]*User, error) {
 			&user.RefreshToken,
 			&user.TokenExpiry,
 			&user.IsActive,
+			&user.LastCheckedAt,
 			&user.CreatedAt,
 			&user.UpdatedAt,
 		)
@@ -170,6 +173,22 @@ func (db *DB) GetAllActiveUsers(ctx context.Context) ([]*User, error) {
 	}
 
 	return users, nil
+}
+
+// UpdateLastCheckedAt updates the last_checked_at timestamp for a user
+func (db *DB) UpdateLastCheckedAt(ctx context.Context, userID int64, checkedAt time.Time) error {
+	query := `
+		UPDATE users
+		SET last_checked_at = $1, updated_at = $2
+		WHERE id = $3
+	`
+
+	_, err := db.conn.ExecContext(ctx, query, checkedAt, time.Now(), userID)
+	if err != nil {
+		return fmt.Errorf("failed to update last_checked_at: %w", err)
+	}
+
+	return nil
 }
 
 // SetUserActive sets the active status of a user

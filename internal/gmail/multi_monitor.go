@@ -116,18 +116,40 @@ func (m *MultiUserMonitor) checkUserMessages(ctx context.Context, user *database
 		return fmt.Errorf("failed to create Gmail client: %w", err)
 	}
 
-	// Get unread messages
-	messages, err := client.GetUnreadMessages(ctx, 50)
-	if err != nil {
-		return fmt.Errorf("failed to get unread messages: %w", err)
+	// Get messages since last check
+	// Note: last_checked_at always has a value (defaults to signup time in DB)
+	var messages []*Message
+
+	if user.LastCheckedAt == nil {
+		// This should never happen due to DEFAULT in DB, but handle gracefully
+		log.Printf("Warning: no last_checked_at for user %s, using current time", user.Email)
+		now := time.Now()
+		user.LastCheckedAt = &now
 	}
+
+	// Get messages since last check (InternalDate is in milliseconds)
+	sinceMs := user.LastCheckedAt.UnixNano() / 1000000
+	messages, err = client.GetMessagesSince(ctx, sinceMs, 50)
+	if err != nil {
+		return fmt.Errorf("failed to get messages since %v: %w", user.LastCheckedAt, err)
+	}
+	log.Printf("Checking for messages since %v for %s", user.LastCheckedAt.Format(time.RFC3339), user.Email)
 
 	if len(messages) == 0 {
 		log.Printf("No new messages for %s", user.Email)
+		// Don't update timestamp - keep checking from the same point
 		return nil
 	}
 
-	log.Printf("Found %d unread message(s) for %s", len(messages), user.Email)
+	log.Printf("Found %d new message(s) for %s", len(messages), user.Email)
+
+	// Find the newest email's timestamp to use as the new checkpoint
+	var newestTimestamp int64 = 0
+	for _, message := range messages {
+		if message.InternalDate > newestTimestamp {
+			newestTimestamp = message.InternalDate
+		}
+	}
 
 	// Process each message
 	for _, message := range messages {
@@ -136,6 +158,15 @@ func (m *MultiUserMonitor) checkUserMessages(ctx context.Context, user *database
 			// Continue processing other messages even if one fails
 			continue
 		}
+	}
+
+	// Update last checked timestamp to the newest email's timestamp
+	// InternalDate is in milliseconds, convert to time.Time
+	newCheckpoint := time.Unix(0, newestTimestamp*1000000)
+	if err := m.db.UpdateLastCheckedAt(ctx, user.ID, newCheckpoint); err != nil {
+		log.Printf("Error updating last_checked_at for %s: %v", user.Email, err)
+	} else {
+		log.Printf("Updated checkpoint for %s to %v", user.Email, newCheckpoint.Format(time.RFC3339))
 	}
 
 	return nil

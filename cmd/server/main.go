@@ -12,6 +12,7 @@ import (
 	"github.com/den/gmail-triage-assistant/internal/database"
 	"github.com/den/gmail-triage-assistant/internal/gmail"
 	"github.com/den/gmail-triage-assistant/internal/web"
+	"github.com/joho/godotenv"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	gmailapi "google.golang.org/api/gmail/v1"
@@ -19,6 +20,11 @@ import (
 
 func main() {
 	log.Println("Starting Gmail Triage Assistant...")
+
+	// Load .env file if it exists
+	if err := godotenv.Load(); err != nil {
+		log.Println("No .env file found or error loading it, using environment variables")
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

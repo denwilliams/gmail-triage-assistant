@@ -4,15 +4,16 @@ import "time"
 
 // User represents an authenticated user
 type User struct {
-	ID           int64     `db:"id" json:"id"`
-	Email        string    `db:"email" json:"email"`               // User's Gmail address
-	GoogleID     string    `db:"google_id" json:"google_id"`       // Google user ID
-	AccessToken  string    `db:"access_token" json:"-"`            // OAuth access token (not exposed in JSON)
-	RefreshToken string    `db:"refresh_token" json:"-"`           // OAuth refresh token (not exposed in JSON)
-	TokenExpiry  time.Time `db:"token_expiry" json:"token_expiry"` // When access token expires
-	IsActive     bool      `db:"is_active" json:"is_active"`       // Whether monitoring is enabled
-	CreatedAt    time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt    time.Time `db:"updated_at" json:"updated_at"`
+	ID            int64      `db:"id" json:"id"`
+	Email         string     `db:"email" json:"email"`                 // User's Gmail address
+	GoogleID      string     `db:"google_id" json:"google_id"`         // Google user ID
+	AccessToken   string     `db:"access_token" json:"-"`              // OAuth access token (not exposed in JSON)
+	RefreshToken  string     `db:"refresh_token" json:"-"`             // OAuth refresh token (not exposed in JSON)
+	TokenExpiry   time.Time  `db:"token_expiry" json:"token_expiry"`   // When access token expires
+	IsActive      bool       `db:"is_active" json:"is_active"`         // Whether monitoring is enabled
+	LastCheckedAt *time.Time `db:"last_checked_at" json:"last_checked_at"` // Last time Gmail was checked for this user
+	CreatedAt     time.Time  `db:"created_at" json:"created_at"`
+	UpdatedAt     time.Time  `db:"updated_at" json:"updated_at"`
 }
 
 // Email represents the analysis results for a single email
