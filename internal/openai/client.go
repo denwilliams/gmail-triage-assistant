@@ -7,6 +7,7 @@ import (
 
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
+	"github.com/openai/openai-go/packages/param"
 	"github.com/openai/openai-go/shared"
 )
 
@@ -43,7 +44,7 @@ func (c *Client) AnalyzeEmail(ctx context.Context, from, subject, body string, p
 	systemPrompt := customSystemPrompt
 	if systemPrompt == "" {
 		// Default prompt if none provided
-		systemPrompt = `You are an email classification assistant. Analyze the email and provide:
+		systemPrompt = `You are an email classification assistant. Analyze the email and provide a JSON response with:
 1. A snake_case_slug that categorizes this type of email (e.g., "marketing_newsletter", "invoice_due", "meeting_request")
 2. An array of 3-5 keywords that describe the email content
 3. A single line summary (max 100 chars)
@@ -68,6 +69,37 @@ Analyze this email and provide the slug, keywords, and summary.`, from, subject,
 			openai.SystemMessage(systemPrompt),
 			openai.UserMessage(userPrompt),
 		},
+		ResponseFormat: openai.ChatCompletionNewParamsResponseFormatUnion{
+			OfJSONSchema: &shared.ResponseFormatJSONSchemaParam{
+				JSONSchema: shared.ResponseFormatJSONSchemaJSONSchemaParam{
+					Name:        "email_analysis",
+					Description: param.NewOpt("Email content analysis with slug, keywords, and summary"),
+					Strict:      param.NewOpt(true),
+					Schema: map[string]interface{}{
+						"type": "object",
+						"properties": map[string]interface{}{
+							"slug": map[string]interface{}{
+								"type":        "string",
+								"description": "A snake_case_slug categorizing the email type",
+							},
+							"keywords": map[string]interface{}{
+								"type": "array",
+								"items": map[string]interface{}{
+									"type": "string",
+								},
+								"description": "3-5 keywords describing the email content",
+							},
+							"summary": map[string]interface{}{
+								"type":        "string",
+								"description": "Single line summary (max 100 chars)",
+							},
+						},
+						"required":             []string{"slug", "keywords", "summary"},
+						"additionalProperties": false,
+					},
+				},
+			},
+		},
 		// Temperature:         openai.Float(0.3),
 		MaxCompletionTokens: openai.Int(5000),
 	})
@@ -80,11 +112,21 @@ Analyze this email and provide the slug, keywords, and summary.`, from, subject,
 		return nil, fmt.Errorf("no response from openai")
 	}
 
-	content := response.Choices[0].Message.Content
+	choice := response.Choices[0]
+
+	// Check for refusal
+	if choice.Message.Refusal != "" {
+		return nil, fmt.Errorf("openai refused request: %s", choice.Message.Refusal)
+	}
+
+	content := choice.Message.Content
+	if content == "" {
+		return nil, fmt.Errorf("empty content from openai (finish_reason: %s)", choice.FinishReason)
+	}
 
 	var analysis EmailAnalysis
 	if err := json.Unmarshal([]byte(content), &analysis); err != nil {
-		return nil, fmt.Errorf("failed to parse openai response: %w", err)
+		return nil, fmt.Errorf("failed to parse openai response (content: %q): %w", content, err)
 	}
 
 	return &analysis, nil
@@ -95,7 +137,7 @@ func (c *Client) DetermineActions(ctx context.Context, slug string, keywords []s
 	systemPrompt := customSystemPrompt
 	if systemPrompt == "" {
 		// Default prompt if none provided
-		systemPrompt = `You are an email automation assistant. Based on the email analysis, determine what actions to take.
+		systemPrompt = `You are an email automation assistant. Based on the email analysis, determine what actions to take and respond with JSON.
 
 Available labels: %v
 
@@ -122,6 +164,37 @@ What actions should be taken for this email?`, slug, keywords, summary)
 			openai.SystemMessage(systemPrompt),
 			openai.UserMessage(userPrompt),
 		},
+		ResponseFormat: openai.ChatCompletionNewParamsResponseFormatUnion{
+			OfJSONSchema: &shared.ResponseFormatJSONSchemaParam{
+				JSONSchema: shared.ResponseFormatJSONSchemaJSONSchemaParam{
+					Name:        "email_actions",
+					Description: param.NewOpt("Email automation actions including labels and inbox bypass"),
+					Strict:      param.NewOpt(true),
+					Schema: map[string]interface{}{
+						"type": "object",
+						"properties": map[string]interface{}{
+							"labels": map[string]interface{}{
+								"type": "array",
+								"items": map[string]interface{}{
+									"type": "string",
+								},
+								"description": "Array of label names to apply",
+							},
+							"bypass_inbox": map[string]interface{}{
+								"type":        "boolean",
+								"description": "Whether to archive the email immediately",
+							},
+							"reasoning": map[string]interface{}{
+								"type":        "string",
+								"description": "Brief explanation of the decision",
+							},
+						},
+						"required":             []string{"labels", "bypass_inbox", "reasoning"},
+						"additionalProperties": false,
+					},
+				},
+			},
+		},
 		// Temperature:         openai.Float(0.3),
 		MaxCompletionTokens: openai.Int(1000),
 	})
@@ -134,11 +207,21 @@ What actions should be taken for this email?`, slug, keywords, summary)
 		return nil, fmt.Errorf("no response from openai")
 	}
 
-	content := response.Choices[0].Message.Content
+	choice := response.Choices[0]
+
+	// Check for refusal
+	if choice.Message.Refusal != "" {
+		return nil, fmt.Errorf("openai refused request: %s", choice.Message.Refusal)
+	}
+
+	content := choice.Message.Content
+	if content == "" {
+		return nil, fmt.Errorf("empty content from openai (finish_reason: %s)", choice.FinishReason)
+	}
 
 	var actions EmailActions
 	if err := json.Unmarshal([]byte(content), &actions); err != nil {
-		return nil, fmt.Errorf("failed to parse openai response: %w", err)
+		return nil, fmt.Errorf("failed to parse openai response (content: %q): %w", content, err)
 	}
 
 	return &actions, nil
