@@ -22,6 +22,7 @@ In order to keep improving automatically:
 - FUTURE: provide a weekly journal of the past week
 - FUTURE: allow human to thumbs up/down actions to help guide good decisions
 - FUTURE: listen to label changes from a human and use these to guide good decisions
+- FUTURE: give a breakdown of how you want the wrap up (headings) so that emails can be categorized in the wrap up and not just a list of emails
 
 Technical details
 - Use golang for a small memory footprint

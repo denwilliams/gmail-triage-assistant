@@ -95,6 +95,9 @@ func (s *Server) routes() {
 	// Memories (requires auth)
 	s.router.HandleFunc("/memories", s.requireAuth(s.handleMemories)).Methods("GET")
 	s.router.HandleFunc("/memories/generate", s.requireAuth(s.handleGenerateMemory)).Methods("POST")
+
+	// Wrapup Reports (requires auth)
+	s.router.HandleFunc("/wrapups", s.requireAuth(s.handleWrapups)).Methods("GET")
 }
 
 func (s *Server) handleHome(w http.ResponseWriter, r *http.Request) {
@@ -443,6 +446,33 @@ func (s *Server) handleGenerateMemory(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.Redirect(w, r, "/memories", http.StatusSeeOther)
+}
+
+func (s *Server) handleWrapups(w http.ResponseWriter, r *http.Request) {
+	session, _ := s.sessionStore.Get(r, "session")
+	userEmail := session.Values["user_email"].(string)
+	userID := session.Values["user_id"].(int64)
+
+	ctx := context.Background()
+	reports, err := s.db.GetWrapupReportsByUser(ctx, userID, 30) // Last 30 reports
+	if err != nil {
+		log.Printf("Failed to load wrapup reports: %v", err)
+		http.Error(w, "Failed to load wrapup reports", http.StatusInternalServerError)
+		return
+	}
+
+	data := map[string]interface{}{
+		"Title":        "Wrapup Reports",
+		"ShowNav":      true,
+		"UserEmail":    userEmail,
+		"Reports":      reports,
+		"TemplateName": "wrapups",
+	}
+
+	if err := s.templates.ExecuteTemplate(w, "wrapups", data); err != nil {
+		log.Printf("Template error: %v", err)
+		http.Error(w, "Error rendering template", http.StatusInternalServerError)
+	}
 }
 
 func (s *Server) Start() error {
