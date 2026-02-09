@@ -101,7 +101,7 @@ Analyze this email and provide the slug, keywords, and summary.`, from, subject,
 			},
 		},
 		// Temperature:         openai.Float(0.3),
-		MaxCompletionTokens: openai.Int(5000),
+		MaxCompletionTokens: openai.Int(10000),
 	})
 
 	if err != nil {
@@ -196,7 +196,7 @@ What actions should be taken for this email?`, slug, keywords, summary)
 			},
 		},
 		// Temperature:         openai.Float(0.3),
-		MaxCompletionTokens: openai.Int(1000),
+		MaxCompletionTokens: openai.Int(10000),
 	})
 
 	if err != nil {
