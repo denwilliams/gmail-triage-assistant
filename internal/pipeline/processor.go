@@ -1,0 +1,132 @@
+package pipeline
+
+import (
+	"context"
+	"encoding/base64"
+	"fmt"
+	"log"
+	"time"
+
+	"github.com/den/gmail-triage-assistant/internal/database"
+	"github.com/den/gmail-triage-assistant/internal/gmail"
+	"github.com/den/gmail-triage-assistant/internal/openai"
+	"golang.org/x/oauth2"
+)
+
+type Processor struct {
+	db          *database.DB
+	openai      *openai.Client
+	oauthConfig *oauth2.Config
+}
+
+func NewProcessor(db *database.DB, openaiClient *openai.Client, oauthConfig *oauth2.Config) *Processor {
+	return &Processor{
+		db:          db,
+		openai:      openaiClient,
+		oauthConfig: oauthConfig,
+	}
+}
+
+// ProcessEmail runs the full two-stage AI pipeline on an email
+func (p *Processor) ProcessEmail(ctx context.Context, user *database.User, message *gmail.Message) error {
+	log.Printf("[%s] Processing email: %s - %s", user.Email, message.From, message.Subject)
+
+	// Decode body if it's base64 encoded
+	body := message.Body
+	if body != "" {
+		decoded, err := base64.URLEncoding.DecodeString(body)
+		if err == nil {
+			body = string(decoded)
+		}
+	}
+
+	// Truncate body for AI processing (to save tokens)
+	if len(body) > 2000 {
+		body = body[:2000] + "..."
+	}
+
+	// Stage 1: Get past slugs from this sender for reuse
+	pastSlugs, err := p.db.GetPastSlugsFromSender(ctx, user.ID, message.From, 5)
+	if err != nil {
+		log.Printf("Error getting past slugs: %v", err)
+		pastSlugs = []string{}
+	}
+
+	// Stage 1: Analyze email content
+	analysis, err := p.openai.AnalyzeEmail(ctx, message.From, message.Subject, body, pastSlugs)
+	if err != nil {
+		return fmt.Errorf("stage 1 failed: %w", err)
+	}
+
+	log.Printf("[%s] Stage 1 - Slug: %s, Keywords: %v", user.Email, analysis.Slug, analysis.Keywords)
+
+	// Stage 2: Get user's available labels
+	availableLabels, err := p.db.GetUserLabels(ctx, user.ID)
+	if err != nil {
+		log.Printf("Error getting user labels: %v", err)
+		availableLabels = []string{} // Continue with no labels
+	}
+
+	// Stage 2: Determine actions
+	actions, err := p.openai.DetermineActions(ctx, analysis.Slug, analysis.Keywords, analysis.Summary, availableLabels)
+	if err != nil {
+		return fmt.Errorf("stage 2 failed: %w", err)
+	}
+
+	log.Printf("[%s] Stage 2 - Labels: %v, Bypass: %v, Reason: %s", user.Email, actions.Labels, actions.BypassInbox, actions.Reasoning)
+
+	// Save to database
+	email := &database.Email{
+		ID:            message.ID,
+		UserID:        user.ID,
+		FromAddress:   message.From,
+		Subject:       message.Subject,
+		Slug:          analysis.Slug,
+		Keywords:      analysis.Keywords,
+		Summary:       analysis.Summary,
+		LabelsApplied: actions.Labels,
+		BypassedInbox: actions.BypassInbox,
+		ProcessedAt:   time.Now(),
+		CreatedAt:     time.Now(),
+	}
+
+	if err := p.db.CreateEmail(ctx, email); err != nil {
+		return fmt.Errorf("failed to save email to database: %w", err)
+	}
+
+	// Apply actions to Gmail
+	if err := p.applyActionsToGmail(ctx, user, message.ID, actions); err != nil {
+		log.Printf("Error applying actions to Gmail: %v", err)
+		// Don't return error - email is already processed and saved
+	}
+
+	log.Printf("[%s] ✓ Email processed successfully: %s", user.Email, message.Subject)
+	return nil
+}
+
+// applyActionsToGmail applies labels and inbox bypass to the actual Gmail message
+func (p *Processor) applyActionsToGmail(ctx context.Context, user *database.User, messageID string, actions *openai.EmailActions) error {
+	// Create Gmail client for this user
+	token := user.GetOAuth2Token()
+	client, err := gmail.NewClient(ctx, p.oauthConfig, token)
+	if err != nil {
+		return fmt.Errorf("failed to create gmail client: %w", err)
+	}
+
+	// Apply labels
+	if len(actions.Labels) > 0 {
+		// TODO: Map label names to Gmail label IDs
+		// For now, just log what we would do
+		log.Printf("[%s] Would apply labels %v to message %s", user.Email, actions.Labels, messageID)
+	}
+
+	// Bypass inbox (archive)
+	if actions.BypassInbox {
+		if err := client.ArchiveMessage(ctx, messageID); err != nil {
+			return fmt.Errorf("failed to archive message: %w", err)
+		}
+		log.Printf("[%s] Archived message %s", user.Email, messageID)
+	}
+
+	return nil
+}

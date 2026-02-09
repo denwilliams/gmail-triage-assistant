@@ -11,6 +11,8 @@ import (
 	"github.com/den/gmail-triage-assistant/internal/config"
 	"github.com/den/gmail-triage-assistant/internal/database"
 	"github.com/den/gmail-triage-assistant/internal/gmail"
+	"github.com/den/gmail-triage-assistant/internal/openai"
+	"github.com/den/gmail-triage-assistant/internal/pipeline"
 	"github.com/den/gmail-triage-assistant/internal/web"
 	"github.com/joho/godotenv"
 	"golang.org/x/oauth2"
@@ -56,11 +58,17 @@ func main() {
 		Endpoint: google.Endpoint,
 	}
 
-	// Create message handler (placeholder for now)
+	// Initialize OpenAI client
+	openaiClient := openai.NewClient(cfg.OpenAIAPIKey, cfg.OpenAIModel, cfg.OpenAIBaseURL)
+	log.Printf("✓ OpenAI client initialized (model: %s)", cfg.OpenAIModel)
+
+	// Initialize email processor pipeline
+	processor := pipeline.NewProcessor(db, openaiClient, oauthConfig)
+	log.Printf("✓ Email processing pipeline initialized")
+
+	// Create message handler using the pipeline
 	messageHandler := func(ctx context.Context, user *database.User, message *gmail.Message) error {
-		log.Printf("[%s] Processing message: %s - %s", user.Email, message.From, message.Subject)
-		// TODO: Implement AI pipeline here
-		return nil
+		return processor.ProcessEmail(ctx, user, message)
 	}
 
 	// Initialize multi-user Gmail monitor
@@ -73,7 +81,6 @@ func main() {
 	log.Printf("✓ Multi-user Gmail monitor initialized (checking every %v)", checkInterval)
 	log.Printf("✓ Web server ready on: http://%s:%s", cfg.ServerHost, cfg.ServerPort)
 
-	// TODO: Initialize OpenAI client
 	// TODO: Start scheduled tasks (wrap-ups, memories)
 
 	// Start Gmail monitor in background
