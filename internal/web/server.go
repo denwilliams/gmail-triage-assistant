@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"fmt"
+	"html/template"
 	"log"
 	"net/http"
 
@@ -23,6 +24,7 @@ type Server struct {
 	config       *config.Config
 	sessionStore *sessions.CookieStore
 	oauthConfig  *oauth2.Config
+	templates    *template.Template
 }
 
 func NewServer(db *database.DB, cfg *config.Config) *Server {
@@ -48,12 +50,16 @@ func NewServer(db *database.DB, cfg *config.Config) *Server {
 		Endpoint: google.Endpoint,
 	}
 
+	// Load templates
+	tmpl := template.Must(template.ParseGlob("web/templates/*.html"))
+
 	s := &Server{
 		router:       mux.NewRouter(),
 		db:           db,
 		config:       cfg,
 		sessionStore: store,
 		oauthConfig:  oauthConfig,
+		templates:    tmpl,
 	}
 
 	s.routes()
@@ -88,24 +94,15 @@ func (s *Server) handleHome(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	html := `<!DOCTYPE html>
-<html>
-<head>
-	<title>Gmail Triage Assistant</title>
-	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
-</head>
-<body>
-	<main class="container">
-		<article>
-			<h1>📧 Gmail Triage Assistant</h1>
-			<p>AI-powered email management that automatically categorizes and organizes your Gmail inbox.</p>
-			<a href="/auth/login" role="button">Sign in with Google</a>
-		</article>
-	</main>
-</body>
-</html>`
-	w.Header().Set("Content-Type", "text/html")
-	w.Write([]byte(html))
+	data := map[string]interface{}{
+		"Title":   "Home",
+		"ShowNav": false,
+	}
+
+	if err := s.templates.ExecuteTemplate(w, "base.html", data); err != nil {
+		log.Printf("Template error: %v", err)
+		http.Error(w, "Error rendering template", http.StatusInternalServerError)
+	}
 }
 
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
@@ -194,35 +191,16 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	session, _ := s.sessionStore.Get(r, "session")
 	userEmail := session.Values["user_email"].(string)
 
-	html := fmt.Sprintf(`<!DOCTYPE html>
-<html>
-<head>
-	<title>Dashboard - Gmail Triage Assistant</title>
-	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
-</head>
-<body>
-	<main class="container">
-		<nav>
-			<ul><li><strong>Gmail Triage</strong></li></ul>
-			<ul>
-				<li><a href="/dashboard">Dashboard</a></li>
-				<li><a href="/labels">Labels</a></li>
-				<li><a href="/history">History</a></li>
-				<li>%s</li>
-				<li><a href="/auth/logout">Logout</a></li>
-			</ul>
-		</nav>
-		<article>
-			<h2>Dashboard</h2>
-			<p>Welcome! Your Gmail inbox is now being monitored.</p>
-			<p>Email processing will begin shortly...</p>
-		</article>
-	</main>
-</body>
-</html>`, userEmail)
+	data := map[string]interface{}{
+		"Title":     "Dashboard",
+		"ShowNav":   true,
+		"UserEmail": userEmail,
+	}
 
-	w.Header().Set("Content-Type", "text/html")
-	w.Write([]byte(html))
+	if err := s.templates.ExecuteTemplate(w, "base.html", data); err != nil {
+		log.Printf("Template error: %v", err)
+		http.Error(w, "Error rendering template", http.StatusInternalServerError)
+	}
 }
 
 func (s *Server) requireAuth(next http.HandlerFunc) http.HandlerFunc {
@@ -245,85 +223,22 @@ func (s *Server) handleLabels(w http.ResponseWriter, r *http.Request) {
 	ctx := context.Background()
 	labels, err := s.db.GetAllLabels(ctx, userID)
 	if err != nil {
+		log.Printf("Failed to load labels: %v", err)
 		http.Error(w, "Failed to load labels", http.StatusInternalServerError)
 		return
 	}
 
-	labelsHTML := ""
-	for _, label := range labels {
-		labelsHTML += fmt.Sprintf(`
-		<tr>
-			<td><strong>%s</strong></td>
-			<td>%s</td>
-			<td>
-				<form method="POST" action="/labels/%d/delete" style="margin: 0;">
-					<button type="submit" class="secondary" onclick="return confirm('Delete this label?')">Delete</button>
-				</form>
-			</td>
-		</tr>`, label.Name, label.Description, label.ID)
+	data := map[string]interface{}{
+		"Title":     "Labels",
+		"ShowNav":   true,
+		"UserEmail": userEmail,
+		"Labels":    labels,
 	}
 
-	if labelsHTML == "" {
-		labelsHTML = `<tr><td colspan="3"><em>No labels configured yet</em></td></tr>`
+	if err := s.templates.ExecuteTemplate(w, "base.html", data); err != nil {
+		log.Printf("Template error: %v", err)
+		http.Error(w, "Error rendering template", http.StatusInternalServerError)
 	}
-
-	html := fmt.Sprintf(`<!DOCTYPE html>
-<html>
-<head>
-	<title>Labels - Gmail Triage Assistant</title>
-	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
-</head>
-<body>
-	<main class="container">
-		<nav>
-			<ul><li><strong>Gmail Triage</strong></li></ul>
-			<ul>
-				<li><a href="/dashboard">Dashboard</a></li>
-				<li><a href="/labels">Labels</a></li>
-				<li><a href="/history">History</a></li>
-				<li>%s</li>
-				<li><a href="/auth/logout">Logout</a></li>
-			</ul>
-		</nav>
-		<article>
-			<h2>Label Management</h2>
-			<p>Configure labels that the AI can apply to your emails.</p>
-
-			<h3>Create New Label</h3>
-			<form method="POST" action="/labels/create">
-				<label>
-					Label Name
-					<input type="text" name="name" placeholder="e.g., Work, Personal, Newsletter" required>
-				</label>
-				<label>
-					Description (helps AI understand when to use this label)
-					<textarea name="description" placeholder="e.g., Work-related emails from colleagues and clients" rows="3"></textarea>
-				</label>
-				<button type="submit">Create Label</button>
-			</form>
-		</article>
-
-		<article>
-			<h3>Your Labels</h3>
-			<table>
-				<thead>
-					<tr>
-						<th>Name</th>
-						<th>Description</th>
-						<th>Actions</th>
-					</tr>
-				</thead>
-				<tbody>
-					%s
-				</tbody>
-			</table>
-		</article>
-	</main>
-</body>
-</html>`, userEmail, labelsHTML)
-
-	w.Header().Set("Content-Type", "text/html")
-	w.Write([]byte(html))
 }
 
 func (s *Server) handleCreateLabel(w http.ResponseWriter, r *http.Request) {
@@ -390,82 +305,17 @@ func (s *Server) handleHistory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	emailsHTML := ""
-	for _, email := range emails {
-		// Format labels as badges
-		labelsHTML := ""
-		if len(email.LabelsApplied) == 0 {
-			labelsHTML = `<em style="color: #666;">No labels</em>`
-		} else {
-			for _, label := range email.LabelsApplied {
-				labelsHTML += fmt.Sprintf(`<span style="display: inline-block; background: #0066cc; color: white; padding: 2px 8px; border-radius: 4px; margin: 2px; font-size: 0.85em;">%s</span> `, label)
-			}
-		}
-
-		// Format keywords
-		keywordsHTML := ""
-		for _, keyword := range email.Keywords {
-			keywordsHTML += fmt.Sprintf(`<code style="background: #f0f0f0; padding: 2px 6px; border-radius: 3px; margin: 2px; font-size: 0.85em;">%s</code> `, keyword)
-		}
-
-		// Archive badge
-		archiveBadge := ""
-		if email.BypassedInbox {
-			archiveBadge = `<span style="display: inline-block; background: #ff6b6b; color: white; padding: 2px 8px; border-radius: 4px; margin-left: 8px; font-size: 0.85em;">Archived</span>`
-		}
-
-		emailsHTML += fmt.Sprintf(`
-		<article style="margin-bottom: 1.5rem; border-left: 3px solid #0066cc; padding-left: 1rem;">
-			<h4 style="margin-bottom: 0.5rem;">%s %s</h4>
-			<p style="color: #666; margin: 0.25rem 0;"><small>From: <strong>%s</strong> | Slug: <code>%s</code></small></p>
-			<p style="margin: 0.5rem 0;"><strong>Summary:</strong> %s</p>
-			<p style="margin: 0.5rem 0;"><strong>Keywords:</strong> %s</p>
-			<p style="margin: 0.5rem 0;"><strong>Labels Applied:</strong> %s</p>
-			<p style="color: #888; margin: 0.25rem 0;"><small>Processed: %s</small></p>
-		</article>`,
-			email.Subject,
-			archiveBadge,
-			email.FromAddress,
-			email.Slug,
-			email.Summary,
-			keywordsHTML,
-			labelsHTML,
-			email.ProcessedAt.Format("Jan 2, 2006 3:04 PM"))
+	data := map[string]interface{}{
+		"Title":     "Email History",
+		"ShowNav":   true,
+		"UserEmail": userEmail,
+		"Emails":    emails,
 	}
 
-	if emailsHTML == "" {
-		emailsHTML = `<article><p><em>No emails processed yet. Send yourself an email to see it appear here!</em></p></article>`
+	if err := s.templates.ExecuteTemplate(w, "base.html", data); err != nil {
+		log.Printf("Template error: %v", err)
+		http.Error(w, "Error rendering template", http.StatusInternalServerError)
 	}
-
-	html := fmt.Sprintf(`<!DOCTYPE html>
-<html>
-<head>
-	<title>Email History - Gmail Triage Assistant</title>
-	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
-</head>
-<body>
-	<main class="container">
-		<nav>
-			<ul><li><strong>Gmail Triage</strong></li></ul>
-			<ul>
-				<li><a href="/dashboard">Dashboard</a></li>
-				<li><a href="/labels">Labels</a></li>
-				<li><a href="/history">History</a></li>
-				<li>%s</li>
-				<li><a href="/auth/logout">Logout</a></li>
-			</ul>
-		</nav>
-		<article>
-			<h2>📧 Email Processing History</h2>
-			<p>Review AI decisions for recently processed emails (last 50).</p>
-		</article>
-		%s
-	</main>
-</body>
-</html>`, userEmail, emailsHTML)
-
-	w.Header().Set("Content-Type", "text/html")
-	w.Write([]byte(html))
 }
 
 func (s *Server) Start() error {

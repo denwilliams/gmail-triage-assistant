@@ -1,0 +1,46 @@
+{{define "content"}}
+<article>
+	<h2>📧 Email Processing History</h2>
+	<p>Review AI decisions for recently processed emails (last 50).</p>
+</article>
+
+{{if .Emails}}
+	{{range .Emails}}
+	<article style="margin-bottom: 1.5rem; border-left: 3px solid #0066cc; padding-left: 1rem;">
+		<h4 style="margin-bottom: 0.5rem;">
+			{{.Subject}}
+			{{if .BypassedInbox}}
+			<span style="display: inline-block; background: #ff6b6b; color: white; padding: 2px 8px; border-radius: 4px; margin-left: 8px; font-size: 0.85em;">Archived</span>
+			{{end}}
+		</h4>
+		<p style="color: #666; margin: 0.25rem 0;">
+			<small>From: <strong>{{.FromAddress}}</strong> | Slug: <code>{{.Slug}}</code></small>
+		</p>
+		<p style="margin: 0.5rem 0;"><strong>Summary:</strong> {{.Summary}}</p>
+		<p style="margin: 0.5rem 0;">
+			<strong>Keywords:</strong>
+			{{range .Keywords}}
+			<code style="background: #f0f0f0; padding: 2px 6px; border-radius: 3px; margin: 2px; font-size: 0.85em;">{{.}}</code>
+			{{end}}
+		</p>
+		<p style="margin: 0.5rem 0;">
+			<strong>Labels Applied:</strong>
+			{{if .LabelsApplied}}
+				{{range .LabelsApplied}}
+				<span style="display: inline-block; background: #0066cc; color: white; padding: 2px 8px; border-radius: 4px; margin: 2px; font-size: 0.85em;">{{.}}</span>
+				{{end}}
+			{{else}}
+				<em style="color: #666;">No labels</em>
+			{{end}}
+		</p>
+		<p style="color: #888; margin: 0.25rem 0;">
+			<small>Processed: {{.ProcessedAt.Format "Jan 2, 2006 3:04 PM"}}</small>
+		</p>
+	</article>
+	{{end}}
+{{else}}
+	<article>
+		<p><em>No emails processed yet. Send yourself an email to see it appear here!</em></p>
+	</article>
+{{end}}
+{{end}}
