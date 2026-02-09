@@ -74,6 +74,9 @@ func (s *Server) routes() {
 	s.router.HandleFunc("/labels", s.requireAuth(s.handleLabels)).Methods("GET")
 	s.router.HandleFunc("/labels/create", s.requireAuth(s.handleCreateLabel)).Methods("POST")
 	s.router.HandleFunc("/labels/{id}/delete", s.requireAuth(s.handleDeleteLabel)).Methods("POST")
+
+	// Email history (requires auth)
+	s.router.HandleFunc("/history", s.requireAuth(s.handleHistory)).Methods("GET")
 }
 
 func (s *Server) handleHome(w http.ResponseWriter, r *http.Request) {
@@ -204,6 +207,7 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 			<ul>
 				<li><a href="/dashboard">Dashboard</a></li>
 				<li><a href="/labels">Labels</a></li>
+				<li><a href="/history">History</a></li>
 				<li>%s</li>
 				<li><a href="/auth/logout">Logout</a></li>
 			</ul>
@@ -276,6 +280,7 @@ func (s *Server) handleLabels(w http.ResponseWriter, r *http.Request) {
 			<ul>
 				<li><a href="/dashboard">Dashboard</a></li>
 				<li><a href="/labels">Labels</a></li>
+				<li><a href="/history">History</a></li>
 				<li>%s</li>
 				<li><a href="/auth/logout">Logout</a></li>
 			</ul>
@@ -370,6 +375,97 @@ func (s *Server) handleDeleteLabel(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.Redirect(w, r, "/labels", http.StatusSeeOther)
+}
+
+func (s *Server) handleHistory(w http.ResponseWriter, r *http.Request) {
+	session, _ := s.sessionStore.Get(r, "session")
+	userEmail := session.Values["user_email"].(string)
+	userID := session.Values["user_id"].(int64)
+
+	ctx := context.Background()
+	emails, err := s.db.GetRecentEmails(ctx, userID, 50)
+	if err != nil {
+		log.Printf("Failed to load email history: %v", err)
+		http.Error(w, "Failed to load email history", http.StatusInternalServerError)
+		return
+	}
+
+	emailsHTML := ""
+	for _, email := range emails {
+		// Format labels as badges
+		labelsHTML := ""
+		if len(email.LabelsApplied) == 0 {
+			labelsHTML = `<em style="color: #666;">No labels</em>`
+		} else {
+			for _, label := range email.LabelsApplied {
+				labelsHTML += fmt.Sprintf(`<span style="display: inline-block; background: #0066cc; color: white; padding: 2px 8px; border-radius: 4px; margin: 2px; font-size: 0.85em;">%s</span> `, label)
+			}
+		}
+
+		// Format keywords
+		keywordsHTML := ""
+		for _, keyword := range email.Keywords {
+			keywordsHTML += fmt.Sprintf(`<code style="background: #f0f0f0; padding: 2px 6px; border-radius: 3px; margin: 2px; font-size: 0.85em;">%s</code> `, keyword)
+		}
+
+		// Archive badge
+		archiveBadge := ""
+		if email.BypassedInbox {
+			archiveBadge = `<span style="display: inline-block; background: #ff6b6b; color: white; padding: 2px 8px; border-radius: 4px; margin-left: 8px; font-size: 0.85em;">Archived</span>`
+		}
+
+		emailsHTML += fmt.Sprintf(`
+		<article style="margin-bottom: 1.5rem; border-left: 3px solid #0066cc; padding-left: 1rem;">
+			<h4 style="margin-bottom: 0.5rem;">%s %s</h4>
+			<p style="color: #666; margin: 0.25rem 0;"><small>From: <strong>%s</strong> | Slug: <code>%s</code></small></p>
+			<p style="margin: 0.5rem 0;"><strong>Summary:</strong> %s</p>
+			<p style="margin: 0.5rem 0;"><strong>Keywords:</strong> %s</p>
+			<p style="margin: 0.5rem 0;"><strong>Labels Applied:</strong> %s</p>
+			<p style="color: #888; margin: 0.25rem 0;"><small>Processed: %s</small></p>
+		</article>`,
+			email.Subject,
+			archiveBadge,
+			email.FromAddress,
+			email.Slug,
+			email.Summary,
+			keywordsHTML,
+			labelsHTML,
+			email.ProcessedAt.Format("Jan 2, 2006 3:04 PM"))
+	}
+
+	if emailsHTML == "" {
+		emailsHTML = `<article><p><em>No emails processed yet. Send yourself an email to see it appear here!</em></p></article>`
+	}
+
+	html := fmt.Sprintf(`<!DOCTYPE html>
+<html>
+<head>
+	<title>Email History - Gmail Triage Assistant</title>
+	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+</head>
+<body>
+	<main class="container">
+		<nav>
+			<ul><li><strong>Gmail Triage</strong></li></ul>
+			<ul>
+				<li><a href="/dashboard">Dashboard</a></li>
+				<li><a href="/labels">Labels</a></li>
+				<li><a href="/history">History</a></li>
+				<li>%s</li>
+				<li><a href="/auth/logout">Logout</a></li>
+			</ul>
+		</nav>
+		<article>
+			<h2>📧 Email Processing History</h2>
+			<p>Review AI decisions for recently processed emails (last 50).</p>
+		</article>
+		%s
+	</main>
+</body>
+</html>`, userEmail, emailsHTML)
+
+	w.Header().Set("Content-Type", "text/html")
+	w.Write([]byte(html))
 }
 
 func (s *Server) Start() error {

@@ -110,3 +110,60 @@ func (db *DB) GetUserLabels(ctx context.Context, userID int64) ([]string, error)
 
 	return labels, nil
 }
+
+// GetRecentEmails retrieves recent processed emails for a user
+func (db *DB) GetRecentEmails(ctx context.Context, userID int64, limit int) ([]*Email, error) {
+	query := `
+		SELECT id, user_id, from_address, subject, slug, keywords, summary,
+		       labels_applied, bypassed_inbox, processed_at, created_at
+		FROM emails
+		WHERE user_id = $1
+		ORDER BY processed_at DESC
+		LIMIT $2
+	`
+
+	rows, err := db.conn.QueryContext(ctx, query, userID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query recent emails: %w", err)
+	}
+	defer rows.Close()
+
+	var emails []*Email
+	for rows.Next() {
+		var email Email
+		var keywordsJSON, labelsJSON []byte
+
+		err := rows.Scan(
+			&email.ID,
+			&email.UserID,
+			&email.FromAddress,
+			&email.Subject,
+			&email.Slug,
+			&keywordsJSON,
+			&email.Summary,
+			&labelsJSON,
+			&email.BypassedInbox,
+			&email.ProcessedAt,
+			&email.CreatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan email: %w", err)
+		}
+
+		// Unmarshal JSON arrays
+		if err := json.Unmarshal(keywordsJSON, &email.Keywords); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal keywords: %w", err)
+		}
+		if err := json.Unmarshal(labelsJSON, &email.LabelsApplied); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal labels: %w", err)
+		}
+
+		emails = append(emails, &email)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating emails: %w", err)
+	}
+
+	return emails, nil
+}
