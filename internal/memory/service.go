@@ -60,8 +60,15 @@ func (s *Service) GenerateDailyMemory(ctx context.Context, userID int64) error {
 		customPrompt = prompt.Content
 	}
 
+	// Get available labels so AI knows what labels actually exist
+	labelDetails, err := s.db.GetUserLabelsWithDetails(ctx, userID)
+	if err != nil {
+		log.Printf("Warning: failed to get user labels for memory generation: %v", err)
+		labelDetails = nil
+	}
+
 	// Generate memory using AI
-	memoryContent, err := s.generateMemoryFromEmails(ctx, emails, customPrompt)
+	memoryContent, err := s.generateMemoryFromEmails(ctx, emails, labelDetails, customPrompt)
 	if err != nil {
 		return fmt.Errorf("failed to generate memory: %w", err)
 	}
@@ -85,7 +92,21 @@ func (s *Service) GenerateDailyMemory(ctx context.Context, userID int64) error {
 }
 
 // generateMemoryFromEmails uses AI to analyze email patterns and generate insights
-func (s *Service) generateMemoryFromEmails(ctx context.Context, emails []*database.Email, customPrompt string) (string, error) {
+func (s *Service) generateMemoryFromEmails(ctx context.Context, emails []*database.Email, labelDetails []*database.Label, customPrompt string) (string, error) {
+	// Build available labels section
+	labelsSection := ""
+	if len(labelDetails) > 0 {
+		var labelLines []string
+		for _, label := range labelDetails {
+			line := fmt.Sprintf("- %s", label.Name)
+			if label.Description != "" {
+				line += fmt.Sprintf(": %s", label.Description)
+			}
+			labelLines = append(labelLines, line)
+		}
+		labelsSection = fmt.Sprintf("\n\nAvailable labels (ONLY reference these exact label names in your learnings):\n%s", strings.Join(labelLines, "\n"))
+	}
+
 	systemPrompt := customPrompt
 	if systemPrompt == "" {
 		systemPrompt = `You are an AI assistant creating learnings to improve future email processing decisions. Your goal is NOT to summarize what happened, but to extract insights that will help process emails better tomorrow.
@@ -108,6 +129,10 @@ Analyze the emails and their categorizations, then create a memory focused on:
 - Content patterns that indicate specific labels
 
 IMPORTANT: Keep your response concise - aim for around 200 words maximum. Be specific and actionable. Focus only on the most important insights that will directly improve future email processing. Format as concise bullet points.`
+	}
+
+	if labelsSection != "" {
+		systemPrompt += labelsSection
 	}
 
 	// Prepare summary of emails and collect human feedback separately
