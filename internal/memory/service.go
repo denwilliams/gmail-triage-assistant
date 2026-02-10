@@ -107,7 +107,7 @@ Analyze the emails and their categorizations, then create a memory focused on:
 - Sender patterns to remember
 - Content patterns that indicate specific labels
 
-Be specific and actionable. Focus on insights that will directly improve future email processing. Format as concise bullet points.`
+IMPORTANT: Keep your response concise - aim for around 200 words maximum. Be specific and actionable. Focus only on the most important insights that will directly improve future email processing. Format as concise bullet points.`
 	}
 
 	// Prepare summary of emails
@@ -401,7 +401,7 @@ DO NOT write a new memory from scratch. Instead:
 - Show evolution over time rather than replacement
 - Keep the most valuable long-term learnings
 
-The goal is an EVOLVED memory that's better than the previous one, not a brand new memory. Format as bullet points.`, period)
+IMPORTANT: Keep your response concise - aim for around 800 words maximum. Focus only on the most significant changes and patterns. The goal is an EVOLVED memory that's better than the previous one, not a brand new memory. Format as bullet points.`, period)
 		} else {
 			// Initial creation mode: no previous memory exists
 			systemPrompt = fmt.Sprintf(`You are an AI assistant creating the first %s email processing memory. Review the provided memories and create insights focused on:
@@ -412,7 +412,7 @@ The goal is an EVOLVED memory that's better than the previous one, not a brand n
 4. Providing strategic insights for email management
 5. Suggesting process improvements
 
-Be concise and focus on actionable patterns. Format as bullet points.`, period)
+IMPORTANT: Keep your response concise - aim for around 800 words maximum. Focus on the most important actionable patterns. Format as bullet points.`, period)
 		}
 	}
 
