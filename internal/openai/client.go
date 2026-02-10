@@ -133,7 +133,7 @@ Analyze this email and provide the slug, keywords, and summary.`, from, subject,
 }
 
 // DetermineActions runs Stage 2: Action generation
-func (c *Client) DetermineActions(ctx context.Context, slug string, keywords []string, summary string, availableLabels []string, customSystemPrompt string) (*EmailActions, error) {
+func (c *Client) DetermineActions(ctx context.Context, from, subject, slug string, keywords []string, summary string, availableLabels []string, customSystemPrompt string) (*EmailActions, error) {
 	systemPrompt := customSystemPrompt
 	if systemPrompt == "" {
 		// Default prompt if none provided
@@ -152,11 +152,13 @@ Respond ONLY with valid JSON in this format:
 
 	systemPrompt = fmt.Sprintf(systemPrompt, availableLabels)
 
-	userPrompt := fmt.Sprintf(`Slug: %s
+	userPrompt := fmt.Sprintf(`From: %s
+Subject: %s
+Slug: %s
 Keywords: %v
 Summary: %s
 
-What actions should be taken for this email?`, slug, keywords, summary)
+What actions should be taken for this email?`, from, subject, slug, keywords, summary)
 
 	response, err := c.client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
 		Model: shared.ChatModel(c.model),

@@ -95,7 +95,7 @@ func (p *Processor) ProcessEmail(ctx context.Context, user *database.User, messa
 	}
 
 	// Stage 2: Determine actions
-	actions, err := p.openai.DetermineActions(ctx, analysis.Slug, analysis.Keywords, analysis.Summary, availableLabels, actionsPrompt)
+	actions, err := p.openai.DetermineActions(ctx, message.From, message.Subject, analysis.Slug, analysis.Keywords, analysis.Summary, availableLabels, actionsPrompt)
 	if err != nil {
 		return fmt.Errorf("stage 2 failed: %w", err)
 	}
