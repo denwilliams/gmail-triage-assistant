@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"embed"
 	"fmt"
 	"html/template"
 	"log"
@@ -18,6 +19,9 @@ import (
 	googleoauth2 "google.golang.org/api/oauth2/v2"
 	"google.golang.org/api/option"
 )
+
+//go:embed templates/*.html
+var templatesFS embed.FS
 
 type Server struct {
 	router        *mux.Router
@@ -52,8 +56,8 @@ func NewServer(db *database.DB, cfg *config.Config, memoryService *memory.Servic
 		Endpoint: google.Endpoint,
 	}
 
-	// Load templates
-	tmpl := template.Must(template.ParseGlob("web/templates/*.html"))
+	// Load templates from embedded filesystem
+	tmpl := template.Must(template.ParseFS(templatesFS, "templates/*.html"))
 
 	s := &Server{
 		router:        mux.NewRouter(),
