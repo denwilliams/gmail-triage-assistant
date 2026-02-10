@@ -164,7 +164,13 @@ Decide:
 3. Brief reasoning for your decisions`
 	}
 
-	systemPrompt = fmt.Sprintf(systemPrompt, formattedLabels)
+	if customSystemPrompt == "" {
+		// Default prompt has %s placeholder for labels
+		systemPrompt = fmt.Sprintf(systemPrompt, formattedLabels)
+	} else {
+		// Always append labels to custom prompts so they're never lost
+		systemPrompt += "\n\nAvailable labels:\n" + formattedLabels
+	}
 
 	userPrompt := fmt.Sprintf(`From: %s
 Subject: %s
