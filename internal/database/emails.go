@@ -111,6 +111,37 @@ func (db *DB) GetUserLabels(ctx context.Context, userID int64) ([]string, error)
 	return labels, nil
 }
 
+// GetUserLabelsWithDetails returns full label structs including description and reasons
+func (db *DB) GetUserLabelsWithDetails(ctx context.Context, userID int64) ([]*Label, error) {
+	query := `
+		SELECT id, user_id, name, COALESCE(description, ''), reasons, created_at, updated_at
+		FROM labels
+		WHERE user_id = $1
+		ORDER BY name
+	`
+
+	rows, err := db.conn.QueryContext(ctx, query, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query user labels: %w", err)
+	}
+	defer rows.Close()
+
+	var labels []*Label
+	for rows.Next() {
+		var label Label
+		var reasonsJSON []byte
+		if err := rows.Scan(&label.ID, &label.UserID, &label.Name, &label.Description, &reasonsJSON, &label.CreatedAt, &label.UpdatedAt); err != nil {
+			return nil, fmt.Errorf("failed to scan label: %w", err)
+		}
+		if err := json.Unmarshal(reasonsJSON, &label.Reasons); err != nil {
+			label.Reasons = []string{}
+		}
+		labels = append(labels, &label)
+	}
+
+	return labels, rows.Err()
+}
+
 // GetRecentEmails retrieves recent processed emails for a user
 func (db *DB) GetRecentEmails(ctx context.Context, userID int64, limit int) ([]*Email, error) {
 	query := `

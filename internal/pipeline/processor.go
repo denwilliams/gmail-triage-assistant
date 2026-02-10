@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/den/gmail-triage-assistant/internal/database"
@@ -87,15 +88,31 @@ func (p *Processor) ProcessEmail(ctx context.Context, user *database.User, messa
 
 	log.Printf("[%s] Stage 1 - Slug: %s, Keywords: %v", user.Email, analysis.Slug, analysis.Keywords)
 
-	// Stage 2: Get user's available labels
-	availableLabels, err := p.db.GetUserLabels(ctx, user.ID)
+	// Stage 2: Get user's available labels with descriptions
+	labelDetails, err := p.db.GetUserLabelsWithDetails(ctx, user.ID)
 	if err != nil {
 		log.Printf("Error getting user labels: %v", err)
-		availableLabels = []string{} // Continue with no labels
+		labelDetails = nil
 	}
 
+	// Format labels as bullet points with quoted names and descriptions
+	var labelNames []string
+	var labelLines []string
+	for _, l := range labelDetails {
+		labelNames = append(labelNames, l.Name)
+		line := fmt.Sprintf(`- "%s"`, l.Name)
+		if l.Description != "" {
+			line += ": " + l.Description
+		}
+		if len(l.Reasons) > 0 {
+			line += " (e.g. " + strings.Join(l.Reasons, ", ") + ")"
+		}
+		labelLines = append(labelLines, line)
+	}
+	formattedLabels := strings.Join(labelLines, "\n")
+
 	// Stage 2: Determine actions
-	actions, err := p.openai.DetermineActions(ctx, message.From, message.Subject, analysis.Slug, analysis.Keywords, analysis.Summary, availableLabels, actionsPrompt)
+	actions, err := p.openai.DetermineActions(ctx, message.From, message.Subject, analysis.Slug, analysis.Keywords, analysis.Summary, labelNames, formattedLabels, actionsPrompt)
 	if err != nil {
 		return fmt.Errorf("stage 2 failed: %w", err)
 	}
