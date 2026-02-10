@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
+	"os"
+	"strings"
 
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
@@ -12,17 +15,26 @@ import (
 )
 
 type Client struct {
-	client openai.Client
-	model  string
+	client   openai.Client
+	model    string
+	debugLog bool
 }
 
 // NewClient creates a new OpenAI client
 func NewClient(apiKey, model, baseURL string) *Client {
 	client := openai.NewClient(option.WithAPIKey(apiKey))
 	return &Client{
-		client: client,
-		model:  model,
+		client:   client,
+		model:    model,
+		debugLog: strings.Contains(os.Getenv("DEBUG"), "OPENAI"),
 	}
+}
+
+func (c *Client) logPrompts(label, systemPrompt, userPrompt string) {
+	if !c.debugLog {
+		return
+	}
+	log.Printf("[OPENAI DEBUG] === %s ===\nSYSTEM:\n%s\n\nUSER:\n%s\n=== END %s ===", label, systemPrompt, userPrompt, label)
 }
 
 // EmailAnalysis represents the Stage 1 AI output
@@ -62,6 +74,8 @@ Body:
 Past slugs used from this sender: %v
 
 Analyze this email and provide the slug, keywords, and summary.`, from, subject, body, pastSlugs)
+
+	c.logPrompts("AnalyzeEmail", systemPrompt, userPrompt)
 
 	response, err := c.client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
 		Model: shared.ChatModel(c.model),
@@ -159,6 +173,8 @@ Keywords: %v
 Summary: %s
 
 What actions should be taken for this email?`, from, subject, slug, keywords, summary)
+
+	c.logPrompts("DetermineActions", systemPrompt, userPrompt)
 
 	response, err := c.client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
 		Model: shared.ChatModel(c.model),
