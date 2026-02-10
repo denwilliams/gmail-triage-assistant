@@ -14,6 +14,7 @@ import (
 	"github.com/den/gmail-triage-assistant/internal/memory"
 	"github.com/den/gmail-triage-assistant/internal/openai"
 	"github.com/den/gmail-triage-assistant/internal/pipeline"
+	"github.com/den/gmail-triage-assistant/internal/scheduler"
 	"github.com/den/gmail-triage-assistant/internal/web"
 	"github.com/joho/godotenv"
 	"golang.org/x/oauth2"
@@ -90,10 +91,15 @@ func main() {
 	// Initialize web server
 	server := web.NewServer(db, cfg, memoryService)
 
+	// Initialize scheduler
+	sched := scheduler.NewScheduler(db, memoryService)
+
 	log.Printf("✓ Multi-user Gmail monitor initialized (checking every %v)", checkInterval)
 	log.Printf("✓ Web server ready on: http://%s:%s", cfg.ServerHost, cfg.ServerPort)
+	log.Printf("✓ Scheduler initialized (8AM wrapup, 5PM wrapup + memory)")
 
-	// TODO: Start scheduled tasks (wrap-ups, memories)
+	// Start scheduler in background
+	go sched.Start(ctx)
 
 	// Start Gmail monitor in background
 	go func() {

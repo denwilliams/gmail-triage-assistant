@@ -216,3 +216,42 @@ func (u *User) GetOAuth2Token() *oauth2.Token {
 		TokenType:    "Bearer",
 	}
 }
+
+// GetActiveUsers retrieves all active users
+func (db *DB) GetActiveUsers(ctx context.Context) ([]*User, error) {
+	query := `
+		SELECT id, email, google_id, access_token, refresh_token, token_expiry, is_active, last_checked_at, created_at, updated_at
+		FROM users
+		WHERE is_active = true
+		ORDER BY email
+	`
+
+	rows, err := db.conn.QueryContext(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query active users: %w", err)
+	}
+	defer rows.Close()
+
+	var users []*User
+	for rows.Next() {
+		var user User
+		err := rows.Scan(
+			&user.ID,
+			&user.Email,
+			&user.GoogleID,
+			&user.AccessToken,
+			&user.RefreshToken,
+			&user.TokenExpiry,
+			&user.IsActive,
+			&user.LastCheckedAt,
+			&user.CreatedAt,
+			&user.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan user: %w", err)
+		}
+		users = append(users, &user)
+	}
+
+	return users, rows.Err()
+}
