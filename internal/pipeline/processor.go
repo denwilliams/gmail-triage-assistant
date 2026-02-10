@@ -57,19 +57,12 @@ func (p *Processor) ProcessEmail(ctx context.Context, user *database.User, messa
 	}
 
 	// Get recent memories to provide context (1 yearly, 1 monthly, 1 weekly, up to 7 daily)
+	memoryContext := ""
 	allMemories, err := p.db.GetRecentMemoriesForContext(ctx, user.ID)
 	if err == nil && len(allMemories) > 0 {
-		memoryContext := "\n\nInsights from past email processing:\n"
+		memoryContext = "Past learnings from email processing:\n\n"
 		for _, mem := range allMemories {
-			memoryContext += fmt.Sprintf("- [%s] %s\n", mem.Type, mem.Content)
-		}
-
-		// Append memory context to prompts
-		if analyzePrompt != "" {
-			analyzePrompt += memoryContext
-		}
-		if actionsPrompt != "" {
-			actionsPrompt += memoryContext
+			memoryContext += fmt.Sprintf("**%s Memory:**\n%s\n\n", strings.ToUpper(string(mem.Type)), mem.Content)
 		}
 	}
 
@@ -112,7 +105,7 @@ func (p *Processor) ProcessEmail(ctx context.Context, user *database.User, messa
 	formattedLabels := strings.Join(labelLines, "\n")
 
 	// Stage 2: Determine actions
-	actions, err := p.openai.DetermineActions(ctx, message.From, message.Subject, analysis.Slug, analysis.Keywords, analysis.Summary, labelNames, formattedLabels, actionsPrompt)
+	actions, err := p.openai.DetermineActions(ctx, message.From, message.Subject, analysis.Slug, analysis.Keywords, analysis.Summary, labelNames, formattedLabels, memoryContext, actionsPrompt)
 	if err != nil {
 		return fmt.Errorf("stage 2 failed: %w", err)
 	}

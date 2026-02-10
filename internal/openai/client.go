@@ -149,11 +149,12 @@ Analyze this email and provide the slug, keywords, and summary.`, from, subject,
 // DetermineActions runs Stage 2: Action generation
 // labelNames is the list of valid label names (for schema validation)
 // formattedLabels is a human-readable bullet list with descriptions (for the prompt)
-func (c *Client) DetermineActions(ctx context.Context, from, subject, slug string, keywords []string, summary string, labelNames []string, formattedLabels string, customSystemPrompt string) (*EmailActions, error) {
+// memoryContext is the formatted memory string from past learnings
+func (c *Client) DetermineActions(ctx context.Context, from, subject, slug string, keywords []string, summary string, labelNames []string, formattedLabels string, memoryContext string, customSystemPrompt string) (*EmailActions, error) {
 	systemPrompt := customSystemPrompt
 	if systemPrompt == "" {
 		// Default prompt if none provided
-		systemPrompt = `You are an email automation assistant. Based on the email analysis, determine what actions to take and respond with JSON.
+		systemPrompt = `You are an email automation assistant. Based on the email analysis and past learnings, determine what actions to take and respond with JSON.
 
 Available labels:
 %s
@@ -161,7 +162,9 @@ Available labels:
 Decide:
 1. Which labels to apply (use exact label names from the list above, only when they clearly match)
 2. Whether to bypass the inbox (archive immediately)
-3. Brief reasoning for your decisions`
+3. Brief reasoning for your decisions
+
+Use the learnings from past email processing (provided below) to make better decisions about labeling and archiving.`
 	}
 
 	if customSystemPrompt == "" {
@@ -178,7 +181,7 @@ Slug: %s
 Keywords: %v
 Summary: %s
 
-What actions should be taken for this email?`, from, subject, slug, keywords, summary)
+%sWhat actions should be taken for this email?`, from, subject, slug, keywords, summary, memoryContext)
 
 	c.logPrompts("DetermineActions", systemPrompt, userPrompt)
 
