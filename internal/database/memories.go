@@ -191,6 +191,46 @@ func (db *DB) GetRecentMemoriesForContext(ctx context.Context, userID int64) ([]
 	return memories, nil
 }
 
+// GetMemoriesByDateRange retrieves memories of a specific type within a date range
+func (db *DB) GetMemoriesByDateRange(ctx context.Context, userID int64, memoryType MemoryType, startDate, endDate time.Time) ([]*Memory, error) {
+	query := `
+		SELECT id, user_id, type, content, start_date, end_date, created_at
+		FROM memories
+		WHERE user_id = $1 AND type = $2 AND start_date >= $3 AND start_date < $4
+		ORDER BY start_date ASC
+	`
+
+	rows, err := db.conn.QueryContext(ctx, query, userID, memoryType, startDate, endDate)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query memories by date range: %w", err)
+	}
+	defer rows.Close()
+
+	var memories []*Memory
+	for rows.Next() {
+		var memory Memory
+		err := rows.Scan(
+			&memory.ID,
+			&memory.UserID,
+			&memory.Type,
+			&memory.Content,
+			&memory.StartDate,
+			&memory.EndDate,
+			&memory.CreatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan memory: %w", err)
+		}
+		memories = append(memories, &memory)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating memories: %w", err)
+	}
+
+	return memories, nil
+}
+
 // GetEmailsByDateRange retrieves emails processed within a date range
 func (db *DB) GetEmailsByDateRange(ctx context.Context, userID int64, startDate, endDate time.Time) ([]*Email, error) {
 	query := `

@@ -16,6 +16,7 @@ import (
 	"github.com/den/gmail-triage-assistant/internal/pipeline"
 	"github.com/den/gmail-triage-assistant/internal/scheduler"
 	"github.com/den/gmail-triage-assistant/internal/web"
+	"github.com/den/gmail-triage-assistant/internal/wrapup"
 	"github.com/joho/godotenv"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -75,6 +76,10 @@ func main() {
 	memoryService := memory.NewService(db, openaiClient)
 	log.Printf("✓ Memory service initialized")
 
+	// Initialize wrapup service
+	wrapupService := wrapup.NewService(db, openaiClient)
+	log.Printf("✓ Wrapup service initialized")
+
 	// Initialize email processor pipeline
 	processor := pipeline.NewProcessor(db, openaiClient, oauthConfig)
 	log.Printf("✓ Email processing pipeline initialized")
@@ -92,11 +97,16 @@ func main() {
 	server := web.NewServer(db, cfg, memoryService)
 
 	// Initialize scheduler
-	sched := scheduler.NewScheduler(db, memoryService)
+	sched := scheduler.NewScheduler(db, memoryService, wrapupService)
 
 	log.Printf("✓ Multi-user Gmail monitor initialized (checking every %v)", checkInterval)
 	log.Printf("✓ Web server ready on: http://%s:%s", cfg.ServerHost, cfg.ServerPort)
-	log.Printf("✓ Scheduler initialized (8AM wrapup, 5PM wrapup + memory)")
+	log.Printf("✓ Scheduler initialized:")
+	log.Printf("  - 8AM: Morning wrapup")
+	log.Printf("  - 5PM: Evening wrapup + daily memory")
+	log.Printf("  - 6PM Saturday: Weekly memory")
+	log.Printf("  - 7PM 1st: Monthly memory")
+	log.Printf("  - 8PM Jan 1st: Yearly memory")
 
 	// Start scheduler in background
 	go sched.Start(ctx)

@@ -130,3 +130,194 @@ Provide a concise memory summary with key patterns and insights.`, len(emails), 
 
 	return memory, nil
 }
+
+// GenerateWeeklyMemory consolidates the past week's daily memories
+func (s *Service) GenerateWeeklyMemory(ctx context.Context, userID int64) error {
+	log.Printf("Generating weekly memory for user %d", userID)
+
+	// Get last week's date range (last 7 days)
+	now := time.Now()
+	endDate := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	startDate := endDate.AddDate(0, 0, -7)
+
+	// Get all daily memories from the past week
+	memories, err := s.db.GetMemoriesByDateRange(ctx, userID, database.MemoryTypeDaily, startDate, endDate)
+	if err != nil {
+		return fmt.Errorf("failed to get daily memories: %w", err)
+	}
+
+	if len(memories) == 0 {
+		log.Printf("No daily memories found for user %d in the past week, skipping weekly memory", userID)
+		return nil
+	}
+
+	// Get custom prompt if available
+	customPrompt := ""
+	if prompt, err := s.db.GetSystemPrompt(ctx, userID, database.PromptTypeWeeklySummary); err == nil {
+		customPrompt = prompt.Content
+	}
+
+	// Generate consolidated memory
+	memoryContent, err := s.consolidateMemories(ctx, memories, "weekly", customPrompt)
+	if err != nil {
+		return fmt.Errorf("failed to consolidate memories: %w", err)
+	}
+
+	// Save weekly memory
+	memory := &database.Memory{
+		UserID:    userID,
+		Type:      database.MemoryTypeWeekly,
+		Content:   memoryContent,
+		StartDate: startDate,
+		EndDate:   endDate,
+		CreatedAt: now,
+	}
+
+	if err := s.db.CreateMemory(ctx, memory); err != nil {
+		return fmt.Errorf("failed to save weekly memory: %w", err)
+	}
+
+	log.Printf("✓ Weekly memory created for user %d (consolidated %d daily memories)", userID, len(memories))
+	return nil
+}
+
+// GenerateMonthlyMemory consolidates the past month's weekly memories
+func (s *Service) GenerateMonthlyMemory(ctx context.Context, userID int64) error {
+	log.Printf("Generating monthly memory for user %d", userID)
+
+	// Get last month's date range
+	now := time.Now()
+	endDate := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+	startDate := endDate.AddDate(0, -1, 0)
+
+	// Get all weekly memories from the past month
+	memories, err := s.db.GetMemoriesByDateRange(ctx, userID, database.MemoryTypeWeekly, startDate, endDate)
+	if err != nil {
+		return fmt.Errorf("failed to get weekly memories: %w", err)
+	}
+
+	if len(memories) == 0 {
+		log.Printf("No weekly memories found for user %d in the past month, skipping monthly memory", userID)
+		return nil
+	}
+
+	// Get custom prompt if available
+	customPrompt := ""
+	if prompt, err := s.db.GetSystemPrompt(ctx, userID, database.PromptTypeMonthlySummary); err == nil {
+		customPrompt = prompt.Content
+	}
+
+	// Generate consolidated memory
+	memoryContent, err := s.consolidateMemories(ctx, memories, "monthly", customPrompt)
+	if err != nil {
+		return fmt.Errorf("failed to consolidate memories: %w", err)
+	}
+
+	// Save monthly memory
+	memory := &database.Memory{
+		UserID:    userID,
+		Type:      database.MemoryTypeMonthly,
+		Content:   memoryContent,
+		StartDate: startDate,
+		EndDate:   endDate,
+		CreatedAt: now,
+	}
+
+	if err := s.db.CreateMemory(ctx, memory); err != nil {
+		return fmt.Errorf("failed to save monthly memory: %w", err)
+	}
+
+	log.Printf("✓ Monthly memory created for user %d (consolidated %d weekly memories)", userID, len(memories))
+	return nil
+}
+
+// GenerateYearlyMemory consolidates the past year's monthly memories
+func (s *Service) GenerateYearlyMemory(ctx context.Context, userID int64) error {
+	log.Printf("Generating yearly memory for user %d", userID)
+
+	// Get last year's date range
+	now := time.Now()
+	endDate := time.Date(now.Year(), 1, 1, 0, 0, 0, 0, now.Location())
+	startDate := endDate.AddDate(-1, 0, 0)
+
+	// Get all monthly memories from the past year
+	memories, err := s.db.GetMemoriesByDateRange(ctx, userID, database.MemoryTypeMonthly, startDate, endDate)
+	if err != nil {
+		return fmt.Errorf("failed to get monthly memories: %w", err)
+	}
+
+	if len(memories) == 0 {
+		log.Printf("No monthly memories found for user %d in the past year, skipping yearly memory", userID)
+		return nil
+	}
+
+	// Get custom prompt if available
+	customPrompt := ""
+	if prompt, err := s.db.GetSystemPrompt(ctx, userID, database.PromptTypeYearlySummary); err == nil {
+		customPrompt = prompt.Content
+	}
+
+	// Generate consolidated memory
+	memoryContent, err := s.consolidateMemories(ctx, memories, "yearly", customPrompt)
+	if err != nil {
+		return fmt.Errorf("failed to consolidate memories: %w", err)
+	}
+
+	// Save yearly memory
+	memory := &database.Memory{
+		UserID:    userID,
+		Type:      database.MemoryTypeYearly,
+		Content:   memoryContent,
+		StartDate: startDate,
+		EndDate:   endDate,
+		CreatedAt: now,
+	}
+
+	if err := s.db.CreateMemory(ctx, memory); err != nil {
+		return fmt.Errorf("failed to save yearly memory: %w", err)
+	}
+
+	log.Printf("✓ Yearly memory created for user %d (consolidated %d monthly memories)", userID, len(memories))
+	return nil
+}
+
+// consolidateMemories uses AI to consolidate multiple memories into one higher-level memory
+func (s *Service) consolidateMemories(ctx context.Context, memories []*database.Memory, period string, customPrompt string) (string, error) {
+	systemPrompt := customPrompt
+	if systemPrompt == "" {
+		systemPrompt = fmt.Sprintf(`You are an AI assistant consolidating %s email processing insights. Review the provided memories and create a higher-level summary that:
+1. Identifies overarching patterns and trends
+2. Highlights important behavioral changes over time
+3. Notes recurring themes across the period
+4. Provides strategic insights for email management
+5. Suggests any process improvements
+
+Be concise and focus on the most significant patterns. Format as bullet points.`, period)
+	}
+
+	// Prepare summary of memories
+	var memorySummaries []string
+	for i, mem := range memories {
+		memorySummaries = append(memorySummaries, fmt.Sprintf("Memory %d (%s to %s):\n%s",
+			i+1,
+			mem.StartDate.Format("2006-01-02"),
+			mem.EndDate.Format("2006-01-02"),
+			mem.Content,
+		))
+	}
+
+	userPrompt := fmt.Sprintf(`Consolidate these %d memories from the past %s into a higher-level summary:
+
+%s
+
+Provide a concise %s summary with key patterns and strategic insights.`,
+		len(memories), period, strings.Join(memorySummaries, "\n\n"), period)
+
+	// Call AI to generate consolidated memory
+	memory, err := s.openai.GenerateMemory(ctx, systemPrompt, userPrompt)
+	if err != nil {
+		return "", err
+	}
+
+	return memory, nil
+}
