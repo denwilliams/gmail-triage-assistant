@@ -14,11 +14,11 @@ CREATE TABLE IF NOT EXISTS emails (
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_emails_from_address ON emails(from_address);
-CREATE INDEX idx_emails_slug ON emails(slug);
-CREATE INDEX idx_emails_processed_at ON emails(processed_at);
-CREATE INDEX idx_emails_keywords ON emails USING GIN(keywords);
-CREATE INDEX idx_emails_labels ON emails USING GIN(labels_applied);
+CREATE INDEX IF NOT EXISTS idx_emails_from_address ON emails(from_address);
+CREATE INDEX IF NOT EXISTS idx_emails_slug ON emails(slug);
+CREATE INDEX IF NOT EXISTS idx_emails_processed_at ON emails(processed_at);
+CREATE INDEX IF NOT EXISTS idx_emails_keywords ON emails USING GIN(keywords);
+CREATE INDEX IF NOT EXISTS idx_emails_labels ON emails USING GIN(labels_applied);
 
 -- Labels table: Gmail labels with configuration
 CREATE TABLE IF NOT EXISTS labels (
@@ -62,16 +62,7 @@ CREATE TABLE IF NOT EXISTS memories (
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_memories_type ON memories(type);
-CREATE INDEX idx_memories_dates ON memories(start_date, end_date);
+CREATE INDEX IF NOT EXISTS idx_memories_type ON memories(type);
+CREATE INDEX IF NOT EXISTS idx_memories_dates ON memories(start_date, end_date);
 
--- Wrap-up reports table: 8AM and 5PM summaries
-CREATE TABLE IF NOT EXISTS wrapup_reports (
-    id BIGSERIAL PRIMARY KEY,
-    report_time TIMESTAMP WITH TIME ZONE NOT NULL,
-    email_count INTEGER NOT NULL DEFAULT 0,
-    content TEXT NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX idx_wrapup_reports_time ON wrapup_reports(report_time);
+-- Note: wrapup_reports table is created in migration 004

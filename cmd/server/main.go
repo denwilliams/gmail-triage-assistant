@@ -47,6 +47,13 @@ func main() {
 
 	log.Printf("✓ Database connected successfully")
 
+	// Run database migrations
+	log.Println("Running database migrations...")
+	if err := db.RunMigrations(ctx); err != nil {
+		log.Fatalf("Failed to run migrations: %v", err)
+	}
+	log.Printf("✓ Database migrations completed")
+
 	// Create OAuth config
 	oauthConfig := &oauth2.Config{
 		ClientID:     cfg.GoogleClientID,
