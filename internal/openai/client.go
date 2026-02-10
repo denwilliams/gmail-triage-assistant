@@ -260,7 +260,7 @@ func (c *Client) GenerateMemory(ctx context.Context, systemPrompt, userPrompt st
 			openai.UserMessage(userPrompt),
 		},
 		// Temperature: openai.Float(0.5),
-		MaxTokens: openai.Int(2000),
+		MaxCompletionTokens: openai.Int(20000),
 	})
 
 	if err != nil {

@@ -114,9 +114,10 @@ func (s *Service) generateWrapupContent(ctx context.Context, emails []*database.
 		systemPrompt = `You are an AI assistant creating an email processing summary report. Review the emails and provide a concise wrapup including:
 1. Total number of emails processed
 2. Most common senders and types
-3. Labels applied summary
-4. Any notable patterns or important emails
-5. Quick overview of what was archived vs kept in inbox
+3. Most interesting or important emails (based on subject and sender) and why
+4. Labels applied summary
+5. Any notable patterns or important emails
+6. Quick overview of what was archived vs kept in inbox
 
 Keep it brief and actionable - this is a daily digest for quick review.`
 	}

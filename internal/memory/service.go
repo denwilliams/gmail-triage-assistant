@@ -88,14 +88,26 @@ func (s *Service) GenerateDailyMemory(ctx context.Context, userID int64) error {
 func (s *Service) generateMemoryFromEmails(ctx context.Context, emails []*database.Email, customPrompt string) (string, error) {
 	systemPrompt := customPrompt
 	if systemPrompt == "" {
-		systemPrompt = `You are an AI assistant analyzing email processing patterns. Review the provided emails and generate insights about:
-1. Common patterns in emails received (types of senders, subjects, content)
-2. Which labels were most frequently applied and why
-3. Whether emails were correctly categorized
-4. Any sender patterns that should be remembered for future processing
-5. Suggestions for improving categorization
+		systemPrompt = `You are an AI assistant creating learnings to improve future email processing decisions. Your goal is NOT to summarize what happened, but to extract insights that will help process emails better tomorrow.
 
-Be concise and focus on actionable insights. Format as bullet points.`
+Analyze the emails and their categorizations, then create a memory focused on:
+
+**What worked well:**
+- Categorization decisions that seem correct and should be repeated
+- Patterns successfully identified (e.g., "newsletters from X always get archived")
+- Sender behaviors correctly recognized
+
+**What to improve:**
+- Emails that may have been miscategorized and why
+- Patterns that were missed or incorrectly applied
+- Better ways to handle similar emails in the future
+
+**Key learnings for tomorrow:**
+- Specific rules to apply (e.g., "emails from @company.com with 'invoice' should get Urgent label")
+- Sender patterns to remember
+- Content patterns that indicate specific labels
+
+Be specific and actionable. Focus on insights that will directly improve future email processing. Format as concise bullet points.`
 	}
 
 	// Prepare summary of emails
@@ -105,22 +117,30 @@ Be concise and focus on actionable insights. Format as bullet points.`
 			emailSummaries = append(emailSummaries, fmt.Sprintf("... and %d more emails", len(emails)-50))
 			break
 		}
+
+		// Include reasoning in the summary so AI can learn from past decisions
+		reasoning := ""
+		if email.Reasoning != "" {
+			reasoning = fmt.Sprintf(" | AI Reasoning: %s", email.Reasoning)
+		}
+
 		emailSummaries = append(emailSummaries, fmt.Sprintf(
-			"- From: %s | Subject: %s | Slug: %s | Labels: %v | Archived: %v | Keywords: %v",
+			"- From: %s | Subject: %s | Slug: %s | Labels: %v | Archived: %v | Keywords: %v%s",
 			email.FromAddress,
 			email.Subject,
 			email.Slug,
 			email.LabelsApplied,
 			email.BypassedInbox,
 			email.Keywords,
+			reasoning,
 		))
 	}
 
-	userPrompt := fmt.Sprintf(`Analyze these %d emails from yesterday and generate insights:
+	userPrompt := fmt.Sprintf(`Review these %d processed emails and extract learnings to improve future email handling:
 
 %s
 
-Provide a concise memory summary with key patterns and insights.`, len(emails), strings.Join(emailSummaries, "\n"))
+Focus on creating actionable insights that will help process similar emails better in the future. What patterns should be reinforced? What should be done differently?`, len(emails), strings.Join(emailSummaries, "\n"))
 
 	// Call AI to generate memory
 	memory, err := s.openai.GenerateMemory(ctx, systemPrompt, userPrompt)
@@ -140,14 +160,36 @@ func (s *Service) GenerateWeeklyMemory(ctx context.Context, userID int64) error 
 	endDate := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 	startDate := endDate.AddDate(0, 0, -7)
 
-	// Get all daily memories from the past week
-	memories, err := s.db.GetMemoriesByDateRange(ctx, userID, database.MemoryTypeDaily, startDate, endDate)
+	// Get the most recent weekly memory (to evolve from)
+	previousWeeklyMemories, err := s.db.GetMemoriesByType(ctx, userID, database.MemoryTypeWeekly, 1)
+	if err != nil {
+		return fmt.Errorf("failed to get previous weekly memory: %w", err)
+	}
+
+	var previousMemory *database.Memory
+	if len(previousWeeklyMemories) > 0 {
+		previousMemory = previousWeeklyMemories[0]
+		log.Printf("Found previous weekly memory from %s, will evolve it", previousMemory.StartDate.Format("2006-01-02"))
+	} else {
+		log.Printf("No previous weekly memory found, will create first one")
+	}
+
+	// Get all daily memories since the last weekly memory (or last 7 days if no previous)
+	var dailyStartDate time.Time
+	if previousMemory != nil {
+		// Get daily memories since the last weekly memory ended
+		dailyStartDate = previousMemory.EndDate
+	} else {
+		dailyStartDate = startDate
+	}
+
+	dailyMemories, err := s.db.GetMemoriesByDateRange(ctx, userID, database.MemoryTypeDaily, dailyStartDate, endDate)
 	if err != nil {
 		return fmt.Errorf("failed to get daily memories: %w", err)
 	}
 
-	if len(memories) == 0 {
-		log.Printf("No daily memories found for user %d in the past week, skipping weekly memory", userID)
+	if len(dailyMemories) == 0 {
+		log.Printf("No new daily memories found for user %d since %s, skipping weekly memory", userID, dailyStartDate.Format("2006-01-02"))
 		return nil
 	}
 
@@ -157,8 +199,8 @@ func (s *Service) GenerateWeeklyMemory(ctx context.Context, userID int64) error 
 		customPrompt = prompt.Content
 	}
 
-	// Generate consolidated memory
-	memoryContent, err := s.consolidateMemories(ctx, memories, "weekly", customPrompt)
+	// Generate consolidated memory (evolving from previous if exists)
+	memoryContent, err := s.consolidateMemories(ctx, previousMemory, dailyMemories, "weekly", customPrompt)
 	if err != nil {
 		return fmt.Errorf("failed to consolidate memories: %w", err)
 	}
@@ -177,7 +219,11 @@ func (s *Service) GenerateWeeklyMemory(ctx context.Context, userID int64) error 
 		return fmt.Errorf("failed to save weekly memory: %w", err)
 	}
 
-	log.Printf("✓ Weekly memory created for user %d (consolidated %d daily memories)", userID, len(memories))
+	if previousMemory != nil {
+		log.Printf("✓ Weekly memory evolved for user %d (incorporated %d new daily memories)", userID, len(dailyMemories))
+	} else {
+		log.Printf("✓ Weekly memory created for user %d (consolidated %d daily memories)", userID, len(dailyMemories))
+	}
 	return nil
 }
 
@@ -190,14 +236,35 @@ func (s *Service) GenerateMonthlyMemory(ctx context.Context, userID int64) error
 	endDate := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
 	startDate := endDate.AddDate(0, -1, 0)
 
-	// Get all weekly memories from the past month
-	memories, err := s.db.GetMemoriesByDateRange(ctx, userID, database.MemoryTypeWeekly, startDate, endDate)
+	// Get the most recent monthly memory (to evolve from)
+	previousMonthlyMemories, err := s.db.GetMemoriesByType(ctx, userID, database.MemoryTypeMonthly, 1)
+	if err != nil {
+		return fmt.Errorf("failed to get previous monthly memory: %w", err)
+	}
+
+	var previousMemory *database.Memory
+	if len(previousMonthlyMemories) > 0 {
+		previousMemory = previousMonthlyMemories[0]
+		log.Printf("Found previous monthly memory from %s, will evolve it", previousMemory.StartDate.Format("2006-01-02"))
+	} else {
+		log.Printf("No previous monthly memory found, will create first one")
+	}
+
+	// Get all weekly memories since the last monthly memory (or last month if no previous)
+	var weeklyStartDate time.Time
+	if previousMemory != nil {
+		weeklyStartDate = previousMemory.EndDate
+	} else {
+		weeklyStartDate = startDate
+	}
+
+	weeklyMemories, err := s.db.GetMemoriesByDateRange(ctx, userID, database.MemoryTypeWeekly, weeklyStartDate, endDate)
 	if err != nil {
 		return fmt.Errorf("failed to get weekly memories: %w", err)
 	}
 
-	if len(memories) == 0 {
-		log.Printf("No weekly memories found for user %d in the past month, skipping monthly memory", userID)
+	if len(weeklyMemories) == 0 {
+		log.Printf("No new weekly memories found for user %d since %s, skipping monthly memory", userID, weeklyStartDate.Format("2006-01-02"))
 		return nil
 	}
 
@@ -207,8 +274,8 @@ func (s *Service) GenerateMonthlyMemory(ctx context.Context, userID int64) error
 		customPrompt = prompt.Content
 	}
 
-	// Generate consolidated memory
-	memoryContent, err := s.consolidateMemories(ctx, memories, "monthly", customPrompt)
+	// Generate consolidated memory (evolving from previous if exists)
+	memoryContent, err := s.consolidateMemories(ctx, previousMemory, weeklyMemories, "monthly", customPrompt)
 	if err != nil {
 		return fmt.Errorf("failed to consolidate memories: %w", err)
 	}
@@ -227,7 +294,11 @@ func (s *Service) GenerateMonthlyMemory(ctx context.Context, userID int64) error
 		return fmt.Errorf("failed to save monthly memory: %w", err)
 	}
 
-	log.Printf("✓ Monthly memory created for user %d (consolidated %d weekly memories)", userID, len(memories))
+	if previousMemory != nil {
+		log.Printf("✓ Monthly memory evolved for user %d (incorporated %d new weekly memories)", userID, len(weeklyMemories))
+	} else {
+		log.Printf("✓ Monthly memory created for user %d (consolidated %d weekly memories)", userID, len(weeklyMemories))
+	}
 	return nil
 }
 
@@ -240,14 +311,35 @@ func (s *Service) GenerateYearlyMemory(ctx context.Context, userID int64) error 
 	endDate := time.Date(now.Year(), 1, 1, 0, 0, 0, 0, now.Location())
 	startDate := endDate.AddDate(-1, 0, 0)
 
-	// Get all monthly memories from the past year
-	memories, err := s.db.GetMemoriesByDateRange(ctx, userID, database.MemoryTypeMonthly, startDate, endDate)
+	// Get the most recent yearly memory (to evolve from)
+	previousYearlyMemories, err := s.db.GetMemoriesByType(ctx, userID, database.MemoryTypeYearly, 1)
+	if err != nil {
+		return fmt.Errorf("failed to get previous yearly memory: %w", err)
+	}
+
+	var previousMemory *database.Memory
+	if len(previousYearlyMemories) > 0 {
+		previousMemory = previousYearlyMemories[0]
+		log.Printf("Found previous yearly memory from %s, will evolve it", previousMemory.StartDate.Format("2006-01-02"))
+	} else {
+		log.Printf("No previous yearly memory found, will create first one")
+	}
+
+	// Get all monthly memories since the last yearly memory (or last year if no previous)
+	var monthlyStartDate time.Time
+	if previousMemory != nil {
+		monthlyStartDate = previousMemory.EndDate
+	} else {
+		monthlyStartDate = startDate
+	}
+
+	monthlyMemories, err := s.db.GetMemoriesByDateRange(ctx, userID, database.MemoryTypeMonthly, monthlyStartDate, endDate)
 	if err != nil {
 		return fmt.Errorf("failed to get monthly memories: %w", err)
 	}
 
-	if len(memories) == 0 {
-		log.Printf("No monthly memories found for user %d in the past year, skipping yearly memory", userID)
+	if len(monthlyMemories) == 0 {
+		log.Printf("No new monthly memories found for user %d since %s, skipping yearly memory", userID, monthlyStartDate.Format("2006-01-02"))
 		return nil
 	}
 
@@ -257,8 +349,8 @@ func (s *Service) GenerateYearlyMemory(ctx context.Context, userID int64) error 
 		customPrompt = prompt.Content
 	}
 
-	// Generate consolidated memory
-	memoryContent, err := s.consolidateMemories(ctx, memories, "yearly", customPrompt)
+	// Generate consolidated memory (evolving from previous if exists)
+	memoryContent, err := s.consolidateMemories(ctx, previousMemory, monthlyMemories, "yearly", customPrompt)
 	if err != nil {
 		return fmt.Errorf("failed to consolidate memories: %w", err)
 	}
@@ -277,28 +369,57 @@ func (s *Service) GenerateYearlyMemory(ctx context.Context, userID int64) error 
 		return fmt.Errorf("failed to save yearly memory: %w", err)
 	}
 
-	log.Printf("✓ Yearly memory created for user %d (consolidated %d monthly memories)", userID, len(memories))
+	if previousMemory != nil {
+		log.Printf("✓ Yearly memory evolved for user %d (incorporated %d new monthly memories)", userID, len(monthlyMemories))
+	} else {
+		log.Printf("✓ Yearly memory created for user %d (consolidated %d monthly memories)", userID, len(monthlyMemories))
+	}
 	return nil
 }
 
-// consolidateMemories uses AI to consolidate multiple memories into one higher-level memory
-func (s *Service) consolidateMemories(ctx context.Context, memories []*database.Memory, period string, customPrompt string) (string, error) {
+// consolidateMemories uses AI to evolve an existing memory by incorporating new lower-level memories
+func (s *Service) consolidateMemories(ctx context.Context, previousMemory *database.Memory, newMemories []*database.Memory, period string, customPrompt string) (string, error) {
 	systemPrompt := customPrompt
 	if systemPrompt == "" {
-		systemPrompt = fmt.Sprintf(`You are an AI assistant consolidating %s email processing insights. Review the provided memories and create a higher-level summary that:
-1. Identifies overarching patterns and trends
-2. Highlights important behavioral changes over time
-3. Notes recurring themes across the period
-4. Provides strategic insights for email management
-5. Suggests any process improvements
+		if previousMemory != nil {
+			// Evolutionary mode: update existing memory
+			systemPrompt = fmt.Sprintf(`You are an AI assistant evolving a %s email processing memory. Your task is to UPDATE the existing memory by incorporating new insights from recent lower-level memories.
 
-Be concise and focus on the most significant patterns. Format as bullet points.`, period)
+DO NOT write a new memory from scratch. Instead:
+
+**Reinforce patterns:**
+- Keep and strengthen insights that are still relevant and being validated by new data
+- Note when patterns continue or become more pronounced
+
+**Amend differences:**
+- Update or refine insights when new data shows changes in patterns
+- Add new learnings that weren't in the previous memory
+- Remove or de-emphasize insights that are no longer relevant
+
+**Maintain continuity:**
+- Build on the existing memory's structure and insights
+- Show evolution over time rather than replacement
+- Keep the most valuable long-term learnings
+
+The goal is an EVOLVED memory that's better than the previous one, not a brand new memory. Format as bullet points.`, period)
+		} else {
+			// Initial creation mode: no previous memory exists
+			systemPrompt = fmt.Sprintf(`You are an AI assistant creating the first %s email processing memory. Review the provided memories and create insights focused on:
+
+1. Identifying overarching patterns and trends
+2. Highlighting important behavioral patterns
+3. Noting recurring themes
+4. Providing strategic insights for email management
+5. Suggesting process improvements
+
+Be concise and focus on actionable patterns. Format as bullet points.`, period)
+		}
 	}
 
-	// Prepare summary of memories
+	// Prepare summary of new memories
 	var memorySummaries []string
-	for i, mem := range memories {
-		memorySummaries = append(memorySummaries, fmt.Sprintf("Memory %d (%s to %s):\n%s",
+	for i, mem := range newMemories {
+		memorySummaries = append(memorySummaries, fmt.Sprintf("New Memory %d (%s to %s):\n%s",
 			i+1,
 			mem.StartDate.Format("2006-01-02"),
 			mem.EndDate.Format("2006-01-02"),
@@ -306,12 +427,42 @@ Be concise and focus on the most significant patterns. Format as bullet points.`
 		))
 	}
 
-	userPrompt := fmt.Sprintf(`Consolidate these %d memories from the past %s into a higher-level summary:
+	var userPrompt string
+	if previousMemory != nil {
+		// Evolutionary update
+		userPrompt = fmt.Sprintf(`**CURRENT %s MEMORY (to be evolved):**
+Period: %s to %s
+%s
+
+**NEW INSIGHTS FROM RECENT MEMORIES (%d new):**
+%s
+
+Task: Evolve the current memory by:
+1. Reinforcing patterns that continue in the new memories
+2. Updating insights where new data shows changes
+3. Adding new learnings not present in current memory
+4. Removing outdated insights
+
+Output an evolved %s memory that builds on the current one.`,
+			strings.ToUpper(period),
+			previousMemory.StartDate.Format("2006-01-02"),
+			previousMemory.EndDate.Format("2006-01-02"),
+			previousMemory.Content,
+			len(newMemories),
+			strings.Join(memorySummaries, "\n\n"),
+			period)
+	} else {
+		// Initial creation
+		userPrompt = fmt.Sprintf(`Create the first %s memory by consolidating these %d memories:
 
 %s
 
 Provide a concise %s summary with key patterns and strategic insights.`,
-		len(memories), period, strings.Join(memorySummaries, "\n\n"), period)
+			period,
+			len(newMemories),
+			strings.Join(memorySummaries, "\n\n"),
+			period)
+	}
 
 	// Call AI to generate consolidated memory
 	memory, err := s.openai.GenerateMemory(ctx, systemPrompt, userPrompt)
