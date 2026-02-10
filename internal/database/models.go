@@ -27,6 +27,7 @@ type Email struct {
 	Summary       string    `db:"summary" json:"summary"`             // Single line summary
 	LabelsApplied []string  `db:"labels_applied" json:"labels_applied"` // Labels applied to email
 	BypassedInbox bool      `db:"bypassed_inbox" json:"bypassed_inbox"` // Whether email bypassed inbox
+	Reasoning     string    `db:"reasoning" json:"reasoning"`           // AI reasoning for actions taken
 	ProcessedAt   time.Time `db:"processed_at" json:"processed_at"`   // When email was processed
 	CreatedAt     time.Time `db:"created_at" json:"created_at"`       // When record was created
 }

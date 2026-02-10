@@ -44,6 +44,11 @@
 						<em style="color: #666;">No labels</em>
 					{{end}}
 				</p>
+				{{if .Reasoning}}
+				<p style="margin: 0.5rem 0; color: #555; font-style: italic; border-top: 1px solid #eee; padding-top: 0.5rem;">
+					<small><strong>AI Reasoning:</strong> {{.Reasoning}}</small>
+				</p>
+				{{end}}
 				<p style="color: #888; margin: 0.25rem 0;">
 					<small>Processed: {{.ProcessedAt.Format "Jan 2, 2006 3:04 PM"}}</small>
 				</p>

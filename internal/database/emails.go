@@ -20,8 +20,8 @@ func (db *DB) CreateEmail(ctx context.Context, email *Email) error {
 	}
 
 	query := `
-		INSERT INTO emails (id, user_id, from_address, subject, slug, keywords, summary, labels_applied, bypassed_inbox, processed_at, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		INSERT INTO emails (id, user_id, from_address, subject, slug, keywords, summary, labels_applied, bypassed_inbox, reasoning, processed_at, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 		ON CONFLICT (id) DO NOTHING
 	`
 
@@ -37,6 +37,7 @@ func (db *DB) CreateEmail(ctx context.Context, email *Email) error {
 		email.Summary,
 		labelsJSON,
 		email.BypassedInbox,
+		email.Reasoning,
 		email.ProcessedAt,
 		email.CreatedAt,
 	)
@@ -146,7 +147,7 @@ func (db *DB) GetUserLabelsWithDetails(ctx context.Context, userID int64) ([]*La
 func (db *DB) GetRecentEmails(ctx context.Context, userID int64, limit int) ([]*Email, error) {
 	query := `
 		SELECT id, user_id, from_address, subject, slug, keywords, summary,
-		       labels_applied, bypassed_inbox, processed_at, created_at
+		       labels_applied, bypassed_inbox, reasoning, processed_at, created_at
 		FROM emails
 		WHERE user_id = $1
 		ORDER BY processed_at DESC
@@ -174,6 +175,7 @@ func (db *DB) GetRecentEmails(ctx context.Context, userID int64, limit int) ([]*
 			&email.Summary,
 			&labelsJSON,
 			&email.BypassedInbox,
+			&email.Reasoning,
 			&email.ProcessedAt,
 			&email.CreatedAt,
 		)

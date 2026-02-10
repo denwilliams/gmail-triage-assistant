@@ -130,6 +130,7 @@ func (p *Processor) ProcessEmail(ctx context.Context, user *database.User, messa
 		Summary:       analysis.Summary,
 		LabelsApplied: actions.Labels,
 		BypassedInbox: actions.BypassInbox,
+		Reasoning:     actions.Reasoning,
 		ProcessedAt:   time.Now(),
 		CreatedAt:     time.Now(),
 	}
