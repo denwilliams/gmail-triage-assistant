@@ -36,13 +36,18 @@ Each email undergoes a two-stage AI analysis:
 
 ### Self-Improvement System
 
-The system implements a hierarchical memory consolidation strategy:
+The system implements a hierarchical memory consolidation strategy with automatic scheduling:
 
-- **8AM & 5PM**: Wrap-up reports of all processed emails since last report
-- **5PM Daily**: Review pipeline decisions, create daily memories
-- **6PM Saturday**: Consolidate weekly memories
-- **7PM 1st of Month**: Consolidate monthly memories
-- **8PM 1st of Year**: Consolidate yearly memories
+**Daily Schedule:**
+- **8AM**: Morning wrap-up report (emails processed since 5PM yesterday)
+- **5PM**: Evening wrap-up report + daily memory generation (analyzes day's emails)
+
+**Hierarchical Memory Consolidation:**
+- **6PM Saturday**: Weekly memory (consolidates past 7 daily memories into higher-level insights)
+- **7PM 1st of Month**: Monthly memory (consolidates weekly memories from past month)
+- **8PM January 1st**: Yearly memory (consolidates monthly memories from past year)
+
+Each memory level learns from the level below, creating progressively higher-level pattern recognition that informs future email processing decisions. All memories are passed to the AI during email processing to provide historical context.
 
 ### Configuration
 
