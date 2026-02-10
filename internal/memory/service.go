@@ -40,8 +40,18 @@ func (s *Service) GenerateDailyMemory(ctx context.Context, userID int64) error {
 	}
 
 	if len(emails) == 0 {
-		log.Printf("No emails processed yesterday for user %d, skipping memory generation", userID)
-		return nil
+		// If no emails yesterday, try last 24 hours instead (useful for manual triggering)
+		log.Printf("No emails processed yesterday for user %d, trying last 24 hours", userID)
+		startOfYesterday = now.Add(-24 * time.Hour)
+		endOfYesterday = now
+		emails, err = s.db.GetEmailsByDateRange(ctx, userID, startOfYesterday, endOfYesterday)
+		if err != nil {
+			return fmt.Errorf("failed to get emails from last 24h: %w", err)
+		}
+		if len(emails) == 0 {
+			log.Printf("No emails in last 24 hours for user %d, skipping memory generation", userID)
+			return nil
+		}
 	}
 
 	// Get custom prompt if available
