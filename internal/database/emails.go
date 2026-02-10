@@ -147,7 +147,7 @@ func (db *DB) GetUserLabelsWithDetails(ctx context.Context, userID int64) ([]*La
 func (db *DB) GetRecentEmails(ctx context.Context, userID int64, limit int) ([]*Email, error) {
 	query := `
 		SELECT id, user_id, from_address, subject, slug, keywords, summary,
-		       labels_applied, bypassed_inbox, reasoning, processed_at, created_at
+		       labels_applied, bypassed_inbox, reasoning, COALESCE(human_feedback, ''), processed_at, created_at
 		FROM emails
 		WHERE user_id = $1
 		ORDER BY processed_at DESC
@@ -176,6 +176,7 @@ func (db *DB) GetRecentEmails(ctx context.Context, userID int64, limit int) ([]*
 			&labelsJSON,
 			&email.BypassedInbox,
 			&email.Reasoning,
+			&email.HumanFeedback,
 			&email.ProcessedAt,
 			&email.CreatedAt,
 		)
@@ -199,4 +200,29 @@ func (db *DB) GetRecentEmails(ctx context.Context, userID int64, limit int) ([]*
 	}
 
 	return emails, nil
+}
+
+// UpdateEmailFeedback updates the human feedback for an email
+func (db *DB) UpdateEmailFeedback(ctx context.Context, userID int64, emailID string, feedback string) error {
+	query := `
+		UPDATE emails
+		SET human_feedback = $1
+		WHERE id = $2 AND user_id = $3
+	`
+
+	result, err := db.conn.ExecContext(ctx, query, feedback, emailID, userID)
+	if err != nil {
+		return fmt.Errorf("failed to update email feedback: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("email not found or unauthorized")
+	}
+
+	return nil
 }

@@ -110,8 +110,10 @@ Analyze the emails and their categorizations, then create a memory focused on:
 IMPORTANT: Keep your response concise - aim for around 200 words maximum. Be specific and actionable. Focus only on the most important insights that will directly improve future email processing. Format as concise bullet points.`
 	}
 
-	// Prepare summary of emails
+	// Prepare summary of emails and collect human feedback separately
 	var emailSummaries []string
+	var humanFeedbackItems []string
+
 	for i, email := range emails {
 		if i >= 50 { // Limit to 50 emails to avoid token limits
 			emailSummaries = append(emailSummaries, fmt.Sprintf("... and %d more emails", len(emails)-50))
@@ -134,13 +136,37 @@ IMPORTANT: Keep your response concise - aim for around 200 words maximum. Be spe
 			email.Keywords,
 			reasoning,
 		))
+
+		// Collect human feedback separately for emphasis
+		if email.HumanFeedback != "" {
+			humanFeedbackItems = append(humanFeedbackItems, fmt.Sprintf(
+				"- Email from %s (Subject: %s): %s",
+				email.FromAddress,
+				email.Subject,
+				email.HumanFeedback,
+			))
+		}
+	}
+
+	humanFeedbackSection := ""
+	if len(humanFeedbackItems) > 0 {
+		humanFeedbackSection = fmt.Sprintf(`
+
+**IMPORTANT - HUMAN FEEDBACK (PRIORITIZE THESE):**
+The human provided explicit feedback on these emails. These instructions are CRITICAL and must be prominently included in your memory:
+
+%s
+
+These human corrections should be given highest priority in your learnings.
+
+`, strings.Join(humanFeedbackItems, "\n"))
 	}
 
 	userPrompt := fmt.Sprintf(`Review these %d processed emails and extract learnings to improve future email handling:
 
 %s
-
-Focus on creating actionable insights that will help process similar emails better in the future. What patterns should be reinforced? What should be done differently?`, len(emails), strings.Join(emailSummaries, "\n"))
+%s
+Focus on creating actionable insights that will help process similar emails better in the future. What patterns should be reinforced? What should be done differently?`, len(emails), strings.Join(emailSummaries, "\n"), humanFeedbackSection)
 
 	// Call AI to generate memory
 	memory, err := s.openai.GenerateMemory(ctx, systemPrompt, userPrompt)

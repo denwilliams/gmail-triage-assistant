@@ -90,6 +90,7 @@ func (s *Server) routes() {
 
 	// Email history (requires auth)
 	s.router.HandleFunc("/history", s.requireAuth(s.handleHistory)).Methods("GET")
+	s.router.HandleFunc("/history/feedback", s.requireAuth(s.handleUpdateFeedback)).Methods("POST")
 
 	// System prompts (requires auth)
 	s.router.HandleFunc("/prompts", s.requireAuth(s.handlePrompts)).Methods("GET")
@@ -339,6 +340,34 @@ func (s *Server) handleHistory(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Template error: %v", err)
 		http.Error(w, "Error rendering template", http.StatusInternalServerError)
 	}
+}
+
+func (s *Server) handleUpdateFeedback(w http.ResponseWriter, r *http.Request) {
+	session, _ := s.sessionStore.Get(r, "session")
+	userID := session.Values["user_id"].(int64)
+
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Invalid form data", http.StatusBadRequest)
+		return
+	}
+
+	emailID := r.FormValue("email_id")
+	feedback := r.FormValue("feedback")
+
+	if emailID == "" {
+		http.Error(w, "Email ID is required", http.StatusBadRequest)
+		return
+	}
+
+	ctx := context.Background()
+	if err := s.db.UpdateEmailFeedback(ctx, userID, emailID, feedback); err != nil {
+		log.Printf("Failed to update feedback: %v", err)
+		http.Error(w, "Failed to save feedback", http.StatusInternalServerError)
+		return
+	}
+
+	// Redirect back to history page
+	http.Redirect(w, r, "/history", http.StatusSeeOther)
 }
 
 func (s *Server) handlePrompts(w http.ResponseWriter, r *http.Request) {

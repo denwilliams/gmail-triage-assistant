@@ -49,6 +49,41 @@
 					<small><strong>AI Reasoning:</strong> {{.Reasoning}}</small>
 				</p>
 				{{end}}
+
+				<!-- Human Feedback Section -->
+				<details style="margin-top: 1rem; border-top: 1px solid #eee; padding-top: 0.5rem;">
+					<summary style="cursor: pointer; color: #0066cc; font-weight: 600;">
+						{{if .HumanFeedback}}
+							✏️ Edit Feedback
+						{{else}}
+							💭 Add Feedback: "Do differently next time..."
+						{{end}}
+					</summary>
+					<form action="/history/feedback" method="POST" style="margin-top: 0.5rem;">
+						<input type="hidden" name="email_id" value="{{.ID}}">
+						<textarea
+							name="feedback"
+							rows="3"
+							placeholder="Describe what should be done differently for similar emails..."
+							style="width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.9em;">{{.HumanFeedback}}</textarea>
+						<div style="margin-top: 0.5rem; display: flex; gap: 0.5rem;">
+							<button type="submit" style="padding: 0.4rem 1rem; background: #0066cc; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.9em;">
+								{{if .HumanFeedback}}Update{{else}}Save{{end}} Feedback
+							</button>
+							{{if .HumanFeedback}}
+							<button type="submit" onclick="this.form.feedback.value=''" style="padding: 0.4rem 1rem; background: #666; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.9em;">
+								Clear
+							</button>
+							{{end}}
+						</div>
+					</form>
+					{{if .HumanFeedback}}
+					<p style="margin-top: 0.5rem; padding: 0.5rem; background: #fff3cd; border-left: 3px solid #ffc107; font-size: 0.85em;">
+						<strong>Current feedback:</strong> {{.HumanFeedback}}
+					</p>
+					{{end}}
+				</details>
+
 				<p style="color: #888; margin: 0.25rem 0;">
 					<small>Processed: {{.ProcessedAt.Format "Jan 2, 2006 3:04 PM"}}</small>
 				</p>
