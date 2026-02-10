@@ -73,10 +73,10 @@ func (db *DB) GetAllSystemPrompts(ctx context.Context, userID int64) ([]*SystemP
 // UpsertSystemPrompt creates or updates a system prompt
 func (db *DB) UpsertSystemPrompt(ctx context.Context, prompt *SystemPrompt) error {
 	query := `
-		INSERT INTO system_prompts (user_id, type, content, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5)
+		INSERT INTO system_prompts (user_id, type, content, is_active, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6)
 		ON CONFLICT (user_id, type)
-		DO UPDATE SET content = $3, updated_at = $5
+		DO UPDATE SET content = $3, is_active = $4, updated_at = $6
 		RETURNING id
 	`
 
@@ -87,6 +87,7 @@ func (db *DB) UpsertSystemPrompt(ctx context.Context, prompt *SystemPrompt) erro
 		prompt.UserID,
 		prompt.Type,
 		prompt.Content,
+		prompt.IsActive,
 		now,
 		now,
 	).Scan(&prompt.ID)
@@ -118,9 +119,10 @@ Only apply labels that accurately match the email content.`,
 
 	for promptType, content := range defaultPrompts {
 		prompt := &SystemPrompt{
-			UserID:  userID,
-			Type:    promptType,
-			Content: content,
+			UserID:   userID,
+			Type:     promptType,
+			Content:  content,
+			IsActive: true,
 		}
 		if err := db.UpsertSystemPrompt(ctx, prompt); err != nil {
 			return fmt.Errorf("failed to initialize default prompt %s: %w", promptType, err)
