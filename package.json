@@ -1,0 +1,27 @@
+{
+  "name": "cloudflare-ts",
+  "version": "1.0.0",
+  "description": "AI-powered email management system that automatically categorizes, labels, and processes Gmail messages using a two-stage AI pipeline with self-improving hierarchical memory.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "hono": "^4.12.0",
+    "openai": "^6.22.0"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.12.14",
+    "@cloudflare/workers-types": "^4.20260219.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18",
+    "wrangler": "^4.67.0"
+  }
+}
