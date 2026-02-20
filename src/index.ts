@@ -7,6 +7,8 @@ import { historyRoutes } from './routes/history'
 import { promptsRoutes } from './routes/prompts'
 import { memoriesRoutes } from './routes/memories'
 import { wrapupsRoutes } from './routes/wrapups'
+import { gmailPushRoutes } from './routes/gmail-push'
+import { handleEmailQueue } from './queue/consumer'
 import { getSession } from './auth/session'
 import { homePage } from './templates/home'
 
@@ -47,6 +49,7 @@ app.route('/history', historyRoutes)
 app.route('/prompts', promptsRoutes)
 app.route('/memories', memoriesRoutes)
 app.route('/wrapups', wrapupsRoutes)
+app.route('/api/gmail', gmailPushRoutes)
 
 export default {
   fetch: app.fetch,
@@ -54,6 +57,6 @@ export default {
     // cron dispatch goes here
   },
   async queue(batch: MessageBatch<EmailQueueMessage>, env: Env) {
-    // queue consumer goes here
+    await handleEmailQueue(batch, env)
   },
 }
