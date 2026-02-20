@@ -22,6 +22,7 @@ go.work
 
 # Environment variables
 .env
+.dev.vars
 
 # OAuth tokens
 token.json
