@@ -1,7 +1,7 @@
-import type { Memory } from '../types'
+import type { Memory, MemoryType } from '../types'
 import { layout, escHtml } from './layout'
 
-const memoryBorderColor: Record<string, string> = {
+const memoryBorderColor: Record<MemoryType, string> = {
   daily: '#3b82f6',
   weekly: '#22c55e',
   monthly: '#f97316',

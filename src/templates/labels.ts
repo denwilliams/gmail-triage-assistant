@@ -8,7 +8,7 @@ export function labelsPage(email: string, labels: Label[]): string {
         <td><strong>${escHtml(l.name)}</strong></td>
         <td>${escHtml(l.description)}</td>
         <td>
-          <form method="POST" action="/labels/${escHtml(String(l.id))}/delete" style="margin:0">
+          <form method="POST" action="/labels/${l.id}/delete" style="margin:0">
             <button type="submit" class="secondary" onclick="return confirm('Delete this label?')">Delete</button>
           </form>
         </td>
