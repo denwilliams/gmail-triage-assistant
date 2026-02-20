@@ -1,4 +1,8 @@
 import { Hono } from 'hono'
+import { getCookie } from 'hono/cookie'
+import { authRoutes } from './routes/auth'
+import { getSession } from './auth/session'
+import { homePage } from './templates/home'
 
 export type EmailQueueMessage = {
   userId: number
@@ -21,7 +25,16 @@ export type Env = {
 
 const app = new Hono<{ Bindings: Env }>()
 
-app.get('/', (c) => c.text('OK'))
+app.get('/', async (c) => {
+  const token = getCookie(c, 'session')
+  if (token) {
+    const session = await getSession(c.env.SESSIONS, token)
+    if (session) return c.redirect('/dashboard', 302)
+  }
+  return c.html(homePage())
+})
+
+app.route('/auth', authRoutes)
 
 export default {
   fetch: app.fetch,
