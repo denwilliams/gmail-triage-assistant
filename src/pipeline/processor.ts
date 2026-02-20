@@ -22,74 +22,84 @@ export async function processEmail(
   user: User,
   messageId: string,
 ): Promise<void> {
-  // Skip if already processed
-  if (await db.emailExists(env.DB, messageId)) {
-    console.log(`[${user.email}] Email ${messageId} already processed, skipping`)
-    return
+  try {
+    // Skip if already processed
+    if (await db.emailExists(env.DB, messageId)) {
+      console.log(`[${user.email}] Email ${messageId} already processed, skipping`)
+      return
+    }
+
+    const client = new GmailClient(user.access_token)
+    const message = await client.getMessage(messageId)
+
+    console.log(`[${user.email}] Processing: ${message.from} - ${message.subject}`)
+
+    const body = truncateBody(message.body)
+
+    // Get system prompts
+    const analyzePromptRow = await db.getSystemPrompt(env.DB, user.id, 'email_analyze')
+    const actionsPromptRow = await db.getSystemPrompt(env.DB, user.id, 'email_actions')
+
+    // Get memory context
+    const memories = await db.getRecentMemoriesForContext(env.DB, user.id)
+    const memoryContext = buildMemoryContext(memories)
+
+    // Stage 1: Analyze
+    const pastSlugs = await db.getPastSlugsFromSender(env.DB, user.id, message.from, 5)
+    const analysis = await analyzeEmail(
+      env.OPENAI_API_KEY, env.OPENAI_MODEL,
+      message.from, message.subject, body, pastSlugs, analyzePromptRow?.content ?? ''
+    )
+
+    console.log(`[${user.email}] Stage 1 - Slug: ${analysis.slug}`)
+
+    // Stage 2: Determine actions
+    const labels = await db.getAllLabels(env.DB, user.id)
+    const labelNames = labels.map(l => l.name)
+    const formattedLabels = labels.map(l => {
+      let line = `- "${l.name}"`
+      if (l.description) line += `: ${l.description}`
+      if (l.reasons.length) line += ` (e.g. ${l.reasons.join(', ')})`
+      return line
+    }).join('\n')
+
+    const actions = await determineActions(
+      env.OPENAI_API_KEY, env.OPENAI_MODEL,
+      message.from, message.subject, analysis.slug, analysis.keywords, analysis.summary,
+      labelNames, formattedLabels, memoryContext, actionsPromptRow?.content ?? ''
+    )
+
+    console.log(`[${user.email}] Stage 2 - Labels: ${actions.labels}, Bypass: ${actions.bypass_inbox}`)
+
+    // Save to DB
+    await db.createEmail(env.DB, {
+      id: message.id,
+      user_id: user.id,
+      from_address: message.from,
+      subject: message.subject,
+      slug: analysis.slug,
+      keywords: analysis.keywords,
+      summary: analysis.summary,
+      labels_applied: actions.labels,
+      bypassed_inbox: actions.bypass_inbox,
+      reasoning: actions.reasoning,
+      human_feedback: '',
+      processed_at: new Date().toISOString(),
+    })
+
+    // Apply to Gmail (best-effort — don't fail the whole record if this fails)
+    try {
+      await applyToGmail(client, message.id, actions.labels, actions.bypass_inbox)
+    } catch (e) {
+      console.error(`[${user.email}] Failed to apply Gmail actions for ${messageId}: ${e}`)
+      // Email is saved to DB; labels not applied. This is acceptable — the email is still processed.
+    }
+
+    console.log(`[${user.email}] ✓ Processed: ${message.subject}`)
+  } catch (e) {
+    console.error(`[${user.email}] Error processing message ${messageId}:`, e)
+    throw e
   }
-
-  const client = new GmailClient(user.access_token)
-  const message = await client.getMessage(messageId)
-
-  console.log(`[${user.email}] Processing: ${message.from} - ${message.subject}`)
-
-  const body = truncateBody(message.body)
-
-  // Get system prompts
-  const analyzePromptRow = await db.getSystemPrompt(env.DB, user.id, 'email_analyze')
-  const actionsPromptRow = await db.getSystemPrompt(env.DB, user.id, 'email_actions')
-
-  // Get memory context
-  const memories = await db.getRecentMemoriesForContext(env.DB, user.id)
-  const memoryContext = buildMemoryContext(memories)
-
-  // Stage 1: Analyze
-  const pastSlugs = await db.getPastSlugsFromSender(env.DB, user.id, message.from, 5)
-  const analysis = await analyzeEmail(
-    env.OPENAI_API_KEY, env.OPENAI_MODEL,
-    message.from, message.subject, body, pastSlugs, analyzePromptRow?.content ?? ''
-  )
-
-  console.log(`[${user.email}] Stage 1 - Slug: ${analysis.slug}`)
-
-  // Stage 2: Determine actions
-  const labels = await db.getAllLabels(env.DB, user.id)
-  const labelNames = labels.map(l => l.name)
-  const formattedLabels = labels.map(l => {
-    let line = `- "${l.name}"`
-    if (l.description) line += `: ${l.description}`
-    if (l.reasons.length) line += ` (e.g. ${l.reasons.join(', ')})`
-    return line
-  }).join('\n')
-
-  const actions = await determineActions(
-    env.OPENAI_API_KEY, env.OPENAI_MODEL,
-    message.from, message.subject, analysis.slug, analysis.keywords, analysis.summary,
-    labelNames, formattedLabels, memoryContext, actionsPromptRow?.content ?? ''
-  )
-
-  console.log(`[${user.email}] Stage 2 - Labels: ${actions.labels}, Bypass: ${actions.bypass_inbox}`)
-
-  // Save to DB
-  await db.createEmail(env.DB, {
-    id: message.id,
-    user_id: user.id,
-    from_address: message.from,
-    subject: message.subject,
-    slug: analysis.slug,
-    keywords: analysis.keywords,
-    summary: analysis.summary,
-    labels_applied: actions.labels,
-    bypassed_inbox: actions.bypass_inbox,
-    reasoning: actions.reasoning,
-    human_feedback: '',
-    processed_at: new Date().toISOString(),
-  })
-
-  // Apply to Gmail
-  await applyToGmail(client, message.id, actions.labels, actions.bypass_inbox)
-
-  console.log(`[${user.email}] ✓ Processed: ${message.subject}`)
 }
 
 async function applyToGmail(
