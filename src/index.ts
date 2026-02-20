@@ -1,6 +1,12 @@
 import { Hono } from 'hono'
 import { getCookie } from 'hono/cookie'
 import { authRoutes } from './routes/auth'
+import { dashboardRoutes } from './routes/dashboard'
+import { labelsRoutes } from './routes/labels'
+import { historyRoutes } from './routes/history'
+import { promptsRoutes } from './routes/prompts'
+import { memoriesRoutes } from './routes/memories'
+import { wrapupsRoutes } from './routes/wrapups'
 import { getSession } from './auth/session'
 import { homePage } from './templates/home'
 
@@ -35,6 +41,12 @@ app.get('/', async (c) => {
 })
 
 app.route('/auth', authRoutes)
+app.route('/dashboard', dashboardRoutes)
+app.route('/labels', labelsRoutes)
+app.route('/history', historyRoutes)
+app.route('/prompts', promptsRoutes)
+app.route('/memories', memoriesRoutes)
+app.route('/wrapups', wrapupsRoutes)
 
 export default {
   fetch: app.fetch,
