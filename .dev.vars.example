@@ -1,0 +1,8 @@
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
+GOOGLE_REDIRECT_URL=http://localhost:8787/auth/callback
+OPENAI_API_KEY=your_openai_api_key
+OPENAI_MODEL=gpt-4o-mini
+SESSION_SECRET=replace_with_32_char_random_string
+PUBSUB_TOPIC=projects/YOUR_PROJECT_ID/topics/gmail-triage
+PUBSUB_VERIFICATION_TOKEN=replace_with_random_token
