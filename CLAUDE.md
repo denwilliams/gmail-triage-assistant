@@ -6,63 +6,85 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Gmail Triage Assistant - An AI-powered email management system that automatically categorizes, labels, and processes Gmail messages using a multi-stage AI pipeline.
 
+> This branch is a TypeScript rewrite targeting Cloudflare Workers. The original Go implementation is on `main`.
+
 ## Technology Stack
 
-- **Language**: Go (for small memory footprint)
-- **Web UI**: HTMX (to avoid complex frontend builds)
-- **CSS Framework**: Pico CSS (lightweight, classless/semantic HTML styling, no build tools required)
-- **Authentication**: OAuth with Google (requires client ID and secret)
-- **AI Provider**: OpenAI nano models (v5 is latest, for cost saving)
-- **Database**: PostgreSQL - stores email analysis results, slugs, keywords, and memories with native JSONB support
+- **Runtime**: Cloudflare Workers (TypeScript)
+- **Router**: Hono.js
+- **Web UI**: HTMX + Pico CSS (no frontend build tools)
+- **Authentication**: OAuth with Google (KV-backed UUID session tokens)
+- **AI Provider**: OpenAI (gpt-4o-mini, for cost saving)
+- **Database**: Cloudflare D1 (SQLite) — JSON arrays stored as TEXT strings
+- **Sessions**: Cloudflare KV — `session:{uuid}` → `{userId, email}`, 7-day TTL
+- **Async Processing**: Cloudflare Queues — push webhook enqueues, consumer processes
+- **Scheduling**: Cloudflare Cron Triggers
 
 ## Core Architecture
 
 ### Email Processing Pipeline
 
+Gmail Push Notifications (via Google Cloud Pub/Sub) replace the polling goroutine. The push webhook does minimal work — enqueue and return 200. The Queue consumer handles all heavy lifting.
+
 Each email undergoes a two-stage AI analysis:
 
-1. **Stage 1 - Content Analysis**: Analyzes subject and body to generate:
-   - A `snake_case_slug` (or hash) like `marketing_newsletter` or `invoice_due_reminder`
+1. **Stage 1 - Content Analysis** (`src/openai/client.ts` — `analyzeEmail`): Analyzes subject and body to generate:
+   - A `snake_case_slug` like `marketing_newsletter` or `invoice_due_reminder`
    - Array of keywords
    - Single line summary
    - Uses past slugs from the same email address to encourage reuse
 
-2. **Stage 2 - Action Generation**: Takes slug and categories to determine:
+2. **Stage 2 - Action Generation** (`src/openai/client.ts` — `determineActions`): Takes slug and context to determine:
    - Labels to apply
    - Whether to bypass inbox
-   - Additional actions (TBD)
+   - Reasoning
 
-3. **Storage**: All analysis results saved to database with email ID as primary key for tracking Gmail actions
+3. **Storage**: All analysis results saved to D1 with email ID as primary key
+
+### Queue Architecture
+
+The push webhook (`src/routes/gmail-push.ts`) only enqueues `{userId, messageId}` and returns 200 immediately — never processes email inline. The Queue consumer (`src/queue/consumer.ts`) handles `processEmail()` with up to 15 minutes and automatic retries.
 
 ### Self-Improvement System
 
-The system implements a hierarchical memory consolidation strategy with automatic scheduling:
+Hierarchical memory consolidation via Cron Triggers:
 
-**Daily Schedule:**
-- **8AM**: Morning wrap-up report (emails processed since 5PM yesterday)
-- **5PM**: Evening wrap-up report + daily memory generation (analyzes day's emails)
-
-**Hierarchical Memory Consolidation:**
-- **6PM Saturday**: Weekly memory (consolidates past 7 daily memories into higher-level insights)
-- **7PM 1st of Month**: Monthly memory (consolidates weekly memories from past month)
-- **8PM January 1st**: Yearly memory (consolidates monthly memories from past year)
-
-Each memory level learns from the level below, creating progressively higher-level pattern recognition that informs future email processing decisions. All memories are passed to the AI during email processing to provide historical context.
+- **8AM daily**: Morning wrap-up report (emails since 5PM yesterday)
+- **5PM daily**: Evening wrap-up + daily memory generation
+- **6PM Saturday**: Weekly memory (consolidates 7 daily memories)
+- **7PM 1st of month**: Monthly memory (consolidates weekly memories)
+- **8PM January 1st**: Yearly memory (consolidates monthly memories)
+- **9AM daily**: Renew Gmail watch (expires every 7 days)
 
 ### Configuration
 
-- System prompts configurable via web UI
-- Each Gmail label can have a list of reasons for usage (configured in UI, included in system prompt)
+- System prompts configurable via web UI (`/prompts`)
+- Each Gmail label can have a description and reasons (configured in UI, included in AI prompt)
 
-### Future Enhancements
+## Key Implementation Notes
 
-- Weekly journal generation
-- Human thumbs up/down feedback for decisions
-- Learn from human-applied label changes
+- **D1 arrays**: SQLite has no array type — `keywords`, `labels_applied`, and `reasons` are stored as JSON strings and parsed in the DB layer (`src/db/`)
+- **No googleapis package**: All Google API calls use direct `fetch()` — keeps bundle small, avoids Node.js compat issues
+- **skipLibCheck**: `tsconfig.json` has `"skipLibCheck": true` to resolve a Hono/Workers-types conflict
+- **Vitest version**: Must use vitest 3.x — `@cloudflare/vitest-pool-workers` doesn't support v4+
+- **Test setup**: `db.exec()` fails with multi-statement SQL in Workers test env — use individual `db.prepare().run()` calls instead (see `test/setup.ts`)
 
-## Database Schema Considerations
+## Project Structure
 
-- Email ID as primary key for analysis results
-- Store: slugs, keywords, summaries, applied labels, actions taken
-- Memory table for daily/weekly/monthly/yearly consolidations
-- Slug history per email address for reuse suggestions
+```
+src/
+├── index.ts          # Entry point: app, cron dispatcher, queue handler
+├── types.ts          # All interfaces
+├── db/               # D1 database layer
+├── auth/             # session.ts (KV), google.ts (OAuth)
+├── gmail/            # client.ts (REST API), push.ts (Pub/Sub parser)
+├── openai/           # client.ts (analyzeEmail, determineActions, generateMemory)
+├── pipeline/         # processor.ts (full email processing orchestrator)
+├── memory/           # service.ts (daily/weekly/monthly/yearly generation)
+├── wrapup/           # service.ts (morning/evening digest reports)
+├── templates/        # HTML pages as TypeScript template literal functions
+├── routes/           # auth, dashboard, labels, history, prompts, memories, wrapups, gmail-push
+├── middleware/       # auth.ts (requireAuth)
+├── queue/            # consumer.ts (handleEmailQueue)
+└── crons/            # index.ts + one file per scheduled job
+```
