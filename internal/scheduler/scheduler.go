@@ -174,8 +174,16 @@ func (s *Scheduler) runWeeklyMemory(ctx context.Context) {
 		log.Printf("Generating weekly memory for user %s", user.Email)
 		if err := s.memoryService.GenerateWeeklyMemory(ctx, user.ID); err != nil {
 			log.Printf("Failed to generate weekly memory for %s: %v", user.Email, err)
+			continue
+		}
+		log.Printf("✓ Weekly memory generated for %s", user.Email)
+
+		// Generate AI prompts based on the new weekly memory
+		log.Printf("Generating AI prompts for user %s", user.Email)
+		if err := s.memoryService.GenerateAIPrompts(ctx, user.ID); err != nil {
+			log.Printf("Failed to generate AI prompts for %s: %v", user.Email, err)
 		} else {
-			log.Printf("✓ Weekly memory generated for %s", user.Email)
+			log.Printf("✓ AI prompts generated for %s", user.Email)
 		}
 	}
 }
