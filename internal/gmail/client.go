@@ -231,7 +231,7 @@ func (c *Client) CreateLabel(ctx context.Context, labelName string) (*gmail.Labe
 
 // WatchInbox registers the inbox for push notifications via Pub/Sub.
 // Returns the historyId to use as a starting point and when the watch expires.
-func (c *Client) WatchInbox(ctx context.Context, topicName string) (historyID int64, expiration int64, err error) {
+func (c *Client) WatchInbox(ctx context.Context, topicName string) (historyID uint64, expiration int64, err error) {
 	req := &gmail.WatchRequest{
 		LabelIds:  []string{"INBOX"},
 		TopicName: topicName,
@@ -240,13 +240,13 @@ func (c *Client) WatchInbox(ctx context.Context, topicName string) (historyID in
 	if err != nil {
 		return 0, 0, fmt.Errorf("failed to watch inbox: %w", err)
 	}
-	return int64(resp.HistoryId), resp.Expiration, nil
+	return resp.HistoryId, resp.Expiration, nil
 }
 
 // GetMessagesByHistoryID returns messages added to the inbox since the given historyId.
 // Returns the new historyId to use for the next call.
 func (c *Client) GetMessagesByHistoryID(ctx context.Context, startHistoryID uint64) ([]*Message, uint64, error) {
-	var messages []*Message
+	var messageIDs []string
 	var newHistoryID uint64
 
 	err := c.service.Users.History.List(c.userID).
@@ -259,11 +259,7 @@ func (c *Client) GetMessagesByHistoryID(ctx context.Context, startHistoryID uint
 			}
 			for _, h := range page.History {
 				for _, ma := range h.MessagesAdded {
-					msg, err := c.GetMessage(ctx, ma.Message.Id)
-					if err != nil {
-						return fmt.Errorf("failed to get message %s: %w", ma.Message.Id, err)
-					}
-					messages = append(messages, msg)
+					messageIDs = append(messageIDs, ma.Message.Id)
 				}
 			}
 			return nil
@@ -272,9 +268,23 @@ func (c *Client) GetMessagesByHistoryID(ctx context.Context, startHistoryID uint
 		return nil, 0, fmt.Errorf("failed to list history: %w", err)
 	}
 
-	// If history returns no items but gives us a historyId, use it
 	if newHistoryID == 0 {
 		newHistoryID = startHistoryID
+	}
+
+	// De-duplicate message IDs (History API can return same ID multiple times)
+	seen := make(map[string]bool)
+	var messages []*Message
+	for _, id := range messageIDs {
+		if seen[id] {
+			continue
+		}
+		seen[id] = true
+		msg, err := c.GetMessage(ctx, id)
+		if err != nil {
+			return nil, 0, fmt.Errorf("failed to get message %s: %w", id, err)
+		}
+		messages = append(messages, msg)
 	}
 
 	return messages, newHistoryID, nil
