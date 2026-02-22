@@ -26,6 +26,14 @@ type Config struct {
 
 	// Gmail settings
 	GmailCheckInterval int // Minutes between email checks
+
+	// Session settings
+	SessionSecret string
+
+	// Gmail push notification settings (optional — if empty, falls back to polling)
+	PubSubVerificationToken  string // Secret token to verify Pub/Sub pushes
+	PubSubTopic              string // Full topic name: projects/PROJECT/topics/gmail-triage
+	PushNotificationsEnabled bool   // When true, skip polling monitor
 }
 
 // Load reads configuration from environment variables
@@ -40,7 +48,11 @@ func Load() (*Config, error) {
 		OpenAIAPIKey:       getEnv("OPENAI_API_KEY", ""),
 		OpenAIModel:        getEnv("OPENAI_MODEL", "gpt-4o-nano"),
 		OpenAIBaseURL:      getEnv("OPENAI_BASE_URL", "https://api.openai.com/v1"),
-		GmailCheckInterval: getEnvInt("GMAIL_CHECK_INTERVAL", 5),
+		GmailCheckInterval:       getEnvInt("GMAIL_CHECK_INTERVAL", 5),
+		SessionSecret:            getEnv("SESSION_SECRET", "replace-with-32-byte-random-key-in-production"),
+		PubSubVerificationToken:  getEnv("PUBSUB_VERIFICATION_TOKEN", ""),
+		PubSubTopic:              getEnv("PUBSUB_TOPIC", ""),
+		PushNotificationsEnabled: getEnv("PUSH_NOTIFICATIONS_ENABLED", "false") == "true",
 	}
 
 	// Validate required fields
