@@ -7,6 +7,10 @@ import (
 	"strconv"
 )
 
+// DefaultSessionSecret is the sentinel value used in development.
+// Any other value is treated as a production secret and enables Secure cookies.
+const DefaultSessionSecret = "replace-with-32-byte-random-key-in-production"
+
 type Config struct {
 	// Server settings
 	ServerPort string
@@ -50,13 +54,13 @@ func Load() (*Config, error) {
 		OpenAIModel:              getEnv("OPENAI_MODEL", "gpt-4o-nano"),
 		OpenAIBaseURL:            getEnv("OPENAI_BASE_URL", "https://api.openai.com/v1"),
 		GmailCheckInterval:       getEnvInt("GMAIL_CHECK_INTERVAL", 5),
-		SessionSecret:            getEnv("SESSION_SECRET", "replace-with-32-byte-random-key-in-production"),
+		SessionSecret:            getEnv("SESSION_SECRET", DefaultSessionSecret),
 		PubSubVerificationToken:  getEnv("PUBSUB_VERIFICATION_TOKEN", ""),
 		PubSubTopic:              getEnv("PUBSUB_TOPIC", ""),
 		PushNotificationsEnabled: getEnv("PUSH_NOTIFICATIONS_ENABLED", "false") == "true",
 	}
 
-	if cfg.SessionSecret == "replace-with-32-byte-random-key-in-production" {
+	if cfg.SessionSecret == DefaultSessionSecret {
 		log.Printf("WARNING: SESSION_SECRET is set to the default insecure value. Set a strong random secret for production.")
 	}
 

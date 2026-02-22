@@ -39,7 +39,7 @@ func NewServer(db *database.DB, cfg *config.Config, memoryService *memory.Servic
 		Path:     "/",
 		MaxAge:   86400 * 7,
 		HttpOnly: true,
-		Secure:   cfg.SessionSecret != "replace-with-32-byte-random-key-in-production",
+		Secure:   cfg.SessionSecret != config.DefaultSessionSecret,
 		SameSite: http.SameSiteLaxMode,
 	}
 
