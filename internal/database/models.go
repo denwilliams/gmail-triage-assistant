@@ -88,6 +88,23 @@ const (
 	MemoryTypeYearly  MemoryType = "yearly"
 )
 
+// AIPrompt stores AI-generated prompt supplements that evolve over time
+type AIPrompt struct {
+	ID        int64        `db:"id" json:"id"`
+	UserID    int64        `db:"user_id" json:"user_id"`
+	Type      AIPromptType `db:"type" json:"type"`
+	Content   string       `db:"content" json:"content"`
+	Version   int          `db:"version" json:"version"`
+	CreatedAt time.Time    `db:"created_at" json:"created_at"`
+}
+
+type AIPromptType string
+
+const (
+	AIPromptTypeEmailAnalyze AIPromptType = "email_analyze"
+	AIPromptTypeEmailActions AIPromptType = "email_actions"
+)
+
 // WrapUpReport stores the 8AM and 5PM wrap-up reports
 type WrapUpReport struct {
 	ID          int64     `db:"id" json:"id"`
