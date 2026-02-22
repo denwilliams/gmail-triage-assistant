@@ -1,0 +1,12 @@
+[Unit]
+Description=Gmail Triage Assistant
+After=docker.service
+Requires=docker.service
+
+[Service]
+Restart=always
+ExecStart=/bin/sh -c 'cd /home/pi/gmail-triage-assistant && docker compose up'
+ExecStop=/bin/sh -c 'cd /home/pi/gmail-triage-assistant && docker compose down'
+
+[Install]
+WantedBy=multi-user.target

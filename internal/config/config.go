@@ -2,9 +2,14 @@ package config
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"strconv"
 )
+
+// DefaultSessionSecret is the insecure default used in development.
+// A warning is logged at startup if this value is still in use.
+const DefaultSessionSecret = "replace-with-32-byte-random-key-in-production"
 
 type Config struct {
 	// Server settings
@@ -26,6 +31,9 @@ type Config struct {
 
 	// Gmail settings
 	GmailCheckInterval int // Minutes between email checks
+
+	// Session settings
+	SessionSecret string
 }
 
 // Load reads configuration from environment variables
@@ -41,6 +49,11 @@ func Load() (*Config, error) {
 		OpenAIModel:        getEnv("OPENAI_MODEL", "gpt-4o-nano"),
 		OpenAIBaseURL:      getEnv("OPENAI_BASE_URL", "https://api.openai.com/v1"),
 		GmailCheckInterval: getEnvInt("GMAIL_CHECK_INTERVAL", 5),
+		SessionSecret:      getEnv("SESSION_SECRET", DefaultSessionSecret),
+	}
+
+	if cfg.SessionSecret == DefaultSessionSecret {
+		log.Println("WARNING: SESSION_SECRET is not set. Using insecure default. Set SESSION_SECRET in production.")
 	}
 
 	// Validate required fields
