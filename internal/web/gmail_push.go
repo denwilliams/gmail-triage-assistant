@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -30,9 +31,10 @@ type gmailNotification struct {
 }
 
 func (s *Server) handleGmailPush(w http.ResponseWriter, r *http.Request) {
-	// Verify the shared secret token
+	// Verify the shared secret token using constant-time comparison to
+	// prevent timing side-channel attacks.
 	token := r.URL.Query().Get("token")
-	if token == "" || token != s.config.PubSubVerificationToken {
+	if token == "" || subtle.ConstantTimeCompare([]byte(token), []byte(s.config.PubSubVerificationToken)) != 1 {
 		log.Printf("Gmail push: unauthorized token")
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return

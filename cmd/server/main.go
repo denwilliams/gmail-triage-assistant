@@ -102,7 +102,7 @@ func main() {
 	// Wire up Gmail watch renewal (only when push notifications configured)
 	if cfg.PubSubTopic != "" {
 		sched.SetWatchRenewerFunc(func(ctx context.Context) {
-			users, err := db.GetAllActiveUsers(ctx)
+			users, err := db.GetActiveUsers(ctx)
 			if err != nil {
 				log.Printf("Watch renewal: failed to get users: %v", err)
 				return

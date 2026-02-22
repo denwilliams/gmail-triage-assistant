@@ -59,7 +59,7 @@ func (m *MultiUserMonitor) Start(ctx context.Context) error {
 
 // checkAllUsers fetches all active users and checks their Gmail
 func (m *MultiUserMonitor) checkAllUsers(ctx context.Context) error {
-	users, err := m.db.GetAllActiveUsers(ctx)
+	users, err := m.db.GetActiveUsers(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get active users: %w", err)
 	}

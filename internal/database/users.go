@@ -134,50 +134,6 @@ func (db *DB) UpdateUserToken(ctx context.Context, userID int64, token *oauth2.T
 	return nil
 }
 
-// GetAllActiveUsers retrieves all users with monitoring enabled
-func (db *DB) GetAllActiveUsers(ctx context.Context) ([]*User, error) {
-	query := `
-		SELECT id, email, google_id, access_token, refresh_token, token_expiry, is_active, last_checked_at, gmail_history_id, created_at, updated_at
-		FROM users
-		WHERE is_active = true
-		ORDER BY created_at ASC
-	`
-
-	rows, err := db.conn.QueryContext(ctx, query)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get active users: %w", err)
-	}
-	defer rows.Close()
-
-	var users []*User
-	for rows.Next() {
-		user := &User{}
-		err := rows.Scan(
-			&user.ID,
-			&user.Email,
-			&user.GoogleID,
-			&user.AccessToken,
-			&user.RefreshToken,
-			&user.TokenExpiry,
-			&user.IsActive,
-			&user.LastCheckedAt,
-			&user.GmailHistoryID,
-			&user.CreatedAt,
-			&user.UpdatedAt,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("failed to scan user: %w", err)
-		}
-		users = append(users, user)
-	}
-
-	if err = rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating users: %w", err)
-	}
-
-	return users, nil
-}
-
 // UpdateLastCheckedAt updates the last_checked_at timestamp for a user
 func (db *DB) UpdateLastCheckedAt(ctx context.Context, userID int64, checkedAt time.Time) error {
 	query := `
@@ -234,7 +190,8 @@ func (db *DB) UpdateGmailHistoryID(ctx context.Context, userID int64, historyID 
 	return nil
 }
 
-// GetActiveUsers retrieves all active users
+// GetActiveUsers retrieves all users where is_active = true, ordered by email.
+// Use this for all scheduler tasks, polling monitors, and watch renewal.
 func (db *DB) GetActiveUsers(ctx context.Context) ([]*User, error) {
 	query := `
 		SELECT id, email, google_id, access_token, refresh_token, token_expiry, is_active, last_checked_at, gmail_history_id, created_at, updated_at
