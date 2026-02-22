@@ -34,14 +34,12 @@ type Server struct {
 }
 
 func NewServer(db *database.DB, cfg *config.Config, memoryService *memory.Service) *Server {
-	// Generate a random session key in production
-	// For now, use a static key (replace in production!)
-	store := sessions.NewCookieStore([]byte("replace-with-32-byte-random-key-in-production"))
+	store := sessions.NewCookieStore([]byte(cfg.SessionSecret))
 	store.Options = &sessions.Options{
 		Path:     "/",
-		MaxAge:   86400 * 7, // 7 days
+		MaxAge:   86400 * 7,
 		HttpOnly: true,
-		Secure:   false, // Set to true in production with HTTPS
+		Secure:   cfg.SessionSecret != "replace-with-32-byte-random-key-in-production",
 		SameSite: http.SameSiteLaxMode,
 	}
 
