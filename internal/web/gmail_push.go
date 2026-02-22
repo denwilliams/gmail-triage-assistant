@@ -53,7 +53,7 @@ func (s *Server) handleGmailPush(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Decode base64 data field
-	decoded, err := base64.StdEncoding.DecodeString(payload.Message.Data)
+	decoded, err := base64.RawURLEncoding.DecodeString(payload.Message.Data)
 	if err != nil {
 		log.Printf("Gmail push: failed to decode data: %v", err)
 		http.Error(w, "Bad request", http.StatusBadRequest)
@@ -94,7 +94,7 @@ func (s *Server) processGmailPushNotification(ctx context.Context, notification 
 	}
 
 	// Determine start history ID
-	startHistoryID := notification.HistoryID - 1
+	startHistoryID := notification.HistoryID
 	if user.GmailHistoryID != nil && *user.GmailHistoryID > 0 {
 		startHistoryID = uint64(*user.GmailHistoryID)
 	}
@@ -179,6 +179,11 @@ func (s *Server) RenewGmailWatch(ctx context.Context, user *database.User) error
 	freshToken, err := tokenSource.Token()
 	if err != nil {
 		return fmt.Errorf("failed to refresh token: %w", err)
+	}
+	if freshToken.AccessToken != token.AccessToken {
+		if err := s.db.UpdateUserToken(ctx, user.ID, freshToken); err != nil {
+			log.Printf("RenewGmailWatch: failed to update token for user %d: %v", user.ID, err)
+		}
 	}
 	return s.registerGmailWatch(ctx, user, freshToken)
 }
