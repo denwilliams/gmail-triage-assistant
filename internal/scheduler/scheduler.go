@@ -11,10 +11,11 @@ import (
 )
 
 type Scheduler struct {
-	db            *database.DB
-	memoryService *memory.Service
-	wrapupService *wrapup.Service
-	stopChan      chan struct{}
+	db               *database.DB
+	memoryService    *memory.Service
+	wrapupService    *wrapup.Service
+	stopChan         chan struct{}
+	renewWatchesFunc func(ctx context.Context)
 }
 
 func NewScheduler(db *database.DB, memoryService *memory.Service, wrapupService *wrapup.Service) *Scheduler {
@@ -34,6 +35,7 @@ func (s *Scheduler) Start(ctx context.Context) {
 	lastRunDate := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
 	morningRun := false
 	eveningRun := false
+	watchRenewalRun := false
 	weeklyRun := false
 	monthlyRun := false
 	yearlyRun := false
@@ -58,6 +60,7 @@ func (s *Scheduler) Start(ctx context.Context) {
 				lastRunDate = currentDate
 				morningRun = false
 				eveningRun = false
+				watchRenewalRun = false
 			}
 
 			hour, minute := now.Hour(), now.Minute()
@@ -69,6 +72,13 @@ func (s *Scheduler) Start(ctx context.Context) {
 				log.Println("⏰ 8AM - Running morning wrapup")
 				morningRun = true
 				go s.runMorningWrapup(ctx)
+			}
+
+			// 9AM: Renew Gmail watches (daily, if push notifications configured)
+			if hour == 9 && minute == 0 && !watchRenewalRun && s.renewWatchesFunc != nil {
+				log.Println("⏰ 9AM - Renewing Gmail watches")
+				watchRenewalRun = true
+				go s.renewWatchesFunc(ctx)
 			}
 
 			// 5PM: Evening wrapup + daily memory
@@ -120,6 +130,12 @@ func (s *Scheduler) Start(ctx context.Context) {
 // Stop gracefully stops the scheduler
 func (s *Scheduler) Stop() {
 	close(s.stopChan)
+}
+
+// SetWatchRenewerFunc sets the function to call for Gmail watch renewal.
+// If set, it will be called at 9AM daily.
+func (s *Scheduler) SetWatchRenewerFunc(fn func(ctx context.Context)) {
+	s.renewWatchesFunc = fn
 }
 
 func (s *Scheduler) runMorningWrapup(ctx context.Context) {
