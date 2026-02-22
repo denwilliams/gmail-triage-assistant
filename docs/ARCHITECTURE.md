@@ -78,7 +78,7 @@ Every email — whether arriving via polling or push — passes through the same
 Email (subject + body + sender)
   │
   ├─ Stage 1: Content Analysis (OpenAI)
-  │    Inputs:  subject, body (truncated to 2000 chars), sender, past slugs from same sender
+  │    Inputs:  subject, body (truncated to 5000 chars), sender, past slugs from same sender
   │    Outputs: snake_case_slug, keywords[], summary
   │
   ├─ Stage 2: Action Determination (OpenAI)
