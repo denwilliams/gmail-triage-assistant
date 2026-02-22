@@ -94,7 +94,7 @@ func main() {
 	monitor := gmail.NewMultiUserMonitor(db, oauthConfig, checkInterval, messageHandler)
 
 	// Initialize web server
-	server := web.NewServer(db, cfg, memoryService)
+	server := web.NewServer(db, cfg, memoryService, processor)
 
 	// Initialize scheduler
 	sched := scheduler.NewScheduler(db, memoryService, wrapupService)

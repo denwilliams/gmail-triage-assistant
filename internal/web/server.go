@@ -11,6 +11,7 @@ import (
 	"github.com/den/gmail-triage-assistant/internal/config"
 	"github.com/den/gmail-triage-assistant/internal/database"
 	"github.com/den/gmail-triage-assistant/internal/memory"
+	"github.com/den/gmail-triage-assistant/internal/pipeline"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/sessions"
 	"golang.org/x/oauth2"
@@ -31,9 +32,10 @@ type Server struct {
 	oauthConfig   *oauth2.Config
 	templates     *template.Template
 	memoryService *memory.Service
+	processor     *pipeline.Processor
 }
 
-func NewServer(db *database.DB, cfg *config.Config, memoryService *memory.Service) *Server {
+func NewServer(db *database.DB, cfg *config.Config, memoryService *memory.Service, processor *pipeline.Processor) *Server {
 	store := sessions.NewCookieStore([]byte(cfg.SessionSecret))
 	store.Options = &sessions.Options{
 		Path:     "/",
@@ -65,6 +67,7 @@ func NewServer(db *database.DB, cfg *config.Config, memoryService *memory.Servic
 		oauthConfig:   oauthConfig,
 		templates:     tmpl,
 		memoryService: memoryService,
+		processor:     processor,
 	}
 
 	s.routes()
@@ -101,6 +104,9 @@ func (s *Server) routes() {
 
 	// Wrapup Reports (requires auth)
 	s.router.HandleFunc("/wrapups", s.requireAuth(s.handleWrapups)).Methods("GET")
+
+	// Gmail push webhook (no auth — verified by token param)
+	s.router.HandleFunc("/api/gmail/push", s.handleGmailPush).Methods("POST")
 }
 
 func (s *Server) handleHome(w http.ResponseWriter, r *http.Request) {
@@ -192,6 +198,11 @@ func (s *Server) handleCallback(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Failed to save session: %v", err)
 		http.Error(w, "Failed to save session", http.StatusInternalServerError)
 		return
+	}
+
+	// Register Gmail push watch (non-fatal if it fails — polling still works as fallback)
+	if err := s.registerGmailWatch(ctx, user, token); err != nil {
+		log.Printf("Warning: failed to register Gmail watch for %s: %v", userInfo.Email, err)
 	}
 
 	http.Redirect(w, r, "/dashboard", http.StatusSeeOther)
