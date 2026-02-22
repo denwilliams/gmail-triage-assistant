@@ -105,12 +105,3 @@ const (
 	AIPromptTypeEmailActions AIPromptType = "email_actions"
 )
 
-// WrapUpReport stores the 8AM and 5PM wrap-up reports
-type WrapUpReport struct {
-	ID          int64     `db:"id" json:"id"`
-	UserID      int64     `db:"user_id" json:"user_id"`     // User who owns this report
-	ReportTime  time.Time `db:"report_time" json:"report_time"` // When report was generated
-	EmailCount  int       `db:"email_count" json:"email_count"` // Number of emails processed
-	Content     string    `db:"content" json:"content"`         // Report content
-	CreatedAt   time.Time `db:"created_at" json:"created_at"`
-}

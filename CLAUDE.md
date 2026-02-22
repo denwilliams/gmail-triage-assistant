@@ -8,12 +8,24 @@ Gmail Triage Assistant - An AI-powered email management system that automaticall
 
 ## Technology Stack
 
-- **Language**: Go (for small memory footprint)
-- **Web UI**: HTMX (to avoid complex frontend builds)
-- **CSS Framework**: Pico CSS (lightweight, classless/semantic HTML styling, no build tools required)
+- **Backend**: Go (for small memory footprint)
+- **Frontend**: React SPA (Vite + TypeScript + React Router v7 + shadcn/ui + Tailwind CSS)
+- **Deployment**: Single binary with embedded SPA via `//go:embed` (`frontend/embed.go`)
 - **Authentication**: OAuth with Google (requires client ID and secret)
 - **AI Provider**: OpenAI nano models (v5 is latest, for cost saving)
 - **Database**: PostgreSQL - stores email analysis results, slugs, keywords, and memories with native JSONB support
+
+### Dev Workflow
+
+```bash
+# Terminal 1: Go API server
+make run
+
+# Terminal 2: Vite dev server (proxies /api and /auth to :8080)
+cd frontend && npm run dev
+```
+
+Production: `make build` produces a single binary with the SPA embedded.
 
 ## Core Architecture
 

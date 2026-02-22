@@ -1,4 +1,4 @@
-.PHONY: help build run test lint clean dev install-tools
+.PHONY: help build run test lint clean dev install-tools frontend-build frontend-dev
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -6,7 +6,13 @@ help: ## Show this help message
 	@echo 'Available targets:'
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-15s %s\n", $$1, $$2}'
 
-build: ## Build the application
+frontend-build: ## Build the frontend
+	cd frontend && npm install && npm run build
+
+frontend-dev: ## Start frontend dev server
+	cd frontend && npm run dev
+
+build: frontend-build ## Build the application (frontend + Go binary)
 	go build -o bin/gmail-triage-assistant cmd/server/main.go
 
 run: ## Run the application
@@ -34,6 +40,7 @@ vet: ## Run go vet
 clean: ## Clean build artifacts
 	rm -rf bin/
 	rm -f coverage.out
+	rm -rf frontend/dist/
 
 deps: ## Download dependencies
 	go mod download

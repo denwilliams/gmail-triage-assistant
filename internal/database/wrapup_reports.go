@@ -7,13 +7,13 @@ import (
 
 // WrapupReport represents a generated wrapup report
 type WrapupReport struct {
-	ID          int64
-	UserID      int64
-	ReportType  string // "morning" or "evening"
-	Content     string
-	EmailCount  int
-	GeneratedAt time.Time
-	CreatedAt   time.Time
+	ID          int64     `db:"id" json:"id"`
+	UserID      int64     `db:"user_id" json:"user_id"`
+	ReportType  string    `db:"report_type" json:"report_type"` // "morning" or "evening"
+	Content     string    `db:"content" json:"content"`
+	EmailCount  int       `db:"email_count" json:"email_count"`
+	GeneratedAt time.Time `db:"generated_at" json:"generated_at"`
+	CreatedAt   time.Time `db:"created_at" json:"created_at"`
 }
 
 // CreateWrapupReport saves a new wrapup report to the database

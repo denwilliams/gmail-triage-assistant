@@ -2,12 +2,14 @@ package main
 
 import (
 	"context"
+	"io/fs"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
+	"github.com/den/gmail-triage-assistant/frontend"
 	"github.com/den/gmail-triage-assistant/internal/config"
 	"github.com/den/gmail-triage-assistant/internal/database"
 	"github.com/den/gmail-triage-assistant/internal/gmail"
@@ -93,8 +95,12 @@ func main() {
 	checkInterval := time.Duration(cfg.GmailCheckInterval) * time.Minute
 	monitor := gmail.NewMultiUserMonitor(db, oauthConfig, checkInterval, messageHandler)
 
-	// Initialize web server
-	server := web.NewServer(db, cfg, memoryService)
+	// Initialize web server with embedded frontend
+	frontendFS, err := fs.Sub(frontend.DistFS, "dist")
+	if err != nil {
+		log.Fatalf("Failed to get frontend filesystem: %v", err)
+	}
+	server := web.NewServer(db, cfg, memoryService, frontendFS)
 
 	// Initialize scheduler
 	sched := scheduler.NewScheduler(db, memoryService, wrapupService)

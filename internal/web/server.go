@@ -2,9 +2,8 @@ package web
 
 import (
 	"context"
-	"embed"
 	"fmt"
-	"html/template"
+	"io/fs"
 	"log"
 	"net/http"
 
@@ -20,20 +19,17 @@ import (
 	"google.golang.org/api/option"
 )
 
-//go:embed templates/*.html
-var templatesFS embed.FS
-
 type Server struct {
 	router        *mux.Router
 	db            *database.DB
 	config        *config.Config
 	sessionStore  *sessions.CookieStore
 	oauthConfig   *oauth2.Config
-	templates     *template.Template
 	memoryService *memory.Service
+	frontendFS    fs.FS
 }
 
-func NewServer(db *database.DB, cfg *config.Config, memoryService *memory.Service) *Server {
+func NewServer(db *database.DB, cfg *config.Config, memoryService *memory.Service, frontendFS fs.FS) *Server {
 	store := sessions.NewCookieStore([]byte(cfg.SessionSecret))
 	store.Options = &sessions.Options{
 		Path:     "/",
@@ -54,17 +50,14 @@ func NewServer(db *database.DB, cfg *config.Config, memoryService *memory.Servic
 		Endpoint: google.Endpoint,
 	}
 
-	// Load templates from embedded filesystem
-	tmpl := template.Must(template.ParseFS(templatesFS, "templates/*.html"))
-
 	s := &Server{
 		router:        mux.NewRouter(),
 		db:            db,
 		config:        cfg,
 		sessionStore:  store,
 		oauthConfig:   oauthConfig,
-		templates:     tmpl,
 		memoryService: memoryService,
+		frontendFS:    frontendFS,
 	}
 
 	s.routes()
@@ -72,57 +65,36 @@ func NewServer(db *database.DB, cfg *config.Config, memoryService *memory.Servic
 }
 
 func (s *Server) routes() {
-	// OAuth routes
-	s.router.HandleFunc("/", s.handleHome).Methods("GET")
+	// OAuth routes (server-side redirects, keep as-is)
 	s.router.HandleFunc("/auth/login", s.handleLogin).Methods("GET")
 	s.router.HandleFunc("/auth/callback", s.handleCallback).Methods("GET")
 	s.router.HandleFunc("/auth/logout", s.handleLogout).Methods("GET")
 
-	// Dashboard (requires auth)
-	s.router.HandleFunc("/dashboard", s.requireAuth(s.handleDashboard)).Methods("GET")
+	// JSON API routes
+	api := s.router.PathPrefix("/api/v1").Subrouter()
 
-	// Labels management (requires auth)
-	s.router.HandleFunc("/labels", s.requireAuth(s.handleLabels)).Methods("GET")
-	s.router.HandleFunc("/labels/create", s.requireAuth(s.handleCreateLabel)).Methods("POST")
-	s.router.HandleFunc("/labels/{id}/delete", s.requireAuth(s.handleDeleteLabel)).Methods("POST")
+	api.HandleFunc("/auth/me", s.requireAuthAPI(s.handleAPIAuthMe)).Methods("GET")
 
-	// Email history (requires auth)
-	s.router.HandleFunc("/history", s.requireAuth(s.handleHistory)).Methods("GET")
-	s.router.HandleFunc("/history/feedback", s.requireAuth(s.handleUpdateFeedback)).Methods("POST")
+	api.HandleFunc("/labels", s.requireAuthAPI(s.handleAPIGetLabels)).Methods("GET")
+	api.HandleFunc("/labels", s.requireAuthAPI(s.handleAPICreateLabel)).Methods("POST")
+	api.HandleFunc("/labels/{id}", s.requireAuthAPI(s.handleAPIDeleteLabel)).Methods("DELETE")
 
-	// System prompts (requires auth)
-	s.router.HandleFunc("/prompts", s.requireAuth(s.handlePrompts)).Methods("GET")
-	s.router.HandleFunc("/prompts/update", s.requireAuth(s.handleUpdatePrompt)).Methods("POST")
-	s.router.HandleFunc("/prompts/defaults", s.requireAuth(s.handleInitDefaults)).Methods("GET")
+	api.HandleFunc("/emails", s.requireAuthAPI(s.handleAPIGetEmails)).Methods("GET")
+	api.HandleFunc("/emails/{id}/feedback", s.requireAuthAPI(s.handleAPIUpdateFeedback)).Methods("PUT")
 
-	// Memories (requires auth)
-	s.router.HandleFunc("/memories", s.requireAuth(s.handleMemories)).Methods("GET")
-	s.router.HandleFunc("/memories/generate", s.requireAuth(s.handleGenerateMemory)).Methods("POST")
-	s.router.HandleFunc("/memories/generate-ai-prompts", s.requireAuth(s.handleGenerateAIPrompts)).Methods("POST")
+	api.HandleFunc("/prompts", s.requireAuthAPI(s.handleAPIGetPrompts)).Methods("GET")
+	api.HandleFunc("/prompts", s.requireAuthAPI(s.handleAPIUpdatePrompt)).Methods("PUT")
+	api.HandleFunc("/prompts/defaults", s.requireAuthAPI(s.handleAPIInitDefaults)).Methods("POST")
 
-	// Wrapup Reports (requires auth)
-	s.router.HandleFunc("/wrapups", s.requireAuth(s.handleWrapups)).Methods("GET")
-}
+	api.HandleFunc("/memories", s.requireAuthAPI(s.handleAPIGetMemories)).Methods("GET")
+	api.HandleFunc("/memories/generate", s.requireAuthAPI(s.handleAPIGenerateMemory)).Methods("POST")
+	api.HandleFunc("/memories/generate-ai-prompts", s.requireAuthAPI(s.handleAPIGenerateAIPrompts)).Methods("POST")
 
-func (s *Server) handleHome(w http.ResponseWriter, r *http.Request) {
-	session, _ := s.sessionStore.Get(r, "session")
-	userEmail, ok := session.Values["user_email"].(string)
+	api.HandleFunc("/wrapups", s.requireAuthAPI(s.handleAPIGetWrapups)).Methods("GET")
 
-	if ok && userEmail != "" {
-		http.Redirect(w, r, "/dashboard", http.StatusSeeOther)
-		return
-	}
-
-	data := map[string]interface{}{
-		"Title":        "Home",
-		"ShowNav":      false,
-		"TemplateName": "home",
-	}
-
-	if err := s.templates.ExecuteTemplate(w, "home", data); err != nil {
-		log.Printf("Template error: %v", err)
-		http.Error(w, "Error rendering template", http.StatusInternalServerError)
-	}
+	// SPA fallback — serves React app for all other routes
+	spa := newSPAHandler(s.frontendFS)
+	s.router.PathPrefix("/").Handler(spa)
 }
 
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
@@ -205,326 +177,6 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 	session.Options.MaxAge = -1
 	session.Save(r, w)
 	http.Redirect(w, r, "/", http.StatusSeeOther)
-}
-
-func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
-	session, _ := s.sessionStore.Get(r, "session")
-	userEmail := session.Values["user_email"].(string)
-
-	data := map[string]interface{}{
-		"Title":        "Dashboard",
-		"ShowNav":      true,
-		"UserEmail":    userEmail,
-		"TemplateName": "dashboard",
-	}
-
-	if err := s.templates.ExecuteTemplate(w, "dashboard", data); err != nil {
-		log.Printf("Template error: %v", err)
-		http.Error(w, "Error rendering template", http.StatusInternalServerError)
-	}
-}
-
-func (s *Server) requireAuth(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		session, _ := s.sessionStore.Get(r, "session")
-		userID, ok := session.Values["user_id"].(int64)
-		if !ok || userID == 0 {
-			http.Redirect(w, r, "/auth/login", http.StatusSeeOther)
-			return
-		}
-		next(w, r)
-	}
-}
-
-func (s *Server) handleLabels(w http.ResponseWriter, r *http.Request) {
-	session, _ := s.sessionStore.Get(r, "session")
-	userEmail := session.Values["user_email"].(string)
-	userID := session.Values["user_id"].(int64)
-
-	ctx := context.Background()
-	labels, err := s.db.GetAllLabels(ctx, userID)
-	if err != nil {
-		log.Printf("Failed to load labels: %v", err)
-		http.Error(w, "Failed to load labels", http.StatusInternalServerError)
-		return
-	}
-
-	data := map[string]interface{}{
-		"Title":        "Labels",
-		"ShowNav":      true,
-		"UserEmail":    userEmail,
-		"Labels":       labels,
-		"TemplateName": "labels",
-	}
-
-	if err := s.templates.ExecuteTemplate(w, "labels", data); err != nil {
-		log.Printf("Template error: %v", err)
-		http.Error(w, "Error rendering template", http.StatusInternalServerError)
-	}
-}
-
-func (s *Server) handleCreateLabel(w http.ResponseWriter, r *http.Request) {
-	session, _ := s.sessionStore.Get(r, "session")
-	userID := session.Values["user_id"].(int64)
-
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "Invalid form", http.StatusBadRequest)
-		return
-	}
-
-	name := r.FormValue("name")
-	description := r.FormValue("description")
-
-	if name == "" {
-		http.Error(w, "Label name is required", http.StatusBadRequest)
-		return
-	}
-
-	ctx := context.Background()
-	label := &database.Label{
-		UserID:      userID,
-		Name:        name,
-		Description: description,
-		Reasons:     []string{},
-	}
-
-	if err := s.db.CreateLabel(ctx, label); err != nil {
-		log.Printf("Failed to create label: %v", err)
-		http.Error(w, "Failed to create label", http.StatusInternalServerError)
-		return
-	}
-
-	http.Redirect(w, r, "/labels", http.StatusSeeOther)
-}
-
-func (s *Server) handleDeleteLabel(w http.ResponseWriter, r *http.Request) {
-	session, _ := s.sessionStore.Get(r, "session")
-	userID := session.Values["user_id"].(int64)
-
-	vars := mux.Vars(r)
-	labelID := vars["id"]
-
-	ctx := context.Background()
-	if err := s.db.DeleteLabel(ctx, userID, labelID); err != nil {
-		log.Printf("Failed to delete label: %v", err)
-		http.Error(w, "Failed to delete label", http.StatusInternalServerError)
-		return
-	}
-
-	http.Redirect(w, r, "/labels", http.StatusSeeOther)
-}
-
-func (s *Server) handleHistory(w http.ResponseWriter, r *http.Request) {
-	session, _ := s.sessionStore.Get(r, "session")
-	userEmail := session.Values["user_email"].(string)
-	userID := session.Values["user_id"].(int64)
-
-	ctx := context.Background()
-	emails, err := s.db.GetRecentEmails(ctx, userID, 50)
-	if err != nil {
-		log.Printf("Failed to load email history: %v", err)
-		http.Error(w, "Failed to load email history", http.StatusInternalServerError)
-		return
-	}
-
-	data := map[string]interface{}{
-		"Title":        "Email History",
-		"ShowNav":      true,
-		"UserEmail":    userEmail,
-		"Emails":       emails,
-		"TemplateName": "history",
-	}
-
-	if err := s.templates.ExecuteTemplate(w, "history", data); err != nil {
-		log.Printf("Template error: %v", err)
-		http.Error(w, "Error rendering template", http.StatusInternalServerError)
-	}
-}
-
-func (s *Server) handleUpdateFeedback(w http.ResponseWriter, r *http.Request) {
-	session, _ := s.sessionStore.Get(r, "session")
-	userID := session.Values["user_id"].(int64)
-
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "Invalid form data", http.StatusBadRequest)
-		return
-	}
-
-	emailID := r.FormValue("email_id")
-	feedback := r.FormValue("feedback")
-
-	if emailID == "" {
-		http.Error(w, "Email ID is required", http.StatusBadRequest)
-		return
-	}
-
-	ctx := context.Background()
-	if err := s.db.UpdateEmailFeedback(ctx, userID, emailID, feedback); err != nil {
-		log.Printf("Failed to update feedback: %v", err)
-		http.Error(w, "Failed to save feedback", http.StatusInternalServerError)
-		return
-	}
-
-	// Redirect back to history page
-	http.Redirect(w, r, "/history", http.StatusSeeOther)
-}
-
-func (s *Server) handlePrompts(w http.ResponseWriter, r *http.Request) {
-	session, _ := s.sessionStore.Get(r, "session")
-	userEmail := session.Values["user_email"].(string)
-	userID := session.Values["user_id"].(int64)
-
-	ctx := context.Background()
-	prompts, err := s.db.GetAllSystemPrompts(ctx, userID)
-	if err != nil {
-		log.Printf("Failed to load system prompts: %v", err)
-		http.Error(w, "Failed to load system prompts", http.StatusInternalServerError)
-		return
-	}
-
-	// Load latest AI-generated prompts
-	aiAnalyze, _ := s.db.GetLatestAIPrompt(ctx, userID, database.AIPromptTypeEmailAnalyze)
-	aiActions, _ := s.db.GetLatestAIPrompt(ctx, userID, database.AIPromptTypeEmailActions)
-
-	data := map[string]interface{}{
-		"Title":        "System Prompts",
-		"ShowNav":      true,
-		"UserEmail":    userEmail,
-		"Prompts":      prompts,
-		"AIAnalyze":    aiAnalyze,
-		"AIActions":    aiActions,
-		"TemplateName": "prompts",
-	}
-
-	if err := s.templates.ExecuteTemplate(w, "prompts", data); err != nil {
-		log.Printf("Template error: %v", err)
-		http.Error(w, "Error rendering template", http.StatusInternalServerError)
-	}
-}
-
-func (s *Server) handleUpdatePrompt(w http.ResponseWriter, r *http.Request) {
-	session, _ := s.sessionStore.Get(r, "session")
-	userID := session.Values["user_id"].(int64)
-
-	if err := r.ParseForm(); err != nil {
-		log.Printf("Failed to parse form: %v", err)
-		http.Error(w, "Invalid form", http.StatusBadRequest)
-		return
-	}
-
-	promptType := r.FormValue("type")
-	content := r.FormValue("content")
-
-	ctx := context.Background()
-	prompt := &database.SystemPrompt{
-		UserID:  userID,
-		Type:    database.PromptType(promptType),
-		Content: content,
-	}
-
-	if err := s.db.UpsertSystemPrompt(ctx, prompt); err != nil {
-		log.Printf("Failed to update system prompt: %v", err)
-		http.Error(w, "Failed to update system prompt", http.StatusInternalServerError)
-		return
-	}
-
-	http.Redirect(w, r, "/prompts", http.StatusSeeOther)
-}
-
-func (s *Server) handleInitDefaults(w http.ResponseWriter, r *http.Request) {
-	session, _ := s.sessionStore.Get(r, "session")
-	userID := session.Values["user_id"].(int64)
-
-	ctx := context.Background()
-	if err := s.db.InitializeDefaultPrompts(ctx, userID); err != nil {
-		log.Printf("Failed to initialize default prompts: %v", err)
-		http.Error(w, "Failed to initialize default prompts", http.StatusInternalServerError)
-		return
-	}
-
-	http.Redirect(w, r, "/prompts", http.StatusSeeOther)
-}
-
-func (s *Server) handleMemories(w http.ResponseWriter, r *http.Request) {
-	session, _ := s.sessionStore.Get(r, "session")
-	userEmail := session.Values["user_email"].(string)
-	userID := session.Values["user_id"].(int64)
-
-	ctx := context.Background()
-	memories, err := s.db.GetAllMemories(ctx, userID, 100)
-	if err != nil {
-		log.Printf("Failed to load memories: %v", err)
-		http.Error(w, "Failed to load memories", http.StatusInternalServerError)
-		return
-	}
-
-	data := map[string]interface{}{
-		"Title":        "Memories",
-		"ShowNav":      true,
-		"UserEmail":    userEmail,
-		"Memories":     memories,
-		"TemplateName": "memories",
-	}
-
-	if err := s.templates.ExecuteTemplate(w, "memories", data); err != nil {
-		log.Printf("Template error: %v", err)
-		http.Error(w, "Error rendering template", http.StatusInternalServerError)
-	}
-}
-
-func (s *Server) handleGenerateMemory(w http.ResponseWriter, r *http.Request) {
-	session, _ := s.sessionStore.Get(r, "session")
-	userID := session.Values["user_id"].(int64)
-
-	ctx := context.Background()
-	if err := s.memoryService.GenerateDailyMemory(ctx, userID); err != nil {
-		log.Printf("Failed to generate memory: %v", err)
-		http.Error(w, "Failed to generate memory", http.StatusInternalServerError)
-		return
-	}
-
-	http.Redirect(w, r, "/memories", http.StatusSeeOther)
-}
-
-func (s *Server) handleGenerateAIPrompts(w http.ResponseWriter, r *http.Request) {
-	session, _ := s.sessionStore.Get(r, "session")
-	userID := session.Values["user_id"].(int64)
-
-	ctx := context.Background()
-	if err := s.memoryService.GenerateAIPrompts(ctx, userID); err != nil {
-		log.Printf("Failed to generate AI prompts: %v", err)
-		http.Error(w, "Failed to generate AI prompts", http.StatusInternalServerError)
-		return
-	}
-
-	http.Redirect(w, r, "/memories", http.StatusSeeOther)
-}
-
-func (s *Server) handleWrapups(w http.ResponseWriter, r *http.Request) {
-	session, _ := s.sessionStore.Get(r, "session")
-	userEmail := session.Values["user_email"].(string)
-	userID := session.Values["user_id"].(int64)
-
-	ctx := context.Background()
-	reports, err := s.db.GetWrapupReportsByUser(ctx, userID, 30) // Last 30 reports
-	if err != nil {
-		log.Printf("Failed to load wrapup reports: %v", err)
-		http.Error(w, "Failed to load wrapup reports", http.StatusInternalServerError)
-		return
-	}
-
-	data := map[string]interface{}{
-		"Title":        "Wrapup Reports",
-		"ShowNav":      true,
-		"UserEmail":    userEmail,
-		"Reports":      reports,
-		"TemplateName": "wrapups",
-	}
-
-	if err := s.templates.ExecuteTemplate(w, "wrapups", data); err != nil {
-		log.Printf("Template error: %v", err)
-		http.Error(w, "Error rendering template", http.StatusInternalServerError)
-	}
 }
 
 func (s *Server) Start() error {
