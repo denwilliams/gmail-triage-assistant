@@ -117,7 +117,11 @@ func main() {
 		})
 	}
 
-	log.Printf("✓ Multi-user Gmail monitor initialized (checking every %v)", checkInterval)
+	if cfg.PushNotificationsEnabled {
+		log.Printf("✓ Gmail monitoring mode: push notifications")
+	} else {
+		log.Printf("✓ Gmail monitoring mode: polling every %v", checkInterval)
+	}
 	log.Printf("✓ Web server ready on: http://%s:%s", cfg.ServerHost, cfg.ServerPort)
 	log.Printf("✓ Scheduler initialized:")
 	log.Printf("  - 8AM: Morning wrapup")
@@ -130,12 +134,16 @@ func main() {
 	// Start scheduler in background
 	go sched.Start(ctx)
 
-	// Start Gmail monitor in background
-	go func() {
-		if err := monitor.Start(ctx); err != nil && err != context.Canceled {
-			log.Printf("Gmail monitor stopped with error: %v", err)
-		}
-	}()
+	if !cfg.PushNotificationsEnabled {
+		log.Printf("✓ Gmail polling monitor starting (push notifications disabled)")
+		go func() {
+			if err := monitor.Start(ctx); err != nil && err != context.Canceled {
+				log.Printf("Gmail monitor stopped with error: %v", err)
+			}
+		}()
+	} else {
+		log.Printf("✓ Push notifications enabled — polling monitor disabled")
+	}
 
 	// Start web server in background
 	go func() {
