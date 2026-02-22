@@ -2,6 +2,7 @@ package database
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 )
 
@@ -27,7 +28,7 @@ func (db *DB) GetLatestAIPrompt(ctx context.Context, userID int64, promptType AI
 	)
 
 	if err != nil {
-		if err.Error() == "sql: no rows in result set" {
+		if err == sql.ErrNoRows {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("failed to get latest AI prompt: %w", err)
@@ -88,5 +89,9 @@ func (db *DB) GetAIPromptHistory(ctx context.Context, userID int64, promptType A
 		prompts = append(prompts, &p)
 	}
 
-	return prompts, rows.Err()
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating AI prompt history: %w", err)
+	}
+
+	return prompts, nil
 }
