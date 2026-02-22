@@ -46,14 +46,35 @@ A named tunnel persists across restarts. The credentials file created here (`~/.
 
 ## Step 2: Configure the tunnel
 
+Use `/etc/cloudflared` for the config and credentials — it is accessible to the `cloudflared` systemd service regardless of which user it runs as.
+
 ```bash
-cp deploy/cloudflare-tunnel.yml.example ~/.cloudflared/config.yml
-# Edit ~/.cloudflared/config.yml:
+sudo mkdir -p /etc/cloudflared
+
+# Copy example config from the repo
+sudo cp deploy/cloudflare-tunnel.yml.example /etc/cloudflared/config.yml
+
+# Copy the tunnel credentials file (created in Step 1)
+sudo cp ~/.cloudflared/<TUNNEL-ID>.json /etc/cloudflared/
+
+# Copy the login certificate (created by `cloudflared tunnel login`)
+sudo cp ~/.cloudflared/cert.pem /etc/cloudflared/
+
+# Edit the config
+sudo nano /etc/cloudflared/config.yml
 # - Replace YOUR-TUNNEL-ID with the tunnel ID from Step 1
+# - Replace the credentials-file path with /etc/cloudflared/<TUNNEL-ID>.json
 # - Replace your-hostname.your-domain.com with your desired subdomain
 ```
 
-The config file tells `cloudflared` which tunnel to use and where to route traffic (`localhost:8080` — where the Go app will listen). Without this file, you would have to pass all options on the command line every time.
+Your `/etc/cloudflared/` should contain:
+```
+/etc/cloudflared/config.yml
+/etc/cloudflared/<TUNNEL-ID>.json
+/etc/cloudflared/cert.pem
+```
+
+The config file tells `cloudflared` which tunnel to use and where to route traffic (`localhost:8080` — where the Go app will listen). The credentials JSON authenticates this Pi to the named tunnel. The `cert.pem` is the login certificate for your Cloudflare account.
 
 ---
 
@@ -144,16 +165,24 @@ If you see database connection errors, wait a few seconds and check again — Po
 
 ## Step 7: Start cloudflared
 
-```bash
-cloudflared tunnel run gmail-triage
-```
-
-Or install as a system service so it starts automatically on boot:
+Install as a system service so it starts automatically on boot:
 
 ```bash
 sudo cloudflared service install
 sudo systemctl enable cloudflared
 sudo systemctl start cloudflared
+```
+
+To verify it is running:
+
+```bash
+sudo systemctl status cloudflared
+```
+
+To run in the foreground instead (useful for debugging):
+
+```bash
+cloudflared tunnel --config /etc/cloudflared/config.yml run gmail-triage
 ```
 
 Once cloudflared is running, your Pi is reachable at `https://your-hostname.your-domain.com`. The app cannot receive Gmail notifications until both the tunnel and the app are running — if either is down, push notifications will accumulate in Pub/Sub and be delivered once both are back up (within the subscription's retention window).
@@ -250,7 +279,8 @@ Users need to sign in again to get a new refresh token. This can happen if the a
 ### Tunnel not connecting
 
 ```bash
-cloudflared tunnel run gmail-triage  # Run in foreground to see errors
+cloudflared tunnel --config /etc/cloudflared/config.yml run gmail-triage  # Run in foreground to see errors
+journalctl -u cloudflared -f  # Check service logs
 ```
 
-Check that `~/.cloudflared/config.yml` has the correct tunnel ID and credentials file path.
+Check that `/etc/cloudflared/config.yml` has the correct tunnel ID, and that the `credentials-file` path points to `/etc/cloudflared/<TUNNEL-ID>.json`. Ensure `cert.pem` is also present in `/etc/cloudflared/`.
