@@ -382,11 +382,17 @@ func (s *Server) handlePrompts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Load latest AI-generated prompts
+	aiAnalyze, _ := s.db.GetLatestAIPrompt(ctx, userID, database.AIPromptTypeEmailAnalyze)
+	aiActions, _ := s.db.GetLatestAIPrompt(ctx, userID, database.AIPromptTypeEmailActions)
+
 	data := map[string]interface{}{
 		"Title":        "System Prompts",
 		"ShowNav":      true,
 		"UserEmail":    userEmail,
 		"Prompts":      prompts,
+		"AIAnalyze":    aiAnalyze,
+		"AIActions":    aiActions,
 		"TemplateName": "prompts",
 	}
 
