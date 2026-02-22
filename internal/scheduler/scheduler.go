@@ -133,7 +133,7 @@ func (s *Scheduler) Stop() {
 }
 
 // SetWatchRenewerFunc sets the function to call for Gmail watch renewal.
-// If set, it will be called at 9AM daily.
+// Must be called before Start. If set, it will be called at 9AM daily.
 func (s *Scheduler) SetWatchRenewerFunc(fn func(ctx context.Context)) {
 	s.renewWatchesFunc = fn
 }
