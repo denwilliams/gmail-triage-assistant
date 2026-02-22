@@ -42,8 +42,8 @@ func (p *Processor) ProcessEmail(ctx context.Context, user *database.User, messa
 	}
 
 	// Truncate body for AI processing (to save tokens)
-	if len(body) > 2000 {
-		body = body[:2000] + "..."
+	if len(body) > 5000 {
+		body = body[:5000] + "..."
 	}
 
 	// Get custom system prompts

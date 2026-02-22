@@ -94,15 +94,38 @@ func main() {
 	monitor := gmail.NewMultiUserMonitor(db, oauthConfig, checkInterval, messageHandler)
 
 	// Initialize web server
-	server := web.NewServer(db, cfg, memoryService)
+	server := web.NewServer(db, cfg, memoryService, processor)
 
 	// Initialize scheduler
 	sched := scheduler.NewScheduler(db, memoryService, wrapupService)
 
-	log.Printf("✓ Multi-user Gmail monitor initialized (checking every %v)", checkInterval)
+	// Wire up Gmail watch renewal (only when push notifications configured)
+	if cfg.PubSubTopic != "" {
+		sched.SetWatchRenewerFunc(func(ctx context.Context) {
+			users, err := db.GetActiveUsers(ctx)
+			if err != nil {
+				log.Printf("Watch renewal: failed to get users: %v", err)
+				return
+			}
+			for _, u := range users {
+				if err := server.RenewGmailWatch(ctx, u); err != nil {
+					log.Printf("Watch renewal: failed for %s: %v", u.Email, err)
+				} else {
+					log.Printf("✓ Gmail watch renewed for %s", u.Email)
+				}
+			}
+		})
+	}
+
+	if cfg.PushNotificationsEnabled {
+		log.Printf("✓ Gmail monitoring mode: push notifications")
+	} else {
+		log.Printf("✓ Gmail monitoring mode: polling every %v", checkInterval)
+	}
 	log.Printf("✓ Web server ready on: http://%s:%s", cfg.ServerHost, cfg.ServerPort)
 	log.Printf("✓ Scheduler initialized:")
 	log.Printf("  - 8AM: Morning wrapup")
+	log.Printf("  - 9AM: Gmail watch renewal (when push configured)")
 	log.Printf("  - 5PM: Evening wrapup + daily memory")
 	log.Printf("  - 6PM Saturday: Weekly memory")
 	log.Printf("  - 7PM 1st: Monthly memory")
@@ -111,12 +134,16 @@ func main() {
 	// Start scheduler in background
 	go sched.Start(ctx)
 
-	// Start Gmail monitor in background
-	go func() {
-		if err := monitor.Start(ctx); err != nil && err != context.Canceled {
-			log.Printf("Gmail monitor stopped with error: %v", err)
-		}
-	}()
+	if !cfg.PushNotificationsEnabled {
+		log.Printf("✓ Gmail polling monitor starting (push notifications disabled)")
+		go func() {
+			if err := monitor.Start(ctx); err != nil && err != context.Canceled {
+				log.Printf("Gmail monitor stopped with error: %v", err)
+			}
+		}()
+	} else {
+		log.Printf("✓ Push notifications enabled — polling monitor disabled")
+	}
 
 	// Start web server in background
 	go func() {

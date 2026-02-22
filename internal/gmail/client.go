@@ -228,3 +228,64 @@ func (c *Client) CreateLabel(ctx context.Context, labelName string) (*gmail.Labe
 
 	return created, nil
 }
+
+// WatchInbox registers the inbox for push notifications via Pub/Sub.
+// Returns the historyId to use as a starting point and when the watch expires.
+func (c *Client) WatchInbox(ctx context.Context, topicName string) (historyID uint64, expiration int64, err error) {
+	req := &gmail.WatchRequest{
+		LabelIds:  []string{"INBOX"},
+		TopicName: topicName,
+	}
+	resp, err := c.service.Users.Watch(c.userID, req).Context(ctx).Do()
+	if err != nil {
+		return 0, 0, fmt.Errorf("failed to watch inbox: %w", err)
+	}
+	return resp.HistoryId, resp.Expiration, nil
+}
+
+// GetMessagesByHistoryID returns messages added to the inbox since the given historyId.
+// Returns the new historyId to use for the next call.
+func (c *Client) GetMessagesByHistoryID(ctx context.Context, startHistoryID uint64) ([]*Message, uint64, error) {
+	var messageIDs []string
+	var newHistoryID uint64
+
+	err := c.service.Users.History.List(c.userID).
+		StartHistoryId(startHistoryID).
+		LabelId("INBOX").
+		HistoryTypes("messageAdded").
+		Pages(ctx, func(page *gmail.ListHistoryResponse) error {
+			if page.HistoryId > newHistoryID {
+				newHistoryID = page.HistoryId
+			}
+			for _, h := range page.History {
+				for _, ma := range h.MessagesAdded {
+					messageIDs = append(messageIDs, ma.Message.Id)
+				}
+			}
+			return nil
+		})
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to list history: %w", err)
+	}
+
+	if newHistoryID == 0 {
+		newHistoryID = startHistoryID
+	}
+
+	// De-duplicate message IDs (History API can return same ID multiple times)
+	seen := make(map[string]bool)
+	var messages []*Message
+	for _, id := range messageIDs {
+		if seen[id] {
+			continue
+		}
+		seen[id] = true
+		msg, err := c.GetMessage(ctx, id)
+		if err != nil {
+			return nil, 0, fmt.Errorf("failed to get message %s: %w", id, err)
+		}
+		messages = append(messages, msg)
+	}
+
+	return messages, newHistoryID, nil
+}

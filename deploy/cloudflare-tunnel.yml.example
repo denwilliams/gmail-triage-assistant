@@ -1,0 +1,17 @@
+# Cloudflare Tunnel configuration template
+# Copy to: ~/.cloudflared/config.yml on your Raspberry Pi
+# Replace placeholders with your actual values.
+#
+# Get your tunnel ID by running:
+#   cloudflared tunnel create gmail-triage
+#
+# Route DNS with:
+#   cloudflared tunnel route dns gmail-triage your-hostname.your-domain.com
+
+tunnel: YOUR-TUNNEL-ID
+credentials-file: /home/pi/.cloudflared/YOUR-TUNNEL-ID.json
+
+ingress:
+  - hostname: your-hostname.your-domain.com
+    service: http://localhost:8080
+  - service: http_status:404
