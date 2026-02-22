@@ -6,8 +6,8 @@ Requires=docker.service
 [Service]
 Type=simple
 WorkingDirectory=/home/pi/gmail-triage-assistant
-ExecStart=/usr/bin/docker compose up
-ExecStop=/usr/bin/docker compose down
+ExecStart=/bin/sh -c 'cd /home/pi/gmail-triage-assistant && docker compose up'
+ExecStop=/bin/sh -c 'cd /home/pi/gmail-triage-assistant && docker compose down'
 Restart=on-failure
 RestartSec=10
 User=pi
