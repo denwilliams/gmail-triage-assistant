@@ -11,9 +11,10 @@ type User struct {
 	RefreshToken  string     `db:"refresh_token" json:"-"`             // OAuth refresh token (not exposed in JSON)
 	TokenExpiry   time.Time  `db:"token_expiry" json:"token_expiry"`   // When access token expires
 	IsActive      bool       `db:"is_active" json:"is_active"`         // Whether monitoring is enabled
-	LastCheckedAt *time.Time `db:"last_checked_at" json:"last_checked_at"` // Last time Gmail was checked for this user
-	CreatedAt     time.Time  `db:"created_at" json:"created_at"`
-	UpdatedAt     time.Time  `db:"updated_at" json:"updated_at"`
+	LastCheckedAt  *time.Time `db:"last_checked_at" json:"last_checked_at"` // Last time Gmail was checked for this user
+	GmailHistoryID *int64     `db:"gmail_history_id" json:"gmail_history_id,omitempty"`
+	CreatedAt      time.Time  `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time  `db:"updated_at" json:"updated_at"`
 }
 
 // Email represents the analysis results for a single email

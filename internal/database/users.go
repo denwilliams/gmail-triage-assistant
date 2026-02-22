@@ -52,7 +52,7 @@ func (db *DB) GetUserByEmail(ctx context.Context, email string) (*User, error) {
 	user := &User{}
 
 	query := `
-		SELECT id, email, google_id, access_token, refresh_token, token_expiry, is_active, last_checked_at, created_at, updated_at
+		SELECT id, email, google_id, access_token, refresh_token, token_expiry, is_active, last_checked_at, gmail_history_id, created_at, updated_at
 		FROM users
 		WHERE email = $1
 	`
@@ -66,6 +66,7 @@ func (db *DB) GetUserByEmail(ctx context.Context, email string) (*User, error) {
 		&user.TokenExpiry,
 		&user.IsActive,
 		&user.LastCheckedAt,
+		&user.GmailHistoryID,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -82,7 +83,7 @@ func (db *DB) GetUserByGoogleID(ctx context.Context, googleID string) (*User, er
 	user := &User{}
 
 	query := `
-		SELECT id, email, google_id, access_token, refresh_token, token_expiry, is_active, last_checked_at, created_at, updated_at
+		SELECT id, email, google_id, access_token, refresh_token, token_expiry, is_active, last_checked_at, gmail_history_id, created_at, updated_at
 		FROM users
 		WHERE google_id = $1
 	`
@@ -96,6 +97,7 @@ func (db *DB) GetUserByGoogleID(ctx context.Context, googleID string) (*User, er
 		&user.TokenExpiry,
 		&user.IsActive,
 		&user.LastCheckedAt,
+		&user.GmailHistoryID,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -135,7 +137,7 @@ func (db *DB) UpdateUserToken(ctx context.Context, userID int64, token *oauth2.T
 // GetAllActiveUsers retrieves all users with monitoring enabled
 func (db *DB) GetAllActiveUsers(ctx context.Context) ([]*User, error) {
 	query := `
-		SELECT id, email, google_id, access_token, refresh_token, token_expiry, is_active, last_checked_at, created_at, updated_at
+		SELECT id, email, google_id, access_token, refresh_token, token_expiry, is_active, last_checked_at, gmail_history_id, created_at, updated_at
 		FROM users
 		WHERE is_active = true
 		ORDER BY created_at ASC
@@ -159,6 +161,7 @@ func (db *DB) GetAllActiveUsers(ctx context.Context) ([]*User, error) {
 			&user.TokenExpiry,
 			&user.IsActive,
 			&user.LastCheckedAt,
+			&user.GmailHistoryID,
 			&user.CreatedAt,
 			&user.UpdatedAt,
 		)
@@ -217,10 +220,24 @@ func (u *User) GetOAuth2Token() *oauth2.Token {
 	}
 }
 
+// UpdateGmailHistoryID updates the gmail_history_id for a user
+func (db *DB) UpdateGmailHistoryID(ctx context.Context, userID int64, historyID int64) error {
+	query := `
+		UPDATE users
+		SET gmail_history_id = $1, updated_at = $2
+		WHERE id = $3
+	`
+	_, err := db.conn.ExecContext(ctx, query, historyID, time.Now(), userID)
+	if err != nil {
+		return fmt.Errorf("failed to update gmail_history_id: %w", err)
+	}
+	return nil
+}
+
 // GetActiveUsers retrieves all active users
 func (db *DB) GetActiveUsers(ctx context.Context) ([]*User, error) {
 	query := `
-		SELECT id, email, google_id, access_token, refresh_token, token_expiry, is_active, last_checked_at, created_at, updated_at
+		SELECT id, email, google_id, access_token, refresh_token, token_expiry, is_active, last_checked_at, gmail_history_id, created_at, updated_at
 		FROM users
 		WHERE is_active = true
 		ORDER BY email
@@ -244,6 +261,7 @@ func (db *DB) GetActiveUsers(ctx context.Context) ([]*User, error) {
 			&user.TokenExpiry,
 			&user.IsActive,
 			&user.LastCheckedAt,
+			&user.GmailHistoryID,
 			&user.CreatedAt,
 			&user.UpdatedAt,
 		)
