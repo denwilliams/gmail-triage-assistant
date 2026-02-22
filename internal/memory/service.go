@@ -552,13 +552,18 @@ func (s *Service) GenerateAIPrompts(ctx context.Context, userID int64) error {
 		{database.AIPromptTypeEmailActions, database.PromptTypeEmailActions, "email actions"},
 	}
 
+	var errs []error
 	for _, pt := range promptTypes {
 		if err := s.generateSingleAIPrompt(ctx, userID, pt.aiType, pt.userType, pt.label, weeklyMemory); err != nil {
 			log.Printf("Failed to generate AI prompt for %s (user %d): %v", pt.label, userID, err)
+			errs = append(errs, err)
 			// Continue with the other prompt type
 		}
 	}
 
+	if len(errs) == len(promptTypes) {
+		return fmt.Errorf("all AI prompt generations failed")
+	}
 	return nil
 }
 

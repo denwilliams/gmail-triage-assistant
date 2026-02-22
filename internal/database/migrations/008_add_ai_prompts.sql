@@ -7,4 +7,4 @@ CREATE TABLE ai_prompts (
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_ai_prompts_user_type_version ON ai_prompts(user_id, type, version DESC);
+CREATE UNIQUE INDEX idx_ai_prompts_user_type_version ON ai_prompts(user_id, type, version);
