@@ -77,6 +77,7 @@ func (s *Server) routes() {
 
 	api.HandleFunc("/labels", s.requireAuthAPI(s.handleAPIGetLabels)).Methods("GET")
 	api.HandleFunc("/labels", s.requireAuthAPI(s.handleAPICreateLabel)).Methods("POST")
+	api.HandleFunc("/labels/{id}", s.requireAuthAPI(s.handleAPIUpdateLabel)).Methods("PUT")
 	api.HandleFunc("/labels/{id}", s.requireAuthAPI(s.handleAPIDeleteLabel)).Methods("DELETE")
 
 	api.HandleFunc("/emails", s.requireAuthAPI(s.handleAPIGetEmails)).Methods("GET")

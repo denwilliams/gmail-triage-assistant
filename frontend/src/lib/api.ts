@@ -31,6 +31,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ name, description }),
     }),
+  updateLabel: (id: number, name: string, description: string, reasons: string[]) =>
+    request<import("./types").Label>(`/labels/${id}`, {
+      method: "PUT",
+      body: JSON.stringify({ name, description, reasons }),
+    }),
   deleteLabel: (id: number) =>
     request<{ status: string }>(`/labels/${id}`, { method: "DELETE" }),
 

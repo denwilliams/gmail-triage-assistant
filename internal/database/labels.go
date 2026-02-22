@@ -87,6 +87,35 @@ func (db *DB) GetAllLabels(ctx context.Context, userID int64) ([]*Label, error) 
 	return labels, nil
 }
 
+// UpdateLabel updates a label's name, description, and reasons
+func (db *DB) UpdateLabel(ctx context.Context, label *Label) error {
+	reasonsJSON, err := json.Marshal(label.Reasons)
+	if err != nil {
+		return fmt.Errorf("failed to marshal reasons: %w", err)
+	}
+
+	query := `
+		UPDATE labels SET name = $1, description = $2, reasons = $3, updated_at = $4
+		WHERE id = $5 AND user_id = $6
+	`
+
+	result, err := db.conn.ExecContext(ctx, query, label.Name, label.Description, reasonsJSON, time.Now(), label.ID, label.UserID)
+	if err != nil {
+		return fmt.Errorf("failed to update label: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("label not found or not owned by user")
+	}
+
+	return nil
+}
+
 // DeleteLabel deletes a label for a user
 func (db *DB) DeleteLabel(ctx context.Context, userID int64, labelID string) error {
 	query := `DELETE FROM labels WHERE id = $1 AND user_id = $2`

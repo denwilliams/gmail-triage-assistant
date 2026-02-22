@@ -75,6 +75,56 @@ func (s *Server) handleAPICreateLabel(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusCreated, label)
 }
 
+// PUT /api/v1/labels/{id}
+func (s *Server) handleAPIUpdateLabel(w http.ResponseWriter, r *http.Request) {
+	session, _ := s.sessionStore.Get(r, "session")
+	userID := session.Values["user_id"].(int64)
+
+	vars := mux.Vars(r)
+	labelID := vars["id"]
+
+	var body struct {
+		Name        string   `json:"name"`
+		Description string   `json:"description"`
+		Reasons     []string `json:"reasons"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		respondError(w, http.StatusBadRequest, "Invalid JSON")
+		return
+	}
+
+	if body.Name == "" {
+		respondError(w, http.StatusBadRequest, "Label name is required")
+		return
+	}
+
+	id, err := strconv.ParseInt(labelID, 10, 64)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "Invalid label ID")
+		return
+	}
+
+	ctx := context.Background()
+	label := &database.Label{
+		ID:          id,
+		UserID:      userID,
+		Name:        body.Name,
+		Description: body.Description,
+		Reasons:     body.Reasons,
+	}
+	if label.Reasons == nil {
+		label.Reasons = []string{}
+	}
+
+	if err := s.db.UpdateLabel(ctx, label); err != nil {
+		log.Printf("API: Failed to update label: %v", err)
+		respondError(w, http.StatusInternalServerError, "Failed to update label")
+		return
+	}
+
+	respondJSON(w, http.StatusOK, label)
+}
+
 // DELETE /api/v1/labels/{id}
 func (s *Server) handleAPIDeleteLabel(w http.ResponseWriter, r *http.Request) {
 	session, _ := s.sessionStore.Get(r, "session")
