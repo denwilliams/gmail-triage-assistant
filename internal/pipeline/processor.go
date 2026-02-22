@@ -56,6 +56,22 @@ func (p *Processor) ProcessEmail(ctx context.Context, user *database.User, messa
 		actionsPrompt = prompt.Content
 	}
 
+	// Append AI-generated prompt supplements (if any exist)
+	if aiPrompt, err := p.db.GetLatestAIPrompt(ctx, user.ID, database.AIPromptTypeEmailAnalyze); err == nil && aiPrompt != nil {
+		if analyzePrompt != "" {
+			analyzePrompt += "\n\n" + aiPrompt.Content
+		} else {
+			analyzePrompt = aiPrompt.Content
+		}
+	}
+	if aiPrompt, err := p.db.GetLatestAIPrompt(ctx, user.ID, database.AIPromptTypeEmailActions); err == nil && aiPrompt != nil {
+		if actionsPrompt != "" {
+			actionsPrompt += "\n\n" + aiPrompt.Content
+		} else {
+			actionsPrompt = aiPrompt.Content
+		}
+	}
+
 	// Get recent memories to provide context (1 yearly, 1 monthly, 1 weekly, up to 7 daily)
 	memoryContext := ""
 	allMemories, err := p.db.GetRecentMemoriesForContext(ctx, user.ID)
