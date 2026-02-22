@@ -523,3 +523,117 @@ Provide a concise %s summary with key patterns and strategic insights.`,
 
 	return memory, nil
 }
+
+// GenerateAIPrompts regenerates both AI-written prompts using the latest weekly memory.
+// Called after weekly memory generation. For each prompt type (email_analyze, email_actions):
+// 1. Loads the user-written system prompt
+// 2. Loads the latest AI-written prompt (if any)
+// 3. Loads the most recent weekly memory
+// 4. Generates a new AI prompt version
+func (s *Service) GenerateAIPrompts(ctx context.Context, userID int64) error {
+	// Get the most recent weekly memory
+	weeklyMemories, err := s.db.GetMemoriesByType(ctx, userID, database.MemoryTypeWeekly, 1)
+	if err != nil {
+		return fmt.Errorf("failed to get weekly memory: %w", err)
+	}
+	if len(weeklyMemories) == 0 {
+		log.Printf("No weekly memory found for user %d, skipping AI prompt generation", userID)
+		return nil
+	}
+	weeklyMemory := weeklyMemories[0]
+
+	// Generate for both prompt types
+	promptTypes := []struct {
+		aiType   database.AIPromptType
+		userType database.PromptType
+		label    string
+	}{
+		{database.AIPromptTypeEmailAnalyze, database.PromptTypeEmailAnalyze, "email analysis"},
+		{database.AIPromptTypeEmailActions, database.PromptTypeEmailActions, "email actions"},
+	}
+
+	var errs []error
+	for _, pt := range promptTypes {
+		if err := s.generateSingleAIPrompt(ctx, userID, pt.aiType, pt.userType, pt.label, weeklyMemory); err != nil {
+			log.Printf("Failed to generate AI prompt for %s (user %d): %v", pt.label, userID, err)
+			errs = append(errs, err)
+			// Continue with the other prompt type
+		}
+	}
+
+	if len(errs) == len(promptTypes) {
+		return fmt.Errorf("all AI prompt generations failed")
+	}
+	return nil
+}
+
+func (s *Service) generateSingleAIPrompt(ctx context.Context, userID int64, aiType database.AIPromptType, userPromptType database.PromptType, label string, weeklyMemory *database.Memory) error {
+	// 1. Get user-written system prompt
+	userPromptContent := ""
+	if userPrompt, err := s.db.GetSystemPrompt(ctx, userID, userPromptType); err == nil {
+		userPromptContent = userPrompt.Content
+	}
+
+	// 2. Get latest AI-written prompt
+	previousAIContent := ""
+	if aiPrompt, err := s.db.GetLatestAIPrompt(ctx, userID, aiType); err == nil && aiPrompt != nil {
+		previousAIContent = aiPrompt.Content
+	}
+
+	// 3. Build the meta-prompt
+	systemPrompt := fmt.Sprintf(`You are an AI assistant that writes supplementary system prompt instructions for %s.
+
+Your job is to write additional instructions that will be APPENDED to the user's system prompt when processing emails. These instructions should encode specific learnings, patterns, exceptions, and refinements discovered from processing emails over time.
+
+Rules:
+- NEVER contradict the user's original prompt - your instructions supplement it
+- Be specific and actionable (e.g., "Emails from noreply@github.com with 'security alert' in subject should be labeled Urgent")
+- Include sender-specific rules, content patterns, and learned exceptions
+- Remove outdated rules that no longer apply
+- Keep your output concise - aim for 200-500 words of clear, direct instructions
+- Write in imperative form as instructions to an AI assistant (e.g., "Label X as Y", "Archive emails from Z")
+- Do NOT include explanations of why - just the rules themselves`, label)
+
+	var userPrompt string
+	if previousAIContent != "" {
+		userPrompt = fmt.Sprintf(`**USER'S ORIGINAL PROMPT (never modify, your output supplements this):**
+%s
+
+**YOUR PREVIOUS VERSION (evolve this):**
+%s
+
+**LATEST WEEKLY MEMORY (new learnings to incorporate):**
+%s
+
+Write an updated version of the supplementary instructions. Reinforce rules that continue to be relevant, add new rules from the weekly memory, and remove any that are outdated.`,
+			userPromptContent, previousAIContent, weeklyMemory.Content)
+	} else {
+		userPrompt = fmt.Sprintf(`**USER'S ORIGINAL PROMPT (never modify, your output supplements this):**
+%s
+
+**LATEST WEEKLY MEMORY (learnings to base initial rules on):**
+%s
+
+Write the first version of supplementary instructions based on the patterns and learnings from the weekly memory.`,
+			userPromptContent, weeklyMemory.Content)
+	}
+
+	// 4. Generate via OpenAI
+	content, err := s.openai.GenerateMemory(ctx, systemPrompt, userPrompt)
+	if err != nil {
+		return fmt.Errorf("failed to generate AI prompt: %w", err)
+	}
+
+	// 5. Save new version
+	aiPrompt := &database.AIPrompt{
+		UserID:  userID,
+		Type:    aiType,
+		Content: content,
+	}
+	if err := s.db.CreateAIPrompt(ctx, aiPrompt); err != nil {
+		return fmt.Errorf("failed to save AI prompt: %w", err)
+	}
+
+	log.Printf("✓ AI prompt for %s generated (user %d, version %d)", label, userID, aiPrompt.Version)
+	return nil
+}

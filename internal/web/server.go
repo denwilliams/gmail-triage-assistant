@@ -98,6 +98,7 @@ func (s *Server) routes() {
 	// Memories (requires auth)
 	s.router.HandleFunc("/memories", s.requireAuth(s.handleMemories)).Methods("GET")
 	s.router.HandleFunc("/memories/generate", s.requireAuth(s.handleGenerateMemory)).Methods("POST")
+	s.router.HandleFunc("/memories/generate-ai-prompts", s.requireAuth(s.handleGenerateAIPrompts)).Methods("POST")
 
 	// Wrapup Reports (requires auth)
 	s.router.HandleFunc("/wrapups", s.requireAuth(s.handleWrapups)).Methods("GET")
@@ -473,6 +474,20 @@ func (s *Server) handleGenerateMemory(w http.ResponseWriter, r *http.Request) {
 	if err := s.memoryService.GenerateDailyMemory(ctx, userID); err != nil {
 		log.Printf("Failed to generate memory: %v", err)
 		http.Error(w, "Failed to generate memory", http.StatusInternalServerError)
+		return
+	}
+
+	http.Redirect(w, r, "/memories", http.StatusSeeOther)
+}
+
+func (s *Server) handleGenerateAIPrompts(w http.ResponseWriter, r *http.Request) {
+	session, _ := s.sessionStore.Get(r, "session")
+	userID := session.Values["user_id"].(int64)
+
+	ctx := context.Background()
+	if err := s.memoryService.GenerateAIPrompts(ctx, userID); err != nil {
+		log.Printf("Failed to generate AI prompts: %v", err)
+		http.Error(w, "Failed to generate AI prompts", http.StatusInternalServerError)
 		return
 	}
 
