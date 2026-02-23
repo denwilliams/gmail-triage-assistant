@@ -8,37 +8,41 @@ import (
 	"time"
 
 	"github.com/den/gmail-triage-assistant/internal/database"
+	"github.com/den/gmail-triage-assistant/internal/gmail"
 	"github.com/den/gmail-triage-assistant/internal/openai"
+	"golang.org/x/oauth2"
 )
 
 type Service struct {
-	db     *database.DB
-	openai *openai.Client
+	db          *database.DB
+	openai      *openai.Client
+	oauthConfig *oauth2.Config
 }
 
-func NewService(db *database.DB, openaiClient *openai.Client) *Service {
+func NewService(db *database.DB, openaiClient *openai.Client, oauthConfig *oauth2.Config) *Service {
 	return &Service{
-		db:     db,
-		openai: openaiClient,
+		db:          db,
+		openai:      openaiClient,
+		oauthConfig: oauthConfig,
 	}
 }
 
 // GenerateMorningWrapup creates a summary of emails processed overnight (since last evening)
-func (s *Service) GenerateMorningWrapup(ctx context.Context, userID int64) error {
-	log.Printf("Generating morning wrapup for user %d", userID)
+func (s *Service) GenerateMorningWrapup(ctx context.Context, user *database.User) error {
+	log.Printf("Generating morning wrapup for user %s", user.Email)
 
 	now := time.Now()
 	// Get emails since 5PM yesterday
 	yesterday := now.AddDate(0, 0, -1)
 	since := time.Date(yesterday.Year(), yesterday.Month(), yesterday.Day(), 17, 0, 0, 0, yesterday.Location())
 
-	emails, err := s.db.GetEmailsByDateRange(ctx, userID, since, now)
+	emails, err := s.db.GetEmailsByDateRange(ctx, user.ID, since, now)
 	if err != nil {
 		return fmt.Errorf("failed to get emails: %w", err)
 	}
 
 	if len(emails) == 0 {
-		log.Printf("No emails since yesterday evening for user %d, skipping morning wrapup", userID)
+		log.Printf("No emails since yesterday evening for user %s, skipping morning wrapup", user.Email)
 		return nil
 	}
 
@@ -48,7 +52,7 @@ func (s *Service) GenerateMorningWrapup(ctx context.Context, userID int64) error
 	}
 
 	report := &database.WrapupReport{
-		UserID:      userID,
+		UserID:      user.ID,
 		ReportType:  "morning",
 		Content:     content,
 		EmailCount:  len(emails),
@@ -59,25 +63,31 @@ func (s *Service) GenerateMorningWrapup(ctx context.Context, userID int64) error
 		return fmt.Errorf("failed to save wrapup: %w", err)
 	}
 
-	log.Printf("✓ Morning wrapup created for user %d (%d emails)", userID, len(emails))
+	log.Printf("✓ Morning wrapup saved for user %s (%d emails)", user.Email, len(emails))
+
+	subject := fmt.Sprintf("Morning Wrapup - %s (%d emails)", now.Format("Jan 2"), len(emails))
+	if err := s.sendWrapupEmail(ctx, user, subject, content); err != nil {
+		log.Printf("Failed to email morning wrapup to %s: %v", user.Email, err)
+	}
+
 	return nil
 }
 
 // GenerateEveningWrapup creates a summary of emails processed during the day
-func (s *Service) GenerateEveningWrapup(ctx context.Context, userID int64) error {
-	log.Printf("Generating evening wrapup for user %d", userID)
+func (s *Service) GenerateEveningWrapup(ctx context.Context, user *database.User) error {
+	log.Printf("Generating evening wrapup for user %s", user.Email)
 
 	now := time.Now()
 	// Get emails since 8AM today
 	today := time.Date(now.Year(), now.Month(), now.Day(), 8, 0, 0, 0, now.Location())
 
-	emails, err := s.db.GetEmailsByDateRange(ctx, userID, today, now)
+	emails, err := s.db.GetEmailsByDateRange(ctx, user.ID, today, now)
 	if err != nil {
 		return fmt.Errorf("failed to get emails: %w", err)
 	}
 
 	if len(emails) == 0 {
-		log.Printf("No emails since this morning for user %d, skipping evening wrapup", userID)
+		log.Printf("No emails since this morning for user %s, skipping evening wrapup", user.Email)
 		return nil
 	}
 
@@ -87,7 +97,7 @@ func (s *Service) GenerateEveningWrapup(ctx context.Context, userID int64) error
 	}
 
 	report := &database.WrapupReport{
-		UserID:      userID,
+		UserID:      user.ID,
 		ReportType:  "evening",
 		Content:     content,
 		EmailCount:  len(emails),
@@ -98,7 +108,13 @@ func (s *Service) GenerateEveningWrapup(ctx context.Context, userID int64) error
 		return fmt.Errorf("failed to save wrapup: %w", err)
 	}
 
-	log.Printf("✓ Evening wrapup created for user %d (%d emails)", userID, len(emails))
+	log.Printf("✓ Evening wrapup saved for user %s (%d emails)", user.Email, len(emails))
+
+	subject := fmt.Sprintf("Evening Wrapup - %s (%d emails)", now.Format("Jan 2"), len(emails))
+	if err := s.sendWrapupEmail(ctx, user, subject, content); err != nil {
+		log.Printf("Failed to email evening wrapup to %s: %v", user.Email, err)
+	}
+
 	return nil
 }
 
@@ -159,4 +175,18 @@ Provide a brief, scannable summary.`, reportType, len(emails), timeframe, string
 	}
 
 	return content, nil
+}
+
+func (s *Service) sendWrapupEmail(ctx context.Context, user *database.User, subject, content string) error {
+	client, err := gmail.NewClient(ctx, s.oauthConfig, user.GetOAuth2Token())
+	if err != nil {
+		return fmt.Errorf("failed to create gmail client: %w", err)
+	}
+
+	if err := client.SendMessage(ctx, user.Email, subject, content); err != nil {
+		return fmt.Errorf("failed to send email: %w", err)
+	}
+
+	log.Printf("✓ Wrapup emailed to %s", user.Email)
+	return nil
 }

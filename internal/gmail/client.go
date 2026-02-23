@@ -2,6 +2,7 @@ package gmail
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"time"
 
@@ -227,4 +228,20 @@ func (c *Client) CreateLabel(ctx context.Context, labelName string) (*gmail.Labe
 	}
 
 	return created, nil
+}
+
+// SendMessage sends an email via the Gmail API
+func (c *Client) SendMessage(ctx context.Context, to, subject, body string) error {
+	raw := fmt.Sprintf("To: %s\r\nSubject: %s\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n%s", to, subject, body)
+
+	msg := &gmail.Message{
+		Raw: base64.URLEncoding.EncodeToString([]byte(raw)),
+	}
+
+	_, err := c.service.Users.Messages.Send(c.userID, msg).Do()
+	if err != nil {
+		return fmt.Errorf("failed to send message: %w", err)
+	}
+
+	return nil
 }

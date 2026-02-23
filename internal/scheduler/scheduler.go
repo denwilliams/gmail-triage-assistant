@@ -130,8 +130,7 @@ func (s *Scheduler) runMorningWrapup(ctx context.Context) {
 	}
 
 	for _, user := range users {
-		log.Printf("Generating morning wrapup for user %s", user.Email)
-		if err := s.wrapupService.GenerateMorningWrapup(ctx, user.ID); err != nil {
+		if err := s.wrapupService.GenerateMorningWrapup(ctx, user); err != nil {
 			log.Printf("Failed to generate morning wrapup for %s: %v", user.Email, err)
 		}
 	}
@@ -146,11 +145,8 @@ func (s *Scheduler) runEveningTasks(ctx context.Context) {
 
 	for _, user := range users {
 		// Generate evening wrapup
-		log.Printf("Generating evening wrapup for user %s", user.Email)
-		if err := s.wrapupService.GenerateEveningWrapup(ctx, user.ID); err != nil {
+		if err := s.wrapupService.GenerateEveningWrapup(ctx, user); err != nil {
 			log.Printf("Failed to generate evening wrapup for %s: %v", user.Email, err)
-		} else {
-			log.Printf("✓ Evening wrapup generated for %s", user.Email)
 		}
 
 		// Generate daily memory

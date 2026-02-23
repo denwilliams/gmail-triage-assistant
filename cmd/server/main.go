@@ -65,6 +65,7 @@ func main() {
 		RedirectURL:  cfg.GoogleRedirectURL,
 		Scopes: []string{
 			gmailapi.GmailModifyScope,
+			gmailapi.GmailSendScope,
 			"https://www.googleapis.com/auth/userinfo.email",
 		},
 		Endpoint: google.Endpoint,
@@ -79,7 +80,7 @@ func main() {
 	log.Printf("✓ Memory service initialized")
 
 	// Initialize wrapup service
-	wrapupService := wrapup.NewService(db, openaiClient)
+	wrapupService := wrapup.NewService(db, openaiClient, oauthConfig)
 	log.Printf("✓ Wrapup service initialized")
 
 	// Initialize email processor pipeline
