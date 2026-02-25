@@ -18,6 +18,7 @@ export interface Email {
   summary: string;
   labels_applied: string[];
   bypassed_inbox: boolean;
+  notification_sent: boolean;
   reasoning: string;
   human_feedback: string;
   processed_at: string;
@@ -68,6 +69,11 @@ export interface PromptsResponse {
   prompts: SystemPrompt[];
   ai_analyze: AIPrompt | null;
   ai_actions: AIPrompt | null;
+}
+
+export interface UserSettings {
+  pushover_user_key: string;
+  pushover_configured: boolean;
 }
 
 export interface AuthUser {

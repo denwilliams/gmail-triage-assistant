@@ -32,6 +32,11 @@ function EmailCard({ email, onFeedbackSaved }: { email: Email; onFeedbackSaved: 
                 Archived
               </Badge>
             )}
+            {email.notification_sent && (
+              <Badge variant="secondary" className="ml-2 text-xs">
+                Notified
+              </Badge>
+            )}
           </CardTitle>
         </div>
         <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">

@@ -313,6 +313,59 @@ func (s *Server) handleAPIGenerateAIPrompts(w http.ResponseWriter, r *http.Reque
 	respondJSON(w, http.StatusOK, map[string]string{"status": "generated"})
 }
 
+// GET /api/v1/settings
+func (s *Server) handleAPIGetSettings(w http.ResponseWriter, r *http.Request) {
+	session, _ := s.sessionStore.Get(r, "session")
+	userID := session.Values["user_id"].(int64)
+
+	ctx := context.Background()
+	user, err := s.db.GetUserByID(ctx, userID)
+	if err != nil {
+		log.Printf("API: Failed to load user: %v", err)
+		respondError(w, http.StatusInternalServerError, "Failed to load settings")
+		return
+	}
+
+	// Mask the user key for display (show last 4 chars)
+	maskedKey := ""
+	if user.PushoverUserKey != "" {
+		if len(user.PushoverUserKey) > 4 {
+			maskedKey = "****" + user.PushoverUserKey[len(user.PushoverUserKey)-4:]
+		} else {
+			maskedKey = "****"
+		}
+	}
+
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"pushover_user_key":  maskedKey,
+		"pushover_configured": user.HasPushoverConfig(),
+	})
+}
+
+// PUT /api/v1/settings/pushover
+func (s *Server) handleAPIUpdatePushover(w http.ResponseWriter, r *http.Request) {
+	session, _ := s.sessionStore.Get(r, "session")
+	userID := session.Values["user_id"].(int64)
+
+	var body struct {
+		UserKey  string `json:"user_key"`
+		AppToken string `json:"app_token"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		respondError(w, http.StatusBadRequest, "Invalid JSON")
+		return
+	}
+
+	ctx := context.Background()
+	if err := s.db.UpdatePushoverConfig(ctx, userID, body.UserKey, body.AppToken); err != nil {
+		log.Printf("API: Failed to update pushover config: %v", err)
+		respondError(w, http.StatusInternalServerError, "Failed to save Pushover settings")
+		return
+	}
+
+	respondJSON(w, http.StatusOK, map[string]string{"status": "updated"})
+}
+
 // GET /api/v1/wrapups
 func (s *Server) handleAPIGetWrapups(w http.ResponseWriter, r *http.Request) {
 	session, _ := s.sessionStore.Get(r, "session")

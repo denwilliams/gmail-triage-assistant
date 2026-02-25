@@ -11,6 +11,7 @@ import (
 	"github.com/den/gmail-triage-assistant/internal/database"
 	"github.com/den/gmail-triage-assistant/internal/gmail"
 	"github.com/den/gmail-triage-assistant/internal/openai"
+	"github.com/den/gmail-triage-assistant/internal/pushover"
 	"golang.org/x/oauth2"
 )
 
@@ -18,13 +19,15 @@ type Processor struct {
 	db          *database.DB
 	openai      *openai.Client
 	oauthConfig *oauth2.Config
+	pushover    *pushover.Client
 }
 
-func NewProcessor(db *database.DB, openaiClient *openai.Client, oauthConfig *oauth2.Config) *Processor {
+func NewProcessor(db *database.DB, openaiClient *openai.Client, oauthConfig *oauth2.Config, pushoverClient *pushover.Client) *Processor {
 	return &Processor{
 		db:          db,
 		openai:      openaiClient,
 		oauthConfig: oauthConfig,
+		pushover:    pushoverClient,
 	}
 }
 
@@ -128,20 +131,32 @@ func (p *Processor) ProcessEmail(ctx context.Context, user *database.User, messa
 
 	log.Printf("[%s] Stage 2 - Labels: %v, Bypass: %v, Reason: %s", user.Email, actions.Labels, actions.BypassInbox, actions.Reasoning)
 
+	// Send push notification if AI provided a notification message and user has Pushover configured
+	notificationSent := false
+	if actions.NotificationMessage != "" && user.HasPushoverConfig() {
+		if err := p.pushover.Send(user.PushoverUserKey, user.PushoverAppToken, message.Subject, actions.NotificationMessage); err != nil {
+			log.Printf("[%s] Failed to send push notification: %v", user.Email, err)
+		} else {
+			notificationSent = true
+			log.Printf("[%s] Push notification sent for: %s", user.Email, message.Subject)
+		}
+	}
+
 	// Save to database
 	email := &database.Email{
-		ID:            message.ID,
-		UserID:        user.ID,
-		FromAddress:   message.From,
-		Subject:       message.Subject,
-		Slug:          analysis.Slug,
-		Keywords:      analysis.Keywords,
-		Summary:       analysis.Summary,
-		LabelsApplied: actions.Labels,
-		BypassedInbox: actions.BypassInbox,
-		Reasoning:     actions.Reasoning,
-		ProcessedAt:   time.Now(),
-		CreatedAt:     time.Now(),
+		ID:               message.ID,
+		UserID:           user.ID,
+		FromAddress:      message.From,
+		Subject:          message.Subject,
+		Slug:             analysis.Slug,
+		Keywords:         analysis.Keywords,
+		Summary:          analysis.Summary,
+		LabelsApplied:    actions.Labels,
+		BypassedInbox:    actions.BypassInbox,
+		Reasoning:        actions.Reasoning,
+		NotificationSent: notificationSent,
+		ProcessedAt:      time.Now(),
+		CreatedAt:        time.Now(),
 	}
 
 	if err := p.db.CreateEmail(ctx, email); err != nil {

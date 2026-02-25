@@ -46,9 +46,10 @@ type EmailAnalysis struct {
 
 // EmailActions represents the Stage 2 AI output
 type EmailActions struct {
-	Labels      []string `json:"labels"`
-	BypassInbox bool     `json:"bypass_inbox"`
-	Reasoning   string   `json:"reasoning"`
+	Labels              []string `json:"labels"`
+	BypassInbox         bool     `json:"bypass_inbox"`
+	NotificationMessage string   `json:"notification_message"`
+	Reasoning           string   `json:"reasoning"`
 }
 
 // AnalyzeEmail runs Stage 1: Content analysis
@@ -162,7 +163,8 @@ Available labels:
 Decide:
 1. Which labels to apply (use exact label names from the list above, only when they clearly match)
 2. Whether to bypass the inbox (archive immediately)
-3. Brief reasoning for your decisions
+3. notification_message: leave blank unless this is an important email the user should be alerted about immediately. When needed, write a short friendly message summarizing why it matters (e.g. "Hi, the school nurse said your daughter was taken to the sick bay" or "Heads up — you have a late invoice from PowerCo"). Keep it conversational and to the point.
+4. Brief reasoning for your decisions
 
 Use the learnings from past email processing (provided below) to make better decisions about labeling and archiving.`
 	}
@@ -211,12 +213,16 @@ Summary: %s
 								"type":        "boolean",
 								"description": "Whether to archive the email immediately",
 							},
+							"notification_message": map[string]interface{}{
+								"type":        "string",
+								"description": "Short friendly notification message explaining why this email matters. Leave as empty string unless the email is important enough to alert the user immediately.",
+							},
 							"reasoning": map[string]interface{}{
 								"type":        "string",
 								"description": "Brief explanation of the decision",
 							},
 						},
-						"required":             []string{"labels", "bypass_inbox", "reasoning"},
+						"required":             []string{"labels", "bypass_inbox", "notification_message", "reasoning"},
 						"additionalProperties": false,
 					},
 				},

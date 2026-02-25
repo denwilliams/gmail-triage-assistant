@@ -22,8 +22,8 @@ func (db *DB) CreateUser(ctx context.Context, email, googleID string, token *oau
 	}
 
 	query := `
-		INSERT INTO users (email, google_id, access_token, refresh_token, token_expiry, is_active, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		INSERT INTO users (email, google_id, access_token, refresh_token, token_expiry, is_active, pushover_user_key, pushover_app_token, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 		RETURNING id
 	`
 
@@ -36,6 +36,8 @@ func (db *DB) CreateUser(ctx context.Context, email, googleID string, token *oau
 		user.RefreshToken,
 		user.TokenExpiry,
 		user.IsActive,
+		user.PushoverUserKey,
+		user.PushoverAppToken,
 		user.CreatedAt,
 		user.UpdatedAt,
 	).Scan(&user.ID)
@@ -52,7 +54,7 @@ func (db *DB) GetUserByEmail(ctx context.Context, email string) (*User, error) {
 	user := &User{}
 
 	query := `
-		SELECT id, email, google_id, access_token, refresh_token, token_expiry, is_active, last_checked_at, created_at, updated_at
+		SELECT id, email, google_id, access_token, refresh_token, token_expiry, is_active, last_checked_at, pushover_user_key, pushover_app_token, created_at, updated_at
 		FROM users
 		WHERE email = $1
 	`
@@ -66,6 +68,8 @@ func (db *DB) GetUserByEmail(ctx context.Context, email string) (*User, error) {
 		&user.TokenExpiry,
 		&user.IsActive,
 		&user.LastCheckedAt,
+		&user.PushoverUserKey,
+		&user.PushoverAppToken,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -82,7 +86,7 @@ func (db *DB) GetUserByGoogleID(ctx context.Context, googleID string) (*User, er
 	user := &User{}
 
 	query := `
-		SELECT id, email, google_id, access_token, refresh_token, token_expiry, is_active, last_checked_at, created_at, updated_at
+		SELECT id, email, google_id, access_token, refresh_token, token_expiry, is_active, last_checked_at, pushover_user_key, pushover_app_token, created_at, updated_at
 		FROM users
 		WHERE google_id = $1
 	`
@@ -96,6 +100,8 @@ func (db *DB) GetUserByGoogleID(ctx context.Context, googleID string) (*User, er
 		&user.TokenExpiry,
 		&user.IsActive,
 		&user.LastCheckedAt,
+		&user.PushoverUserKey,
+		&user.PushoverAppToken,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -135,7 +141,7 @@ func (db *DB) UpdateUserToken(ctx context.Context, userID int64, token *oauth2.T
 // GetAllActiveUsers retrieves all users with monitoring enabled
 func (db *DB) GetAllActiveUsers(ctx context.Context) ([]*User, error) {
 	query := `
-		SELECT id, email, google_id, access_token, refresh_token, token_expiry, is_active, last_checked_at, created_at, updated_at
+		SELECT id, email, google_id, access_token, refresh_token, token_expiry, is_active, last_checked_at, pushover_user_key, pushover_app_token, created_at, updated_at
 		FROM users
 		WHERE is_active = true
 		ORDER BY created_at ASC
@@ -159,6 +165,8 @@ func (db *DB) GetAllActiveUsers(ctx context.Context) ([]*User, error) {
 			&user.TokenExpiry,
 			&user.IsActive,
 			&user.LastCheckedAt,
+			&user.PushoverUserKey,
+			&user.PushoverAppToken,
 			&user.CreatedAt,
 			&user.UpdatedAt,
 		)
@@ -220,7 +228,7 @@ func (u *User) GetOAuth2Token() *oauth2.Token {
 // GetActiveUsers retrieves all active users
 func (db *DB) GetActiveUsers(ctx context.Context) ([]*User, error) {
 	query := `
-		SELECT id, email, google_id, access_token, refresh_token, token_expiry, is_active, last_checked_at, created_at, updated_at
+		SELECT id, email, google_id, access_token, refresh_token, token_expiry, is_active, last_checked_at, pushover_user_key, pushover_app_token, created_at, updated_at
 		FROM users
 		WHERE is_active = true
 		ORDER BY email
@@ -244,6 +252,8 @@ func (db *DB) GetActiveUsers(ctx context.Context) ([]*User, error) {
 			&user.TokenExpiry,
 			&user.IsActive,
 			&user.LastCheckedAt,
+			&user.PushoverUserKey,
+			&user.PushoverAppToken,
 			&user.CreatedAt,
 			&user.UpdatedAt,
 		)
@@ -254,4 +264,52 @@ func (db *DB) GetActiveUsers(ctx context.Context) ([]*User, error) {
 	}
 
 	return users, rows.Err()
+}
+
+// GetUserByID retrieves a user by their database ID
+func (db *DB) GetUserByID(ctx context.Context, userID int64) (*User, error) {
+	user := &User{}
+
+	query := `
+		SELECT id, email, google_id, access_token, refresh_token, token_expiry, is_active, last_checked_at, pushover_user_key, pushover_app_token, created_at, updated_at
+		FROM users
+		WHERE id = $1
+	`
+
+	err := db.conn.QueryRowContext(ctx, query, userID).Scan(
+		&user.ID,
+		&user.Email,
+		&user.GoogleID,
+		&user.AccessToken,
+		&user.RefreshToken,
+		&user.TokenExpiry,
+		&user.IsActive,
+		&user.LastCheckedAt,
+		&user.PushoverUserKey,
+		&user.PushoverAppToken,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user by ID: %w", err)
+	}
+
+	return user, nil
+}
+
+// UpdatePushoverConfig updates a user's Pushover credentials
+func (db *DB) UpdatePushoverConfig(ctx context.Context, userID int64, userKey, appToken string) error {
+	query := `
+		UPDATE users
+		SET pushover_user_key = $1, pushover_app_token = $2, updated_at = $3
+		WHERE id = $4
+	`
+
+	_, err := db.conn.ExecContext(ctx, query, userKey, appToken, time.Now(), userID)
+	if err != nil {
+		return fmt.Errorf("failed to update pushover config: %w", err)
+	}
+
+	return nil
 }

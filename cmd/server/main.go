@@ -16,6 +16,7 @@ import (
 	"github.com/den/gmail-triage-assistant/internal/memory"
 	"github.com/den/gmail-triage-assistant/internal/openai"
 	"github.com/den/gmail-triage-assistant/internal/pipeline"
+	"github.com/den/gmail-triage-assistant/internal/pushover"
 	"github.com/den/gmail-triage-assistant/internal/scheduler"
 	"github.com/den/gmail-triage-assistant/internal/web"
 	"github.com/den/gmail-triage-assistant/internal/wrapup"
@@ -83,8 +84,12 @@ func main() {
 	wrapupService := wrapup.NewService(db, openaiClient, oauthConfig)
 	log.Printf("✓ Wrapup service initialized")
 
+	// Initialize Pushover client for push notifications
+	pushoverClient := pushover.NewClient()
+	log.Printf("✓ Pushover client initialized")
+
 	// Initialize email processor pipeline
-	processor := pipeline.NewProcessor(db, openaiClient, oauthConfig)
+	processor := pipeline.NewProcessor(db, openaiClient, oauthConfig, pushoverClient)
 	log.Printf("✓ Email processing pipeline initialized")
 
 	// Create message handler using the pipeline

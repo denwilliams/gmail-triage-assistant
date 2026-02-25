@@ -9,6 +9,7 @@ const navItems = [
   { to: "/history", label: "History" },
   { to: "/memories", label: "Memories" },
   { to: "/wrapups", label: "Wrapups" },
+  { to: "/settings", label: "Settings" },
 ];
 
 export function AppLayout() {

@@ -10,10 +10,12 @@ type User struct {
 	AccessToken   string     `db:"access_token" json:"-"`              // OAuth access token (not exposed in JSON)
 	RefreshToken  string     `db:"refresh_token" json:"-"`             // OAuth refresh token (not exposed in JSON)
 	TokenExpiry   time.Time  `db:"token_expiry" json:"token_expiry"`   // When access token expires
-	IsActive      bool       `db:"is_active" json:"is_active"`         // Whether monitoring is enabled
-	LastCheckedAt *time.Time `db:"last_checked_at" json:"last_checked_at"` // Last time Gmail was checked for this user
-	CreatedAt     time.Time  `db:"created_at" json:"created_at"`
-	UpdatedAt     time.Time  `db:"updated_at" json:"updated_at"`
+	IsActive         bool       `db:"is_active" json:"is_active"`         // Whether monitoring is enabled
+	LastCheckedAt    *time.Time `db:"last_checked_at" json:"last_checked_at"` // Last time Gmail was checked for this user
+	PushoverUserKey  string     `db:"pushover_user_key" json:"-"`  // Pushover user key (not exposed in JSON)
+	PushoverAppToken string     `db:"pushover_app_token" json:"-"` // Pushover app token (not exposed in JSON)
+	CreatedAt        time.Time  `db:"created_at" json:"created_at"`
+	UpdatedAt        time.Time  `db:"updated_at" json:"updated_at"`
 }
 
 // Email represents the analysis results for a single email
@@ -27,10 +29,16 @@ type Email struct {
 	Summary       string    `db:"summary" json:"summary"`             // Single line summary
 	LabelsApplied []string  `db:"labels_applied" json:"labels_applied"` // Labels applied to email
 	BypassedInbox bool      `db:"bypassed_inbox" json:"bypassed_inbox"` // Whether email bypassed inbox
-	Reasoning     string    `db:"reasoning" json:"reasoning"`           // AI reasoning for actions taken
-	HumanFeedback string    `db:"human_feedback" json:"human_feedback"` // Human feedback: "do differently next time"
-	ProcessedAt   time.Time `db:"processed_at" json:"processed_at"`   // When email was processed
-	CreatedAt     time.Time `db:"created_at" json:"created_at"`       // When record was created
+	Reasoning        string    `db:"reasoning" json:"reasoning"`           // AI reasoning for actions taken
+	HumanFeedback    string    `db:"human_feedback" json:"human_feedback"` // Human feedback: "do differently next time"
+	NotificationSent bool      `db:"notification_sent" json:"notification_sent"` // Whether a push notification was sent
+	ProcessedAt      time.Time `db:"processed_at" json:"processed_at"`   // When email was processed
+	CreatedAt        time.Time `db:"created_at" json:"created_at"`       // When record was created
+}
+
+// HasPushoverConfig returns true if the user has Pushover credentials configured
+func (u *User) HasPushoverConfig() bool {
+	return u.PushoverUserKey != "" && u.PushoverAppToken != ""
 }
 
 // Label represents a Gmail label with its configuration
