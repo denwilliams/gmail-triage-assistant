@@ -65,6 +65,17 @@ export interface WrapupReport {
   created_at: string;
 }
 
+export interface Notification {
+  id: number;
+  user_id: number;
+  email_id: string;
+  from_address: string;
+  subject: string;
+  message: string;
+  sent_at: string;
+  created_at: string;
+}
+
 export interface PromptsResponse {
   prompts: SystemPrompt[];
   ai_analyze: AIPrompt | null;

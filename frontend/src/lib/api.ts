@@ -65,6 +65,9 @@ export const api = {
       method: "POST",
     }),
 
+  getNotifications: (limit = 50) =>
+    request<import("./types").Notification[]>(`/notifications?limit=${limit}`),
+
   getWrapups: (limit = 30) =>
     request<import("./types").WrapupReport[]>(`/wrapups?limit=${limit}`),
 

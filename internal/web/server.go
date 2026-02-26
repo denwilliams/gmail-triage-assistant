@@ -94,6 +94,8 @@ func (s *Server) routes() {
 	api.HandleFunc("/settings", s.requireAuthAPI(s.handleAPIGetSettings)).Methods("GET")
 	api.HandleFunc("/settings/pushover", s.requireAuthAPI(s.handleAPIUpdatePushover)).Methods("PUT")
 
+	api.HandleFunc("/notifications", s.requireAuthAPI(s.handleAPIGetNotifications)).Methods("GET")
+
 	api.HandleFunc("/wrapups", s.requireAuthAPI(s.handleAPIGetWrapups)).Methods("GET")
 
 	// SPA fallback — serves React app for all other routes

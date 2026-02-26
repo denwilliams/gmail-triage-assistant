@@ -366,6 +366,29 @@ func (s *Server) handleAPIUpdatePushover(w http.ResponseWriter, r *http.Request)
 	respondJSON(w, http.StatusOK, map[string]string{"status": "updated"})
 }
 
+// GET /api/v1/notifications
+func (s *Server) handleAPIGetNotifications(w http.ResponseWriter, r *http.Request) {
+	session, _ := s.sessionStore.Get(r, "session")
+	userID := session.Values["user_id"].(int64)
+
+	limit := 50
+	if l := r.URL.Query().Get("limit"); l != "" {
+		if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 {
+			limit = parsed
+		}
+	}
+
+	ctx := context.Background()
+	notifications, err := s.db.GetNotificationsByUser(ctx, userID, limit)
+	if err != nil {
+		log.Printf("API: Failed to load notifications: %v", err)
+		respondError(w, http.StatusInternalServerError, "Failed to load notifications")
+		return
+	}
+
+	respondJSON(w, http.StatusOK, notifications)
+}
+
 // GET /api/v1/wrapups
 func (s *Server) handleAPIGetWrapups(w http.ResponseWriter, r *http.Request) {
 	session, _ := s.sessionStore.Get(r, "session")

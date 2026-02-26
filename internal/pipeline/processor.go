@@ -139,6 +139,19 @@ func (p *Processor) ProcessEmail(ctx context.Context, user *database.User, messa
 		} else {
 			notificationSent = true
 			log.Printf("[%s] Push notification sent for: %s", user.Email, message.Subject)
+
+			// Persist notification to database (non-critical)
+			notif := &database.Notification{
+				UserID:      user.ID,
+				EmailID:     message.ID,
+				FromAddress: message.From,
+				Subject:     message.Subject,
+				Message:     actions.NotificationMessage,
+				SentAt:      time.Now(),
+			}
+			if err := p.db.CreateNotification(ctx, notif); err != nil {
+				log.Printf("[%s] Failed to save notification: %v", user.Email, err)
+			}
 		}
 	}
 

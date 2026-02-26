@@ -8,6 +8,7 @@ import HistoryPage from "@/pages/history";
 import PromptsPage from "@/pages/prompts";
 import MemoriesPage from "@/pages/memories";
 import WrapupsPage from "@/pages/wrapups";
+import NotificationsPage from "@/pages/notifications";
 import SettingsPage from "@/pages/settings";
 
 export default function App() {
@@ -23,6 +24,7 @@ export default function App() {
             <Route path="/prompts" element={<PromptsPage />} />
             <Route path="/memories" element={<MemoriesPage />} />
             <Route path="/wrapups" element={<WrapupsPage />} />
+            <Route path="/notifications" element={<NotificationsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
