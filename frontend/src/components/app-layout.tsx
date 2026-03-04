@@ -40,7 +40,7 @@ export function AppLayout() {
                 to={item.to}
                 className={cn(
                   "rounded-md px-3 py-2 transition-colors hover:bg-accent",
-                  location.pathname === item.to
+                  location.pathname === item.to || location.pathname.startsWith(item.to + "/")
                     ? "bg-accent font-medium text-accent-foreground"
                     : "text-muted-foreground"
                 )}

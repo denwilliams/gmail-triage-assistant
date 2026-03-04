@@ -21,13 +21,14 @@ export default function App() {
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/labels" element={<LabelsPage />} />
             <Route path="/history" element={<HistoryPage />} />
+            <Route path="/history/:emailId" element={<HistoryPage />} />
             <Route path="/prompts" element={<PromptsPage />} />
             <Route path="/memories" element={<MemoriesPage />} />
             <Route path="/wrapups" element={<WrapupsPage />} />
             <Route path="/notifications" element={<NotificationsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Route>
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useParams, useNavigate } from "react-router";
 import type { Email, SenderProfile, SenderProfilesResponse } from "@/lib/types";
 import { api } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
@@ -482,9 +483,10 @@ function EmailRow({
 }
 
 export default function HistoryPage() {
+  const { emailId } = useParams();
+  const navigate = useNavigate();
   const [emails, setEmails] = useState<Email[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selected, setSelected] = useState<Email | null>(null);
 
   const loadEmails = () => {
     api
@@ -495,6 +497,8 @@ export default function HistoryPage() {
   };
 
   useEffect(loadEmails, []);
+
+  const selected = emailId ? emails.find((e) => e.id === emailId) : null;
 
   if (loading) return <p className="text-muted-foreground">Loading...</p>;
 
@@ -509,7 +513,7 @@ export default function HistoryPage() {
             <EmailRow
               key={email.id}
               email={email}
-              onClick={() => setSelected(email)}
+              onClick={() => navigate(`/history/${email.id}`)}
             />
           ))}
         </div>
@@ -520,7 +524,7 @@ export default function HistoryPage() {
           email={selected}
           open={!!selected}
           onOpenChange={(open) => {
-            if (!open) setSelected(null);
+            if (!open) navigate("/history");
           }}
           onFeedbackSaved={loadEmails}
         />
