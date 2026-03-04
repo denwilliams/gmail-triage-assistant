@@ -53,7 +53,7 @@ type EmailActions struct {
 }
 
 // AnalyzeEmail runs Stage 1: Content analysis
-func (c *Client) AnalyzeEmail(ctx context.Context, from, subject, body string, pastSlugs []string, customSystemPrompt string) (*EmailAnalysis, error) {
+func (c *Client) AnalyzeEmail(ctx context.Context, from, subject, body string, senderContext string, customSystemPrompt string) (*EmailAnalysis, error) {
 	systemPrompt := customSystemPrompt
 	if systemPrompt == "" {
 		// Default prompt if none provided
@@ -72,9 +72,7 @@ Subject: %s
 Body:
 %s
 
-Past slugs used from this sender: %v
-
-Analyze this email and provide the slug, keywords, and summary.`, from, subject, body, pastSlugs)
+%sAnalyze this email and provide the slug, keywords, and summary.`, from, subject, body, senderContext)
 
 	c.logPrompts("AnalyzeEmail", systemPrompt, userPrompt)
 
@@ -151,7 +149,7 @@ Analyze this email and provide the slug, keywords, and summary.`, from, subject,
 // labelNames is the list of valid label names (for schema validation)
 // formattedLabels is a human-readable bullet list with descriptions (for the prompt)
 // memoryContext is the formatted memory string from past learnings
-func (c *Client) DetermineActions(ctx context.Context, from, subject, slug string, keywords []string, summary string, labelNames []string, formattedLabels string, memoryContext string, customSystemPrompt string) (*EmailActions, error) {
+func (c *Client) DetermineActions(ctx context.Context, from, subject, slug string, keywords []string, summary string, labelNames []string, formattedLabels string, senderContext string, memoryContext string, customSystemPrompt string) (*EmailActions, error) {
 	systemPrompt := customSystemPrompt
 	if systemPrompt == "" {
 		// Default prompt if none provided
@@ -183,7 +181,7 @@ Slug: %s
 Keywords: %v
 Summary: %s
 
-%sWhat actions should be taken for this email?`, from, subject, slug, keywords, summary, memoryContext)
+%s%sWhat actions should be taken for this email?`, from, subject, slug, keywords, summary, senderContext, memoryContext)
 
 	c.logPrompts("DetermineActions", systemPrompt, userPrompt)
 

@@ -50,38 +50,6 @@ func (db *DB) CreateEmail(ctx context.Context, email *Email) error {
 	return nil
 }
 
-// GetPastSlugsFromSender retrieves past slugs used for emails from a specific sender
-func (db *DB) GetPastSlugsFromSender(ctx context.Context, userID int64, fromAddress string, limit int) ([]string, error) {
-	query := `
-		SELECT DISTINCT slug
-		FROM emails
-		WHERE user_id = $1 AND from_address = $2
-		ORDER BY slug
-		LIMIT $3
-	`
-
-	rows, err := db.conn.QueryContext(ctx, query, userID, fromAddress, limit)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query past slugs: %w", err)
-	}
-	defer rows.Close()
-
-	var slugs []string
-	for rows.Next() {
-		var slug string
-		if err := rows.Scan(&slug); err != nil {
-			return nil, fmt.Errorf("failed to scan slug: %w", err)
-		}
-		slugs = append(slugs, slug)
-	}
-
-	if err = rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating slugs: %w", err)
-	}
-
-	return slugs, nil
-}
-
 // GetUserLabels retrieves all label names for a user
 func (db *DB) GetUserLabels(ctx context.Context, userID int64) ([]string, error) {
 	query := `

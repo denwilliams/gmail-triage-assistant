@@ -157,6 +157,14 @@ func (s *Scheduler) runEveningTasks(ctx context.Context) {
 			log.Printf("✓ Daily memory generated for %s", user.Email)
 		}
 	}
+
+	// Cleanup stale sender profiles (> 1 year old)
+	deleted, err := s.db.DeleteStaleProfiles(ctx)
+	if err != nil {
+		log.Printf("Error cleaning up stale profiles: %v", err)
+	} else if deleted > 0 {
+		log.Printf("Cleaned up %d stale sender profiles", deleted)
+	}
 }
 
 func (s *Scheduler) runWeeklyMemory(ctx context.Context) {

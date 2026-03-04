@@ -85,15 +85,17 @@ func (p *Processor) ProcessEmail(ctx context.Context, user *database.User, messa
 		}
 	}
 
-	// Stage 1: Get past slugs from this sender for reuse
-	pastSlugs, err := p.db.GetPastSlugsFromSender(ctx, user.ID, message.From, 5)
-	if err != nil {
-		log.Printf("Error getting past slugs: %v", err)
-		pastSlugs = []string{}
+	// Load or bootstrap sender and domain profiles
+	domain := database.ExtractDomain(message.From)
+	senderProfile := p.loadOrBootstrapProfile(ctx, user.ID, database.ProfileTypeSender, message.From, domain)
+	var domainProfile *database.SenderProfile
+	if !database.IsIgnoredDomain(domain) {
+		domainProfile = p.loadOrBootstrapProfile(ctx, user.ID, database.ProfileTypeDomain, domain, domain)
 	}
+	senderContext := p.formatProfilesForPrompt(senderProfile, domainProfile)
 
 	// Stage 1: Analyze email content
-	analysis, err := p.openai.AnalyzeEmail(ctx, message.From, message.Subject, body, pastSlugs, analyzePrompt)
+	analysis, err := p.openai.AnalyzeEmail(ctx, message.From, message.Subject, body, senderContext, analyzePrompt)
 	if err != nil {
 		return fmt.Errorf("stage 1 failed: %w", err)
 	}
@@ -124,7 +126,7 @@ func (p *Processor) ProcessEmail(ctx context.Context, user *database.User, messa
 	formattedLabels := strings.Join(labelLines, "\n")
 
 	// Stage 2: Determine actions
-	actions, err := p.openai.DetermineActions(ctx, message.From, message.Subject, analysis.Slug, analysis.Keywords, analysis.Summary, labelNames, formattedLabels, memoryContext, actionsPrompt)
+	actions, err := p.openai.DetermineActions(ctx, message.From, message.Subject, analysis.Slug, analysis.Keywords, analysis.Summary, labelNames, formattedLabels, senderContext, memoryContext, actionsPrompt)
 	if err != nil {
 		return fmt.Errorf("stage 2 failed: %w", err)
 	}
@@ -182,8 +184,140 @@ func (p *Processor) ProcessEmail(ctx context.Context, user *database.User, messa
 		// Don't return error - email is already processed and saved
 	}
 
+	// Update sender profiles (non-critical)
+	if senderProfile != nil {
+		if err := p.updateProfileAfterProcessing(ctx, senderProfile, analysis, actions); err != nil {
+			log.Printf("[%s] Error updating sender profile: %v", user.Email, err)
+		}
+	}
+	if domainProfile != nil {
+		if err := p.updateProfileAfterProcessing(ctx, domainProfile, analysis, actions); err != nil {
+			log.Printf("[%s] Error updating domain profile: %v", user.Email, err)
+		}
+	}
+
 	log.Printf("[%s] ✓ Email processed successfully: %s", user.Email, message.Subject)
 	return nil
+}
+
+// loadOrBootstrapProfile fetches an existing profile or creates one from history
+func (p *Processor) loadOrBootstrapProfile(ctx context.Context, userID int64, profileType database.ProfileType, identifier string, domain string) *database.SenderProfile {
+	profile, err := p.db.GetSenderProfile(ctx, userID, profileType, identifier)
+	if err != nil {
+		log.Printf("Error loading %s profile for %s: %v", profileType, identifier, err)
+		return nil
+	}
+	if profile != nil {
+		return profile
+	}
+	return p.bootstrapProfile(ctx, userID, profileType, identifier, domain)
+}
+
+// bootstrapProfile creates a new profile from historical emails
+func (p *Processor) bootstrapProfile(ctx context.Context, userID int64, profileType database.ProfileType, identifier string, domain string) *database.SenderProfile {
+	var emails []*database.Email
+	var err error
+
+	if profileType == database.ProfileTypeSender {
+		emails, err = p.db.GetHistoricalEmailsFromAddress(ctx, userID, identifier, 25)
+	} else {
+		emails, err = p.db.GetHistoricalEmailsFromDomain(ctx, userID, identifier, 25)
+	}
+	if err != nil {
+		log.Printf("Error getting historical emails for %s profile %s: %v", profileType, identifier, err)
+		return nil
+	}
+
+	// Build profile from historical data
+	profile := database.BuildProfileFromEmails(userID, profileType, identifier, emails)
+
+	// If we have history, use AI to classify and summarize
+	if len(emails) > 0 {
+		result, err := p.openai.BootstrapSenderProfile(ctx, identifier, emails)
+		if err != nil {
+			log.Printf("Error bootstrapping %s profile for %s: %v", profileType, identifier, err)
+		} else {
+			profile.SenderType = result.SenderType
+			profile.Summary = result.Summary
+		}
+	}
+
+	// Save the profile
+	if err := p.db.UpsertSenderProfile(ctx, profile); err != nil {
+		log.Printf("Error saving bootstrapped %s profile for %s: %v", profileType, identifier, err)
+		return nil
+	}
+
+	log.Printf("Bootstrapped %s profile for %s (emails: %d)", profileType, identifier, len(emails))
+	return profile
+}
+
+// updateProfileAfterProcessing increments counters and evolves summary
+func (p *Processor) updateProfileAfterProcessing(ctx context.Context, profile *database.SenderProfile, analysis *openai.EmailAnalysis, actions *openai.EmailActions) error {
+	profile.EmailCount++
+	profile.LastSeenAt = time.Now()
+
+	if analysis.Slug != "" {
+		if profile.SlugCounts == nil {
+			profile.SlugCounts = make(map[string]int)
+		}
+		profile.SlugCounts[analysis.Slug]++
+	}
+	for _, label := range actions.Labels {
+		if profile.LabelCounts == nil {
+			profile.LabelCounts = make(map[string]int)
+		}
+		profile.LabelCounts[label]++
+	}
+	for _, kw := range analysis.Keywords {
+		if profile.KeywordCounts == nil {
+			profile.KeywordCounts = make(map[string]int)
+		}
+		profile.KeywordCounts[kw]++
+	}
+	if actions.BypassInbox {
+		profile.EmailsArchived++
+	}
+	if actions.NotificationMessage != "" {
+		profile.EmailsNotified++
+	}
+
+	// Evolve summary via AI
+	update := &openai.ProfileUpdateContext{
+		From:     profile.Identifier,
+		Subject:  analysis.Summary,
+		Slug:     analysis.Slug,
+		Keywords: analysis.Keywords,
+		Labels:   actions.Labels,
+		Archived: actions.BypassInbox,
+		Notified: actions.NotificationMessage != "",
+		Summary:  analysis.Summary,
+	}
+	result, err := p.openai.EvolveProfileSummary(ctx, profile.Summary, profile.SenderType, update)
+	if err != nil {
+		log.Printf("Error evolving %s profile summary for %s: %v", profile.ProfileType, profile.Identifier, err)
+	} else {
+		profile.SenderType = result.SenderType
+		profile.Summary = result.Summary
+	}
+
+	return p.db.UpsertSenderProfile(ctx, profile)
+}
+
+// formatProfilesForPrompt creates the sender context string for AI prompts
+func (p *Processor) formatProfilesForPrompt(sender *database.SenderProfile, domain *database.SenderProfile) string {
+	if sender == nil && domain == nil {
+		return ""
+	}
+
+	var b strings.Builder
+	if sender != nil && sender.EmailCount > 0 {
+		fmt.Fprintf(&b, "**Sender Profile** (%s):\n%s\n", sender.Identifier, sender.FormatForPrompt())
+	}
+	if domain != nil && domain.EmailCount > 0 {
+		fmt.Fprintf(&b, "**Domain Profile** (%s):\n%s\n", domain.Identifier, domain.FormatForPrompt())
+	}
+	return b.String()
 }
 
 // applyActionsToGmail applies labels and inbox bypass to the actual Gmail message
