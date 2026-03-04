@@ -389,6 +389,43 @@ func (s *Server) handleAPIGetNotifications(w http.ResponseWriter, r *http.Reques
 	respondJSON(w, http.StatusOK, notifications)
 }
 
+// GET /api/v1/sender-profiles?address=user@example.com
+func (s *Server) handleAPIGetSenderProfiles(w http.ResponseWriter, r *http.Request) {
+	session, _ := s.sessionStore.Get(r, "session")
+	userID := session.Values["user_id"].(int64)
+
+	address := r.URL.Query().Get("address")
+	if address == "" {
+		respondError(w, http.StatusBadRequest, "address query parameter is required")
+		return
+	}
+
+	ctx := context.Background()
+
+	senderProfile, err := s.db.GetSenderProfile(ctx, userID, database.ProfileTypeSender, address)
+	if err != nil {
+		log.Printf("API: Failed to load sender profile: %v", err)
+		respondError(w, http.StatusInternalServerError, "Failed to load sender profile")
+		return
+	}
+
+	var domainProfile *database.SenderProfile
+	domain := database.ExtractDomain(address)
+	if domain != "" && !database.IsIgnoredDomain(domain) {
+		domainProfile, err = s.db.GetSenderProfile(ctx, userID, database.ProfileTypeDomain, domain)
+		if err != nil {
+			log.Printf("API: Failed to load domain profile: %v", err)
+			respondError(w, http.StatusInternalServerError, "Failed to load domain profile")
+			return
+		}
+	}
+
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"sender": senderProfile,
+		"domain": domainProfile,
+	})
+}
+
 // GET /api/v1/wrapups
 func (s *Server) handleAPIGetWrapups(w http.ResponseWriter, r *http.Request) {
 	session, _ := s.sessionStore.Get(r, "session")

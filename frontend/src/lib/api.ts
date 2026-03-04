@@ -71,6 +71,11 @@ export const api = {
   getWrapups: (limit = 30) =>
     request<import("./types").WrapupReport[]>(`/wrapups?limit=${limit}`),
 
+  getSenderProfiles: (address: string) =>
+    request<import("./types").SenderProfilesResponse>(
+      `/sender-profiles?address=${encodeURIComponent(address)}`
+    ),
+
   getSettings: () => request<import("./types").UserSettings>("/settings"),
   updatePushover: (user_key: string, app_token: string) =>
     request<{ status: string }>("/settings/pushover", {

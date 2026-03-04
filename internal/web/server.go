@@ -83,6 +83,8 @@ func (s *Server) routes() {
 	api.HandleFunc("/emails", s.requireAuthAPI(s.handleAPIGetEmails)).Methods("GET")
 	api.HandleFunc("/emails/{id}/feedback", s.requireAuthAPI(s.handleAPIUpdateFeedback)).Methods("PUT")
 
+	api.HandleFunc("/sender-profiles", s.requireAuthAPI(s.handleAPIGetSenderProfiles)).Methods("GET")
+
 	api.HandleFunc("/prompts", s.requireAuthAPI(s.handleAPIGetPrompts)).Methods("GET")
 	api.HandleFunc("/prompts", s.requireAuthAPI(s.handleAPIUpdatePrompt)).Methods("PUT")
 	api.HandleFunc("/prompts/defaults", s.requireAuthAPI(s.handleAPIInitDefaults)).Methods("POST")

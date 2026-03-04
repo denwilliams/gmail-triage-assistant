@@ -91,3 +91,24 @@ export interface AuthUser {
   email: string;
   user_id: number;
 }
+
+export interface SenderProfile {
+  id: number;
+  profile_type: "sender" | "domain";
+  identifier: string;
+  email_count: number;
+  emails_archived: number;
+  emails_notified: number;
+  slug_counts: Record<string, number>;
+  label_counts: Record<string, number>;
+  keyword_counts: Record<string, number>;
+  sender_type: string;
+  summary: string;
+  first_seen_at: string;
+  last_seen_at: string;
+}
+
+export interface SenderProfilesResponse {
+  sender: SenderProfile | null;
+  domain: SenderProfile | null;
+}
