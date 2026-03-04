@@ -405,7 +405,7 @@ function EmailDetailDialog({
                   setProfiles((p) => p ? { ...p, domain: updated } : p);
                 }}
                 onRegenerate={async () => {
-                  const domain = email.from_address.split("@")[1];
+                  const domain = email.from_address.split("@")[1]?.replace(/[<>]/g, "");
                   if (!domain) return;
                   const updated = await api.generateSenderProfile("domain", domain);
                   setProfiles((p) => p ? { ...p, domain: updated } : p);
@@ -415,7 +415,7 @@ function EmailDetailDialog({
               <GenerateProfileButton
                 label="Generate Domain Profile"
                 onGenerate={async () => {
-                  const domain = email.from_address.split("@")[1];
+                  const domain = email.from_address.split("@")[1]?.replace(/[<>]/g, "");
                   if (!domain) return;
                   const updated = await api.generateSenderProfile("domain", domain);
                   setProfiles((p) => p ? { ...p, domain: updated } : p);

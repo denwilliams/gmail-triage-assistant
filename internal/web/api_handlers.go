@@ -493,8 +493,16 @@ func (s *Server) handleAPIGenerateSenderProfile(w http.ResponseWriter, r *http.R
 		return
 	}
 
+	// Re-fetch to get DB-assigned ID and timestamps
+	saved, err := s.db.GetSenderProfile(ctx, userID, profileType, body.Identifier)
+	if err != nil || saved == nil {
+		log.Printf("API: Failed to re-fetch profile for %s: %v", body.Identifier, err)
+		respondJSON(w, http.StatusOK, profile)
+		return
+	}
+
 	log.Printf("API: Generated %s profile for %s (emails: %d)", profileType, body.Identifier, len(emails))
-	respondJSON(w, http.StatusOK, profile)
+	respondJSON(w, http.StatusOK, saved)
 }
 
 // PATCH /api/v1/sender-profiles/{id}
