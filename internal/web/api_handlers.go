@@ -476,14 +476,20 @@ func (s *Server) handleAPIGenerateSenderProfile(w http.ResponseWriter, r *http.R
 	}
 
 	// If we have history, use AI to classify and summarize
+	var aiError string
 	if len(emails) > 0 && s.openaiClient != nil {
 		result, err := s.openaiClient.BootstrapSenderProfile(ctx, body.Identifier, emails)
 		if err != nil {
 			log.Printf("API: Error bootstrapping profile for %s: %v", body.Identifier, err)
+			aiError = err.Error()
 		} else {
 			profile.SenderType = result.SenderType
 			profile.Summary = result.Summary
 		}
+	} else if s.openaiClient == nil {
+		aiError = "openai client not configured"
+	} else {
+		aiError = "no historical emails found"
 	}
 
 	// Save the profile
@@ -501,8 +507,15 @@ func (s *Server) handleAPIGenerateSenderProfile(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	log.Printf("API: Generated %s profile for %s (emails: %d)", profileType, body.Identifier, len(emails))
-	respondJSON(w, http.StatusOK, saved)
+	log.Printf("API: Generated %s profile for %s (emails: %d, ai_error: %s)", profileType, body.Identifier, len(emails), aiError)
+
+	response := map[string]any{
+		"profile": saved,
+	}
+	if aiError != "" {
+		response["ai_error"] = aiError
+	}
+	respondJSON(w, http.StatusOK, response)
 }
 
 // PATCH /api/v1/sender-profiles/{id}

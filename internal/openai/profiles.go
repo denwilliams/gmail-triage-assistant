@@ -89,7 +89,7 @@ Classify sender_type as:
 				},
 			},
 		},
-		MaxCompletionTokens: openai.Int(500),
+		MaxCompletionTokens: openai.Int(5000),
 	})
 
 	if err != nil {
@@ -100,14 +100,20 @@ Classify sender_type as:
 		return nil, fmt.Errorf("no response from openai")
 	}
 
-	content := response.Choices[0].Message.Content
+	choice := response.Choices[0]
+
+	if choice.Message.Refusal != "" {
+		return nil, fmt.Errorf("openai refused request: %s", choice.Message.Refusal)
+	}
+
+	content := choice.Message.Content
 	if content == "" {
-		return nil, fmt.Errorf("empty content from openai")
+		return nil, fmt.Errorf("empty content from openai (finish_reason: %s)", choice.FinishReason)
 	}
 
 	var result ProfileBootstrapResult
 	if err := json.Unmarshal([]byte(content), &result); err != nil {
-		return nil, fmt.Errorf("failed to parse bootstrap response: %w", err)
+		return nil, fmt.Errorf("failed to parse bootstrap response (content: %q): %w", content, err)
 	}
 
 	return &result, nil
@@ -179,7 +185,7 @@ New email processed:
 				},
 			},
 		},
-		MaxCompletionTokens: openai.Int(500),
+		MaxCompletionTokens: openai.Int(5000),
 	})
 
 	if err != nil {
@@ -190,14 +196,20 @@ New email processed:
 		return nil, fmt.Errorf("no response from openai")
 	}
 
-	content := response.Choices[0].Message.Content
+	choice := response.Choices[0]
+
+	if choice.Message.Refusal != "" {
+		return nil, fmt.Errorf("openai refused request: %s", choice.Message.Refusal)
+	}
+
+	content := choice.Message.Content
 	if content == "" {
-		return nil, fmt.Errorf("empty content from openai")
+		return nil, fmt.Errorf("empty content from openai (finish_reason: %s)", choice.FinishReason)
 	}
 
 	var result ProfileBootstrapResult
 	if err := json.Unmarshal([]byte(content), &result); err != nil {
-		return nil, fmt.Errorf("failed to parse evolve response: %w", err)
+		return nil, fmt.Errorf("failed to parse evolve response (content: %q): %w", content, err)
 	}
 
 	return &result, nil

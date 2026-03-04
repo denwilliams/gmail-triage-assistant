@@ -379,16 +379,18 @@ function EmailDetailDialog({
                   setProfiles((p) => p ? { ...p, sender: updated } : p);
                 }}
                 onRegenerate={async () => {
-                  const updated = await api.generateSenderProfile("sender", email.from_address);
-                  setProfiles((p) => p ? { ...p, sender: updated } : p);
+                  const res = await api.generateSenderProfile("sender", email.from_address);
+                  if (res.ai_error) alert(`AI error: ${res.ai_error}`);
+                  setProfiles((p) => p ? { ...p, sender: res.profile } : p);
                 }}
               />
             ) : (
               <GenerateProfileButton
                 label="Generate Sender Profile"
                 onGenerate={async () => {
-                  const updated = await api.generateSenderProfile("sender", email.from_address);
-                  setProfiles((p) => p ? { ...p, sender: updated } : p);
+                  const res = await api.generateSenderProfile("sender", email.from_address);
+                  if (res.ai_error) alert(`AI error: ${res.ai_error}`);
+                  setProfiles((p) => p ? { ...p, sender: res.profile } : p);
                 }}
               />
             )}
@@ -407,8 +409,9 @@ function EmailDetailDialog({
                 onRegenerate={async () => {
                   const domain = email.from_address.split("@")[1]?.replace(/[<>]/g, "");
                   if (!domain) return;
-                  const updated = await api.generateSenderProfile("domain", domain);
-                  setProfiles((p) => p ? { ...p, domain: updated } : p);
+                  const res = await api.generateSenderProfile("domain", domain);
+                  if (res.ai_error) alert(`AI error: ${res.ai_error}`);
+                  setProfiles((p) => p ? { ...p, domain: res.profile } : p);
                 }}
               />
             ) : (
@@ -417,8 +420,9 @@ function EmailDetailDialog({
                 onGenerate={async () => {
                   const domain = email.from_address.split("@")[1]?.replace(/[<>]/g, "");
                   if (!domain) return;
-                  const updated = await api.generateSenderProfile("domain", domain);
-                  setProfiles((p) => p ? { ...p, domain: updated } : p);
+                  const res = await api.generateSenderProfile("domain", domain);
+                  if (res.ai_error) alert(`AI error: ${res.ai_error}`);
+                  setProfiles((p) => p ? { ...p, domain: res.profile } : p);
                 }}
               />
             )}

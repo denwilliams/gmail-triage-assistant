@@ -84,7 +84,7 @@ export const api = {
       body: JSON.stringify(body),
     }),
   generateSenderProfile: (profileType: "sender" | "domain", identifier: string) =>
-    request<import("./types").SenderProfile>("/sender-profiles/generate", {
+    request<{ profile: import("./types").SenderProfile; ai_error?: string }>("/sender-profiles/generate", {
       method: "POST",
       body: JSON.stringify({ profile_type: profileType, identifier }),
     }),
