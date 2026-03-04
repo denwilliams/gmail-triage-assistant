@@ -55,7 +55,7 @@ func (db *DB) GetNotificationsByUser(ctx context.Context, userID int64, limit in
 	}
 	defer rows.Close()
 
-	var notifications []*Notification
+	notifications := make([]*Notification, 0)
 	for rows.Next() {
 		var n Notification
 		err := rows.Scan(

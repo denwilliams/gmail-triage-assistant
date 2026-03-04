@@ -154,9 +154,15 @@ func (s *Server) handleAPIGetEmails(w http.ResponseWriter, r *http.Request) {
 			limit = parsed
 		}
 	}
+	offset := 0
+	if o := r.URL.Query().Get("offset"); o != "" {
+		if parsed, err := strconv.Atoi(o); err == nil && parsed >= 0 {
+			offset = parsed
+		}
+	}
 
 	ctx := context.Background()
-	emails, err := s.db.GetRecentEmails(ctx, userID, limit)
+	emails, err := s.db.GetRecentEmails(ctx, userID, limit, offset)
 	if err != nil {
 		log.Printf("API: Failed to load emails: %v", err)
 		respondError(w, http.StatusInternalServerError, "Failed to load emails")

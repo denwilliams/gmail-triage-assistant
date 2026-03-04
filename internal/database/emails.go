@@ -113,23 +113,23 @@ func (db *DB) GetUserLabelsWithDetails(ctx context.Context, userID int64) ([]*La
 }
 
 // GetRecentEmails retrieves recent processed emails for a user
-func (db *DB) GetRecentEmails(ctx context.Context, userID int64, limit int) ([]*Email, error) {
+func (db *DB) GetRecentEmails(ctx context.Context, userID int64, limit int, offset int) ([]*Email, error) {
 	query := `
 		SELECT id, user_id, from_address, subject, slug, keywords, summary,
-		       labels_applied, bypassed_inbox, reasoning, COALESCE(human_feedback, ''), notification_sent, processed_at, created_at
+		       labels_applied, bypassed_inbox, reasoning, COALESCE(human_feedback, ''), COALESCE(feedback_dirty, FALSE), notification_sent, processed_at, created_at
 		FROM emails
 		WHERE user_id = $1
 		ORDER BY processed_at DESC
-		LIMIT $2
+		LIMIT $2 OFFSET $3
 	`
 
-	rows, err := db.conn.QueryContext(ctx, query, userID, limit)
+	rows, err := db.conn.QueryContext(ctx, query, userID, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query recent emails: %w", err)
 	}
 	defer rows.Close()
 
-	var emails []*Email
+	emails := make([]*Email, 0)
 	for rows.Next() {
 		var email Email
 		var keywordsJSON, labelsJSON []byte
@@ -146,6 +146,7 @@ func (db *DB) GetRecentEmails(ctx context.Context, userID int64, limit int) ([]*
 			&email.BypassedInbox,
 			&email.Reasoning,
 			&email.HumanFeedback,
+			&email.FeedbackDirty,
 			&email.NotificationSent,
 			&email.ProcessedAt,
 			&email.CreatedAt,

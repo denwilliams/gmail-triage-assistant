@@ -39,8 +39,8 @@ export const api = {
   deleteLabel: (id: number) =>
     request<{ status: string }>(`/labels/${id}`, { method: "DELETE" }),
 
-  getEmails: (limit = 50) =>
-    request<import("./types").Email[]>(`/emails?limit=${limit}`),
+  getEmails: (limit = 50, offset = 0) =>
+    request<import("./types").Email[]>(`/emails?limit=${limit}&offset=${offset}`),
   updateFeedback: (id: string, feedback: string) =>
     request<{ status: string }>(`/emails/${id}/feedback`, {
       method: "PUT",

@@ -449,6 +449,12 @@ function EmailRow({
     >
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
+          {email.feedback_dirty && (
+            <span
+              className="inline-block h-2 w-2 shrink-0 rounded-full bg-amber-500"
+              title="Feedback pending inclusion in next memory"
+            />
+          )}
           <span className="truncate text-sm font-medium">{email.subject}</span>
           {email.bypassed_inbox && (
             <Badge variant="secondary" className="shrink-0 text-xs">
@@ -482,18 +488,39 @@ function EmailRow({
   );
 }
 
+const PAGE_SIZE = 50;
+
 export default function HistoryPage() {
   const { emailId } = useParams();
   const navigate = useNavigate();
   const [emails, setEmails] = useState<Email[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
 
   const loadEmails = () => {
     api
-      .getEmails()
-      .then((data) => setEmails(data ?? []))
+      .getEmails(PAGE_SIZE, 0)
+      .then((data) => {
+        const results = data ?? [];
+        setEmails(results);
+        setHasMore(results.length >= PAGE_SIZE);
+      })
       .catch(console.error)
       .finally(() => setLoading(false));
+  };
+
+  const loadMore = () => {
+    setLoadingMore(true);
+    api
+      .getEmails(PAGE_SIZE, emails.length)
+      .then((data) => {
+        const results = data ?? [];
+        setEmails((prev) => [...prev, ...results]);
+        setHasMore(results.length >= PAGE_SIZE);
+      })
+      .catch(console.error)
+      .finally(() => setLoadingMore(false));
   };
 
   useEffect(loadEmails, []);
@@ -516,6 +543,18 @@ export default function HistoryPage() {
               onClick={() => navigate(`/history/${email.id}`)}
             />
           ))}
+        </div>
+      )}
+
+      {hasMore && emails.length > 0 && (
+        <div className="flex justify-center pt-2">
+          <Button
+            variant="outline"
+            onClick={loadMore}
+            disabled={loadingMore}
+          >
+            {loadingMore ? "Loading..." : "Load more"}
+          </Button>
         </div>
       )}
 

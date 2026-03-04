@@ -21,6 +21,7 @@ export interface Email {
   notification_sent: boolean;
   reasoning: string;
   human_feedback: string;
+  feedback_dirty: boolean;
   processed_at: string;
   created_at: string;
 }
