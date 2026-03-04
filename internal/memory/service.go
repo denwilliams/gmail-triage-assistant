@@ -49,9 +49,31 @@ func (s *Service) GenerateDailyMemory(ctx context.Context, userID int64) error {
 			return fmt.Errorf("failed to get emails from last 24h: %w", err)
 		}
 		if len(emails) == 0 {
-			log.Printf("No emails in last 24 hours for user %d, skipping memory generation", userID)
-			return nil
+			log.Printf("No emails in last 24 hours for user %d, will check for dirty feedback", userID)
 		}
+	}
+
+	// Also fetch any emails with dirty feedback (feedback added after their memory was generated)
+	dirtyEmails, err := s.db.GetEmailsWithDirtyFeedback(ctx, userID)
+	if err != nil {
+		log.Printf("Warning: failed to get dirty feedback emails: %v", err)
+	}
+
+	// Merge dirty feedback emails into the list (avoid duplicates)
+	seen := make(map[string]bool)
+	for _, e := range emails {
+		seen[e.ID] = true
+	}
+	for _, e := range dirtyEmails {
+		if !seen[e.ID] {
+			emails = append(emails, e)
+			seen[e.ID] = true
+		}
+	}
+
+	if len(emails) == 0 {
+		log.Printf("No emails or dirty feedback for user %d, skipping memory generation", userID)
+		return nil
 	}
 
 	// Get custom prompt if available
@@ -87,7 +109,18 @@ func (s *Service) GenerateDailyMemory(ctx context.Context, userID int64) error {
 		return fmt.Errorf("failed to save memory: %w", err)
 	}
 
-	log.Printf("Successfully created daily memory for user %d (%d emails analyzed)", userID, len(emails))
+	// Clear dirty flags now that feedback has been included in a memory
+	if len(dirtyEmails) > 0 {
+		dirtyIDs := make([]string, len(dirtyEmails))
+		for i, e := range dirtyEmails {
+			dirtyIDs[i] = e.ID
+		}
+		if err := s.db.ClearFeedbackDirty(ctx, userID, dirtyIDs); err != nil {
+			log.Printf("Warning: failed to clear feedback dirty flags: %v", err)
+		}
+	}
+
+	log.Printf("Successfully created daily memory for user %d (%d emails analyzed, %d dirty feedback)", userID, len(emails), len(dirtyEmails))
 	return nil
 }
 

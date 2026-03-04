@@ -235,15 +235,49 @@ func (db *DB) GetMemoriesByDateRange(ctx context.Context, userID int64, memoryTy
 func (db *DB) GetEmailsByDateRange(ctx context.Context, userID int64, startDate, endDate time.Time) ([]*Email, error) {
 	query := `
 		SELECT id, user_id, from_address, subject, slug, keywords, summary,
-		       labels_applied, bypassed_inbox, processed_at, created_at
+		       labels_applied, bypassed_inbox, reasoning, COALESCE(human_feedback, ''),
+		       processed_at, created_at
 		FROM emails
 		WHERE user_id = $1 AND processed_at >= $2 AND processed_at < $3
 		ORDER BY processed_at ASC
 	`
 
-	rows, err := db.conn.QueryContext(ctx, query, userID, startDate, endDate)
+	return db.scanMemoryEmails(ctx, query, userID, startDate, endDate)
+}
+
+// GetEmailsWithDirtyFeedback retrieves emails that have unprocessed human feedback
+func (db *DB) GetEmailsWithDirtyFeedback(ctx context.Context, userID int64) ([]*Email, error) {
+	query := `
+		SELECT id, user_id, from_address, subject, slug, keywords, summary,
+		       labels_applied, bypassed_inbox, reasoning, COALESCE(human_feedback, ''),
+		       processed_at, created_at
+		FROM emails
+		WHERE user_id = $1 AND feedback_dirty = TRUE
+		ORDER BY processed_at ASC
+	`
+
+	return db.scanMemoryEmails(ctx, query, userID)
+}
+
+// ClearFeedbackDirty marks feedback as included in memory for the given email IDs
+func (db *DB) ClearFeedbackDirty(ctx context.Context, userID int64, emailIDs []string) error {
+	if len(emailIDs) == 0 {
+		return nil
+	}
+
+	query := `UPDATE emails SET feedback_dirty = FALSE WHERE user_id = $1 AND feedback_dirty = TRUE`
+	_, err := db.conn.ExecContext(ctx, query, userID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query emails by date range: %w", err)
+		return fmt.Errorf("failed to clear feedback dirty flags: %w", err)
+	}
+	return nil
+}
+
+// scanMemoryEmails scans email rows including reasoning and human_feedback
+func (db *DB) scanMemoryEmails(ctx context.Context, query string, args ...interface{}) ([]*Email, error) {
+	rows, err := db.conn.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query emails: %w", err)
 	}
 	defer rows.Close()
 
@@ -262,6 +296,8 @@ func (db *DB) GetEmailsByDateRange(ctx context.Context, userID int64, startDate,
 			&email.Summary,
 			&labelsJSON,
 			&email.BypassedInbox,
+			&email.Reasoning,
+			&email.HumanFeedback,
 			&email.ProcessedAt,
 			&email.CreatedAt,
 		)
@@ -269,7 +305,6 @@ func (db *DB) GetEmailsByDateRange(ctx context.Context, userID int64, startDate,
 			return nil, fmt.Errorf("failed to scan email: %w", err)
 		}
 
-		// Unmarshal JSON arrays
 		if err := json.Unmarshal(keywordsJSON, &email.Keywords); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal keywords: %w", err)
 		}

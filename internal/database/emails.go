@@ -176,7 +176,7 @@ func (db *DB) GetRecentEmails(ctx context.Context, userID int64, limit int) ([]*
 func (db *DB) UpdateEmailFeedback(ctx context.Context, userID int64, emailID string, feedback string) error {
 	query := `
 		UPDATE emails
-		SET human_feedback = $1
+		SET human_feedback = $1, feedback_dirty = ($1 != '')
 		WHERE id = $2 AND user_id = $3
 	`
 

@@ -36,6 +36,7 @@ type Email struct {
 	BypassedInbox bool      `db:"bypassed_inbox" json:"bypassed_inbox"` // Whether email bypassed inbox
 	Reasoning        string    `db:"reasoning" json:"reasoning"`           // AI reasoning for actions taken
 	HumanFeedback    string    `db:"human_feedback" json:"human_feedback"` // Human feedback: "do differently next time"
+	FeedbackDirty    bool      `db:"feedback_dirty" json:"feedback_dirty"` // Whether feedback needs to be included in next memory
 	NotificationSent bool      `db:"notification_sent" json:"notification_sent"` // Whether a push notification was sent
 	ProcessedAt      time.Time `db:"processed_at" json:"processed_at"`   // When email was processed
 	CreatedAt        time.Time `db:"created_at" json:"created_at"`       // When record was created
