@@ -426,6 +426,127 @@ func (s *Server) handleAPIGetSenderProfiles(w http.ResponseWriter, r *http.Reque
 	})
 }
 
+// POST /api/v1/sender-profiles/generate
+func (s *Server) handleAPIGenerateSenderProfile(w http.ResponseWriter, r *http.Request) {
+	session, _ := s.sessionStore.Get(r, "session")
+	userID := session.Values["user_id"].(int64)
+
+	var body struct {
+		ProfileType string `json:"profile_type"`
+		Identifier  string `json:"identifier"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		respondError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	profileType := database.ProfileType(body.ProfileType)
+	if profileType != database.ProfileTypeSender && profileType != database.ProfileTypeDomain {
+		respondError(w, http.StatusBadRequest, "profile_type must be 'sender' or 'domain'")
+		return
+	}
+	if body.Identifier == "" {
+		respondError(w, http.StatusBadRequest, "identifier is required")
+		return
+	}
+
+	ctx := context.Background()
+
+	// Fetch historical emails
+	var emails []*database.Email
+	var err error
+	if profileType == database.ProfileTypeSender {
+		emails, err = s.db.GetHistoricalEmailsFromAddress(ctx, userID, body.Identifier, 25)
+	} else {
+		emails, err = s.db.GetHistoricalEmailsFromDomain(ctx, userID, body.Identifier, 25)
+	}
+	if err != nil {
+		log.Printf("API: Failed to get historical emails for %s: %v", body.Identifier, err)
+		respondError(w, http.StatusInternalServerError, "Failed to get historical emails")
+		return
+	}
+
+	// Build profile from historical data
+	profile := database.BuildProfileFromEmails(userID, profileType, body.Identifier, emails)
+
+	// Preserve existing profile ID if regenerating
+	existing, _ := s.db.GetSenderProfile(ctx, userID, profileType, body.Identifier)
+	if existing != nil {
+		profile.ID = existing.ID
+	}
+
+	// If we have history, use AI to classify and summarize
+	if len(emails) > 0 && s.openaiClient != nil {
+		result, err := s.openaiClient.BootstrapSenderProfile(ctx, body.Identifier, emails)
+		if err != nil {
+			log.Printf("API: Error bootstrapping profile for %s: %v", body.Identifier, err)
+		} else {
+			profile.SenderType = result.SenderType
+			profile.Summary = result.Summary
+		}
+	}
+
+	// Save the profile
+	if err := s.db.UpsertSenderProfile(ctx, profile); err != nil {
+		log.Printf("API: Failed to save profile for %s: %v", body.Identifier, err)
+		respondError(w, http.StatusInternalServerError, "Failed to save profile")
+		return
+	}
+
+	log.Printf("API: Generated %s profile for %s (emails: %d)", profileType, body.Identifier, len(emails))
+	respondJSON(w, http.StatusOK, profile)
+}
+
+// PATCH /api/v1/sender-profiles/{id}
+func (s *Server) handleAPIUpdateSenderProfile(w http.ResponseWriter, r *http.Request) {
+	session, _ := s.sessionStore.Get(r, "session")
+	userID := session.Values["user_id"].(int64)
+
+	vars := mux.Vars(r)
+	id, err := strconv.ParseInt(vars["id"], 10, 64)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "Invalid profile ID")
+		return
+	}
+
+	var body struct {
+		Summary     *string         `json:"summary"`
+		LabelCounts *map[string]int `json:"label_counts"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		respondError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	ctx := context.Background()
+
+	profile, err := s.db.GetSenderProfileByID(ctx, userID, id)
+	if err != nil {
+		log.Printf("API: Failed to load sender profile: %v", err)
+		respondError(w, http.StatusInternalServerError, "Failed to load profile")
+		return
+	}
+	if profile == nil {
+		respondError(w, http.StatusNotFound, "Profile not found")
+		return
+	}
+
+	if body.Summary != nil {
+		profile.Summary = *body.Summary
+	}
+	if body.LabelCounts != nil {
+		profile.LabelCounts = *body.LabelCounts
+	}
+
+	if err := s.db.UpsertSenderProfile(ctx, profile); err != nil {
+		log.Printf("API: Failed to update sender profile: %v", err)
+		respondError(w, http.StatusInternalServerError, "Failed to update profile")
+		return
+	}
+
+	respondJSON(w, http.StatusOK, profile)
+}
+
 // GET /api/v1/wrapups
 func (s *Server) handleAPIGetWrapups(w http.ResponseWriter, r *http.Request) {
 	session, _ := s.sessionStore.Get(r, "session")

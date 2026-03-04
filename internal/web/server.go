@@ -10,6 +10,7 @@ import (
 	"github.com/den/gmail-triage-assistant/internal/config"
 	"github.com/den/gmail-triage-assistant/internal/database"
 	"github.com/den/gmail-triage-assistant/internal/memory"
+	"github.com/den/gmail-triage-assistant/internal/openai"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/sessions"
 	"golang.org/x/oauth2"
@@ -26,10 +27,11 @@ type Server struct {
 	sessionStore  *sessions.CookieStore
 	oauthConfig   *oauth2.Config
 	memoryService *memory.Service
+	openaiClient  *openai.Client
 	frontendFS    fs.FS
 }
 
-func NewServer(db *database.DB, cfg *config.Config, memoryService *memory.Service, frontendFS fs.FS) *Server {
+func NewServer(db *database.DB, cfg *config.Config, memoryService *memory.Service, openaiClient *openai.Client, frontendFS fs.FS) *Server {
 	store := sessions.NewCookieStore([]byte(cfg.SessionSecret))
 	store.Options = &sessions.Options{
 		Path:     "/",
@@ -57,6 +59,7 @@ func NewServer(db *database.DB, cfg *config.Config, memoryService *memory.Servic
 		sessionStore:  store,
 		oauthConfig:   oauthConfig,
 		memoryService: memoryService,
+		openaiClient:  openaiClient,
 		frontendFS:    frontendFS,
 	}
 
@@ -84,6 +87,8 @@ func (s *Server) routes() {
 	api.HandleFunc("/emails/{id}/feedback", s.requireAuthAPI(s.handleAPIUpdateFeedback)).Methods("PUT")
 
 	api.HandleFunc("/sender-profiles", s.requireAuthAPI(s.handleAPIGetSenderProfiles)).Methods("GET")
+	api.HandleFunc("/sender-profiles/generate", s.requireAuthAPI(s.handleAPIGenerateSenderProfile)).Methods("POST")
+	api.HandleFunc("/sender-profiles/{id}", s.requireAuthAPI(s.handleAPIUpdateSenderProfile)).Methods("PATCH")
 
 	api.HandleFunc("/prompts", s.requireAuthAPI(s.handleAPIGetPrompts)).Methods("GET")
 	api.HandleFunc("/prompts", s.requireAuthAPI(s.handleAPIUpdatePrompt)).Methods("PUT")

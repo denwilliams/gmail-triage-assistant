@@ -54,6 +54,52 @@ func (db *DB) GetSenderProfile(ctx context.Context, userID int64, profileType Pr
 	return &p, nil
 }
 
+// GetSenderProfileByID returns a profile by its ID and user ID, or nil if not found
+func (db *DB) GetSenderProfileByID(ctx context.Context, userID, profileID int64) (*SenderProfile, error) {
+	query := `
+		SELECT id, user_id, profile_type, identifier,
+		       email_count, emails_archived, emails_notified,
+		       slug_counts, label_counts, keyword_counts,
+		       sender_type, summary,
+		       first_seen_at, last_seen_at, modified_at, created_at
+		FROM sender_profiles
+		WHERE id = $1 AND user_id = $2
+	`
+
+	var p SenderProfile
+	var slugCountsJSON, labelCountsJSON, keywordCountsJSON []byte
+
+	err := db.conn.QueryRowContext(ctx, query, profileID, userID).Scan(
+		&p.ID, &p.UserID, &p.ProfileType, &p.Identifier,
+		&p.EmailCount, &p.EmailsArchived, &p.EmailsNotified,
+		&slugCountsJSON, &labelCountsJSON, &keywordCountsJSON,
+		&p.SenderType, &p.Summary,
+		&p.FirstSeenAt, &p.LastSeenAt, &p.ModifiedAt, &p.CreatedAt,
+	)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get sender profile by ID: %w", err)
+	}
+
+	p.SlugCounts = make(map[string]int)
+	p.LabelCounts = make(map[string]int)
+	p.KeywordCounts = make(map[string]int)
+
+	if err := json.Unmarshal(slugCountsJSON, &p.SlugCounts); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal slug_counts: %w", err)
+	}
+	if err := json.Unmarshal(labelCountsJSON, &p.LabelCounts); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal label_counts: %w", err)
+	}
+	if err := json.Unmarshal(keywordCountsJSON, &p.KeywordCounts); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal keyword_counts: %w", err)
+	}
+
+	return &p, nil
+}
+
 // UpsertSenderProfile creates or updates a sender profile
 func (db *DB) UpsertSenderProfile(ctx context.Context, profile *SenderProfile) error {
 	slugCountsJSON, err := json.Marshal(profile.SlugCounts)

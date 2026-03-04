@@ -32,13 +32,55 @@ function topEntries(counts: Record<string, number>, n = 5): [string, number][] {
     .slice(0, n);
 }
 
+function GenerateProfileButton({
+  label,
+  onGenerate,
+}: {
+  label: string;
+  onGenerate: () => Promise<void>;
+}) {
+  const [generating, setGenerating] = useState(false);
+
+  const handleGenerate = async () => {
+    setGenerating(true);
+    try {
+      await onGenerate();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  return (
+    <Button
+      size="sm"
+      variant="outline"
+      onClick={handleGenerate}
+      disabled={generating}
+    >
+      {generating ? "Generating..." : label}
+    </Button>
+  );
+}
+
 function ProfileSection({
   title,
   profile,
+  onUpdate,
+  onRegenerate,
 }: {
   title: string;
   profile: SenderProfile;
+  onUpdate: (body: { summary?: string; label_counts?: Record<string, number> }) => void;
+  onRegenerate: () => void;
 }) {
+  const [editSummary, setEditSummary] = useState(profile.summary || "");
+  const [saving, setSaving] = useState(false);
+  const [confirmRegen, setConfirmRegen] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
+  const summaryChanged = editSummary !== (profile.summary || "");
+
   const archiveRate =
     profile.email_count > 0
       ? Math.round((profile.emails_archived / profile.email_count) * 100)
@@ -48,9 +90,68 @@ function ProfileSection({
       ? Math.round((profile.emails_notified / profile.email_count) * 100)
       : 0;
 
+  const handleSaveSummary = async () => {
+    setSaving(true);
+    try {
+      onUpdate({ summary: editSummary });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleRemoveLabel = (label: string) => {
+    const newCounts = { ...profile.label_counts };
+    delete newCounts[label];
+    onUpdate({ label_counts: newCounts });
+  };
+
+  const handleRegenerate = async () => {
+    setRegenerating(true);
+    try {
+      await onRegenerate();
+      setConfirmRegen(false);
+    } finally {
+      setRegenerating(false);
+    }
+  };
+
   return (
     <div className="space-y-2">
-      <h4 className="text-sm font-semibold">{title}</h4>
+      <div className="flex items-center justify-between">
+        <h4 className="text-sm font-semibold">{title}</h4>
+        {!confirmRegen ? (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-6 text-xs"
+            onClick={() => setConfirmRegen(true)}
+          >
+            Regenerate
+          </Button>
+        ) : (
+          <div className="flex items-center gap-1">
+            <span className="text-xs text-muted-foreground">Overwrite profile?</span>
+            <Button
+              size="sm"
+              variant="destructive"
+              className="h-6 text-xs"
+              onClick={handleRegenerate}
+              disabled={regenerating}
+            >
+              {regenerating ? "Regenerating..." : "Confirm"}
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-6 text-xs"
+              onClick={() => setConfirmRegen(false)}
+              disabled={regenerating}
+            >
+              Cancel
+            </Button>
+          </div>
+        )}
+      </div>
       <div className="flex flex-wrap items-center gap-2 text-sm">
         {profile.sender_type && (
           <Badge variant="outline">{profile.sender_type}</Badge>
@@ -65,9 +166,22 @@ function ProfileSection({
           {notifyRate}% notified
         </span>
       </div>
-      {profile.summary && (
-        <p className="text-sm text-muted-foreground">{profile.summary}</p>
-      )}
+      <div className="space-y-1">
+        <span className="text-xs font-medium text-muted-foreground">
+          Summary
+        </span>
+        <Textarea
+          value={editSummary}
+          onChange={(e) => setEditSummary(e.target.value)}
+          rows={2}
+          className="text-sm"
+        />
+        {summaryChanged && (
+          <Button size="sm" onClick={handleSaveSummary} disabled={saving}>
+            Save Summary
+          </Button>
+        )}
+      </div>
       {profile.slug_counts && Object.keys(profile.slug_counts).length > 0 && (
         <div>
           <span className="text-xs font-medium text-muted-foreground">
@@ -89,8 +203,16 @@ function ProfileSection({
           </span>
           <div className="mt-1 flex flex-wrap gap-1">
             {topEntries(profile.label_counts).map(([label, count]) => (
-              <Badge key={label} variant="outline" className="text-xs">
+              <Badge key={label} variant="outline" className="gap-1 text-xs">
                 {label} ({count})
+                <button
+                  type="button"
+                  onClick={() => handleRemoveLabel(label)}
+                  className="ml-0.5 rounded-full hover:bg-destructive/20"
+                  title={`Remove ${label}`}
+                >
+                  &times;
+                </button>
               </Badge>
             ))}
           </div>
@@ -249,23 +371,58 @@ function EmailDetailDialog({
                 Loading profiles...
               </p>
             ) : profiles?.sender ? (
-              <ProfileSection title="Sender Profile" profile={profiles.sender} />
+              <ProfileSection
+                title="Sender Profile"
+                profile={profiles.sender}
+                onUpdate={async (body) => {
+                  const updated = await api.updateSenderProfile(profiles.sender!.id, body);
+                  setProfiles((p) => p ? { ...p, sender: updated } : p);
+                }}
+                onRegenerate={async () => {
+                  const updated = await api.generateSenderProfile("sender", email.from_address);
+                  setProfiles((p) => p ? { ...p, sender: updated } : p);
+                }}
+              />
             ) : (
-              <p className="text-sm text-muted-foreground">
-                No sender profile available
-              </p>
+              <GenerateProfileButton
+                label="Generate Sender Profile"
+                onGenerate={async () => {
+                  const updated = await api.generateSenderProfile("sender", email.from_address);
+                  setProfiles((p) => p ? { ...p, sender: updated } : p);
+                }}
+              />
             )}
           </div>
 
           {/* Domain Profile */}
-          {!profilesLoading && profiles?.domain && (
-            <div className="border-t pt-3">
+          <div className="border-t pt-3">
+            {profilesLoading ? null : profiles?.domain ? (
               <ProfileSection
                 title="Domain Profile"
                 profile={profiles.domain}
+                onUpdate={async (body) => {
+                  const updated = await api.updateSenderProfile(profiles.domain!.id, body);
+                  setProfiles((p) => p ? { ...p, domain: updated } : p);
+                }}
+                onRegenerate={async () => {
+                  const domain = email.from_address.split("@")[1];
+                  if (!domain) return;
+                  const updated = await api.generateSenderProfile("domain", domain);
+                  setProfiles((p) => p ? { ...p, domain: updated } : p);
+                }}
               />
-            </div>
-          )}
+            ) : (
+              <GenerateProfileButton
+                label="Generate Domain Profile"
+                onGenerate={async () => {
+                  const domain = email.from_address.split("@")[1];
+                  if (!domain) return;
+                  const updated = await api.generateSenderProfile("domain", domain);
+                  setProfiles((p) => p ? { ...p, domain: updated } : p);
+                }}
+              />
+            )}
+          </div>
         </div>
       </DialogContent>
     </Dialog>

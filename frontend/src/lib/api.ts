@@ -75,6 +75,19 @@ export const api = {
     request<import("./types").SenderProfilesResponse>(
       `/sender-profiles?address=${encodeURIComponent(address)}`
     ),
+  updateSenderProfile: (
+    id: number,
+    body: { summary?: string; label_counts?: Record<string, number> }
+  ) =>
+    request<import("./types").SenderProfile>(`/sender-profiles/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  generateSenderProfile: (profileType: "sender" | "domain", identifier: string) =>
+    request<import("./types").SenderProfile>("/sender-profiles/generate", {
+      method: "POST",
+      body: JSON.stringify({ profile_type: profileType, identifier }),
+    }),
 
   getSettings: () => request<import("./types").UserSettings>("/settings"),
   updatePushover: (user_key: string, app_token: string) =>

@@ -106,7 +106,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to get frontend filesystem: %v", err)
 	}
-	server := web.NewServer(db, cfg, memoryService, frontendFS)
+	server := web.NewServer(db, cfg, memoryService, openaiClient, frontendFS)
 
 	// Initialize scheduler
 	sched := scheduler.NewScheduler(db, memoryService, wrapupService)
