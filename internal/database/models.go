@@ -88,6 +88,7 @@ type Memory struct {
 	UserID    int64      `db:"user_id" json:"user_id"`     // User who owns this memory
 	Type      MemoryType `db:"type" json:"type"`           // daily, weekly, monthly, yearly
 	Content   string     `db:"content" json:"content"`     // The consolidated memory
+	Reasoning string     `db:"reasoning" json:"reasoning"` // AI reasoning for editorial decisions
 	StartDate time.Time  `db:"start_date" json:"start_date"` // Period start
 	EndDate   time.Time  `db:"end_date" json:"end_date"`   // Period end
 	CreatedAt time.Time  `db:"created_at" json:"created_at"`

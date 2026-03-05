@@ -90,7 +90,7 @@ func (s *Service) GenerateDailyMemory(ctx context.Context, userID int64) error {
 	}
 
 	// Generate memory using AI
-	memoryContent, err := s.generateMemoryFromEmails(ctx, emails, labelDetails, customPrompt)
+	memoryResult, err := s.generateMemoryFromEmails(ctx, emails, labelDetails, customPrompt)
 	if err != nil {
 		return fmt.Errorf("failed to generate memory: %w", err)
 	}
@@ -99,7 +99,8 @@ func (s *Service) GenerateDailyMemory(ctx context.Context, userID int64) error {
 	memory := &database.Memory{
 		UserID:    userID,
 		Type:      database.MemoryTypeDaily,
-		Content:   memoryContent,
+		Content:   memoryResult.Content,
+		Reasoning: memoryResult.Reasoning,
 		StartDate: startOfYesterday,
 		EndDate:   endOfYesterday,
 		CreatedAt: now,
@@ -125,7 +126,7 @@ func (s *Service) GenerateDailyMemory(ctx context.Context, userID int64) error {
 }
 
 // generateMemoryFromEmails uses AI to analyze email patterns and generate insights
-func (s *Service) generateMemoryFromEmails(ctx context.Context, emails []*database.Email, labelDetails []*database.Label, customPrompt string) (string, error) {
+func (s *Service) generateMemoryFromEmails(ctx context.Context, emails []*database.Email, labelDetails []*database.Label, customPrompt string) (*openai.MemoryResult, error) {
 	// Build available labels section
 	labelsSection := ""
 	if len(labelDetails) > 0 {
@@ -226,13 +227,13 @@ These human corrections should be given highest priority in your learnings.
 %s
 Focus on creating actionable insights that will help process similar emails better in the future. What patterns should be reinforced? What should be done differently?`, len(emails), strings.Join(emailSummaries, "\n"), humanFeedbackSection)
 
-	// Call AI to generate memory
-	memory, err := s.openai.GenerateMemory(ctx, systemPrompt, userPrompt)
+	// Call AI to generate memory with reasoning
+	result, err := s.openai.GenerateMemoryWithReasoning(ctx, systemPrompt, userPrompt)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	return memory, nil
+	return result, nil
 }
 
 // GenerateWeeklyMemory consolidates the past week's daily memories
@@ -284,7 +285,7 @@ func (s *Service) GenerateWeeklyMemory(ctx context.Context, userID int64) error 
 	}
 
 	// Generate consolidated memory (evolving from previous if exists)
-	memoryContent, err := s.consolidateMemories(ctx, previousMemory, dailyMemories, "weekly", customPrompt)
+	memoryResult, err := s.consolidateMemories(ctx, previousMemory, dailyMemories, "weekly", customPrompt)
 	if err != nil {
 		return fmt.Errorf("failed to consolidate memories: %w", err)
 	}
@@ -293,7 +294,8 @@ func (s *Service) GenerateWeeklyMemory(ctx context.Context, userID int64) error 
 	memory := &database.Memory{
 		UserID:    userID,
 		Type:      database.MemoryTypeWeekly,
-		Content:   memoryContent,
+		Content:   memoryResult.Content,
+		Reasoning: memoryResult.Reasoning,
 		StartDate: startDate,
 		EndDate:   endDate,
 		CreatedAt: now,
@@ -359,7 +361,7 @@ func (s *Service) GenerateMonthlyMemory(ctx context.Context, userID int64) error
 	}
 
 	// Generate consolidated memory (evolving from previous if exists)
-	memoryContent, err := s.consolidateMemories(ctx, previousMemory, weeklyMemories, "monthly", customPrompt)
+	memoryResult, err := s.consolidateMemories(ctx, previousMemory, weeklyMemories, "monthly", customPrompt)
 	if err != nil {
 		return fmt.Errorf("failed to consolidate memories: %w", err)
 	}
@@ -368,7 +370,8 @@ func (s *Service) GenerateMonthlyMemory(ctx context.Context, userID int64) error
 	memory := &database.Memory{
 		UserID:    userID,
 		Type:      database.MemoryTypeMonthly,
-		Content:   memoryContent,
+		Content:   memoryResult.Content,
+		Reasoning: memoryResult.Reasoning,
 		StartDate: startDate,
 		EndDate:   endDate,
 		CreatedAt: now,
@@ -434,7 +437,7 @@ func (s *Service) GenerateYearlyMemory(ctx context.Context, userID int64) error 
 	}
 
 	// Generate consolidated memory (evolving from previous if exists)
-	memoryContent, err := s.consolidateMemories(ctx, previousMemory, monthlyMemories, "yearly", customPrompt)
+	memoryResult, err := s.consolidateMemories(ctx, previousMemory, monthlyMemories, "yearly", customPrompt)
 	if err != nil {
 		return fmt.Errorf("failed to consolidate memories: %w", err)
 	}
@@ -443,7 +446,8 @@ func (s *Service) GenerateYearlyMemory(ctx context.Context, userID int64) error 
 	memory := &database.Memory{
 		UserID:    userID,
 		Type:      database.MemoryTypeYearly,
-		Content:   memoryContent,
+		Content:   memoryResult.Content,
+		Reasoning: memoryResult.Reasoning,
 		StartDate: startDate,
 		EndDate:   endDate,
 		CreatedAt: now,
@@ -462,7 +466,7 @@ func (s *Service) GenerateYearlyMemory(ctx context.Context, userID int64) error 
 }
 
 // consolidateMemories uses AI to evolve an existing memory by incorporating new lower-level memories
-func (s *Service) consolidateMemories(ctx context.Context, previousMemory *database.Memory, newMemories []*database.Memory, period string, customPrompt string) (string, error) {
+func (s *Service) consolidateMemories(ctx context.Context, previousMemory *database.Memory, newMemories []*database.Memory, period string, customPrompt string) (*openai.MemoryResult, error) {
 	systemPrompt := customPrompt
 	if systemPrompt == "" {
 		if previousMemory != nil {
@@ -548,13 +552,13 @@ Provide a concise %s summary with key patterns and strategic insights.`,
 			period)
 	}
 
-	// Call AI to generate consolidated memory
-	memory, err := s.openai.GenerateMemory(ctx, systemPrompt, userPrompt)
+	// Call AI to generate consolidated memory with reasoning
+	result, err := s.openai.GenerateMemoryWithReasoning(ctx, systemPrompt, userPrompt)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	return memory, nil
+	return result, nil
 }
 
 // GenerateAIPrompts regenerates both AI-written prompts using the latest weekly memory.

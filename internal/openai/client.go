@@ -258,6 +258,77 @@ Summary: %s
 	return &actions, nil
 }
 
+// MemoryResult represents structured memory output with reasoning
+type MemoryResult struct {
+	Content   string `json:"content"`
+	Reasoning string `json:"reasoning"`
+}
+
+// GenerateMemoryWithReasoning creates a memory with structured JSON output including reasoning
+func (c *Client) GenerateMemoryWithReasoning(ctx context.Context, systemPrompt, userPrompt string) (*MemoryResult, error) {
+	// Append JSON instruction to system prompt
+	structuredSystemPrompt := systemPrompt + `
+
+IMPORTANT: You must respond with a JSON object containing two fields:
+- "content": Your memory content (the actual memory text)
+- "reasoning": Your editorial reasoning explaining what you considered important, what you dropped, and why you made the decisions you did`
+
+	c.logPrompts("GenerateMemoryWithReasoning", structuredSystemPrompt, userPrompt)
+
+	response, err := c.client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
+		Model: shared.ChatModel(c.model),
+		Messages: []openai.ChatCompletionMessageParamUnion{
+			openai.SystemMessage(structuredSystemPrompt),
+			openai.UserMessage(userPrompt),
+		},
+		ResponseFormat: openai.ChatCompletionNewParamsResponseFormatUnion{
+			OfJSONSchema: &shared.ResponseFormatJSONSchemaParam{
+				JSONSchema: shared.ResponseFormatJSONSchemaJSONSchemaParam{
+					Name:        "memory_result",
+					Description: param.NewOpt("Memory content with editorial reasoning"),
+					Strict:      param.NewOpt(true),
+					Schema: map[string]interface{}{
+						"type": "object",
+						"properties": map[string]interface{}{
+							"content": map[string]interface{}{
+								"type":        "string",
+								"description": "The actual memory content text",
+							},
+							"reasoning": map[string]interface{}{
+								"type":        "string",
+								"description": "Editorial reasoning explaining what was considered important, what was dropped, and why",
+							},
+						},
+						"required":             []string{"content", "reasoning"},
+						"additionalProperties": false,
+					},
+				},
+			},
+		},
+		MaxCompletionTokens: openai.Int(20000),
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("openai api error: %w", err)
+	}
+
+	if len(response.Choices) == 0 {
+		return nil, fmt.Errorf("no response from openai")
+	}
+
+	content := response.Choices[0].Message.Content
+	if content == "" {
+		return nil, fmt.Errorf("empty content from openai (finish_reason: %s)", response.Choices[0].FinishReason)
+	}
+
+	var result MemoryResult
+	if err := json.Unmarshal([]byte(content), &result); err != nil {
+		return nil, fmt.Errorf("failed to parse memory result (content: %q): %w", content, err)
+	}
+
+	return &result, nil
+}
+
 // GenerateMemory creates a memory summary from email analysis
 func (c *Client) GenerateMemory(ctx context.Context, systemPrompt, userPrompt string) (string, error) {
 	response, err := c.client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{

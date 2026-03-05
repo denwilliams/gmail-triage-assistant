@@ -51,6 +51,7 @@ export interface Memory {
   user_id: number;
   type: "daily" | "weekly" | "monthly" | "yearly";
   content: string;
+  reasoning: string;
   start_date: string;
   end_date: string;
   created_at: string;

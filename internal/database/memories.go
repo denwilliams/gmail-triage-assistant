@@ -10,8 +10,8 @@ import (
 // CreateMemory creates a new memory entry
 func (db *DB) CreateMemory(ctx context.Context, memory *Memory) error {
 	query := `
-		INSERT INTO memories (user_id, type, content, start_date, end_date, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		INSERT INTO memories (user_id, type, content, reasoning, start_date, end_date, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		RETURNING id
 	`
 
@@ -21,6 +21,7 @@ func (db *DB) CreateMemory(ctx context.Context, memory *Memory) error {
 		memory.UserID,
 		memory.Type,
 		memory.Content,
+		memory.Reasoning,
 		memory.StartDate,
 		memory.EndDate,
 		memory.CreatedAt,
@@ -36,7 +37,7 @@ func (db *DB) CreateMemory(ctx context.Context, memory *Memory) error {
 // GetMemoriesByType retrieves memories of a specific type for a user
 func (db *DB) GetMemoriesByType(ctx context.Context, userID int64, memoryType MemoryType, limit int) ([]*Memory, error) {
 	query := `
-		SELECT id, user_id, type, content, start_date, end_date, created_at
+		SELECT id, user_id, type, content, reasoning, start_date, end_date, created_at
 		FROM memories
 		WHERE user_id = $1 AND type = $2
 		ORDER BY start_date DESC
@@ -57,6 +58,7 @@ func (db *DB) GetMemoriesByType(ctx context.Context, userID int64, memoryType Me
 			&memory.UserID,
 			&memory.Type,
 			&memory.Content,
+			&memory.Reasoning,
 			&memory.StartDate,
 			&memory.EndDate,
 			&memory.CreatedAt,
@@ -77,7 +79,7 @@ func (db *DB) GetMemoriesByType(ctx context.Context, userID int64, memoryType Me
 // GetAllMemories retrieves all memories for a user
 func (db *DB) GetAllMemories(ctx context.Context, userID int64, limit int) ([]*Memory, error) {
 	query := `
-		SELECT id, user_id, type, content, start_date, end_date, created_at
+		SELECT id, user_id, type, content, reasoning, start_date, end_date, created_at
 		FROM memories
 		WHERE user_id = $1
 		ORDER BY start_date DESC
@@ -98,6 +100,7 @@ func (db *DB) GetAllMemories(ctx context.Context, userID int64, limit int) ([]*M
 			&memory.UserID,
 			&memory.Type,
 			&memory.Content,
+			&memory.Reasoning,
 			&memory.StartDate,
 			&memory.EndDate,
 			&memory.CreatedAt,
@@ -120,7 +123,7 @@ func (db *DB) GetAllMemories(ctx context.Context, userID int64, limit int) ([]*M
 func (db *DB) GetRecentMemoriesForContext(ctx context.Context, userID int64) ([]*Memory, error) {
 	query := `
 		(
-			SELECT id, user_id, type, content, start_date, end_date, created_at
+			SELECT id, user_id, type, content, reasoning, start_date, end_date, created_at
 			FROM memories
 			WHERE user_id = $1 AND type = 'yearly'
 			ORDER BY start_date DESC
@@ -128,7 +131,7 @@ func (db *DB) GetRecentMemoriesForContext(ctx context.Context, userID int64) ([]
 		)
 		UNION ALL
 		(
-			SELECT id, user_id, type, content, start_date, end_date, created_at
+			SELECT id, user_id, type, content, reasoning, start_date, end_date, created_at
 			FROM memories
 			WHERE user_id = $1 AND type = 'monthly'
 			ORDER BY start_date DESC
@@ -136,7 +139,7 @@ func (db *DB) GetRecentMemoriesForContext(ctx context.Context, userID int64) ([]
 		)
 		UNION ALL
 		(
-			SELECT id, user_id, type, content, start_date, end_date, created_at
+			SELECT id, user_id, type, content, reasoning, start_date, end_date, created_at
 			FROM memories
 			WHERE user_id = $1 AND type = 'weekly'
 			ORDER BY start_date DESC
@@ -144,7 +147,7 @@ func (db *DB) GetRecentMemoriesForContext(ctx context.Context, userID int64) ([]
 		)
 		UNION ALL
 		(
-			SELECT id, user_id, type, content, start_date, end_date, created_at
+			SELECT id, user_id, type, content, reasoning, start_date, end_date, created_at
 			FROM memories
 			WHERE user_id = $1 AND type = 'daily'
 			ORDER BY start_date DESC
@@ -174,6 +177,7 @@ func (db *DB) GetRecentMemoriesForContext(ctx context.Context, userID int64) ([]
 			&memory.UserID,
 			&memory.Type,
 			&memory.Content,
+			&memory.Reasoning,
 			&memory.StartDate,
 			&memory.EndDate,
 			&memory.CreatedAt,
@@ -194,7 +198,7 @@ func (db *DB) GetRecentMemoriesForContext(ctx context.Context, userID int64) ([]
 // GetMemoriesByDateRange retrieves memories of a specific type within a date range
 func (db *DB) GetMemoriesByDateRange(ctx context.Context, userID int64, memoryType MemoryType, startDate, endDate time.Time) ([]*Memory, error) {
 	query := `
-		SELECT id, user_id, type, content, start_date, end_date, created_at
+		SELECT id, user_id, type, content, reasoning, start_date, end_date, created_at
 		FROM memories
 		WHERE user_id = $1 AND type = $2 AND start_date >= $3 AND start_date < $4
 		ORDER BY start_date ASC
@@ -214,6 +218,7 @@ func (db *DB) GetMemoriesByDateRange(ctx context.Context, userID int64, memoryTy
 			&memory.UserID,
 			&memory.Type,
 			&memory.Content,
+			&memory.Reasoning,
 			&memory.StartDate,
 			&memory.EndDate,
 			&memory.CreatedAt,
