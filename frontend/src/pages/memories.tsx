@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import type { Memory } from "@/lib/types";
 import { api } from "@/lib/api";
@@ -14,19 +14,19 @@ function MemoryContent({ content }: { content: string }) {
   const [overflows, setOverflows] = useState(false);
   const [expanded, setExpanded] = useState(false);
 
-  const checkOverflow = useCallback(() => {
-    const el = contentRef.current;
-    if (el) {
-      setOverflows(el.scrollHeight > COLLAPSED_HEIGHT);
-    }
-  }, []);
-
   useEffect(() => {
-    checkOverflow();
-    const observer = new ResizeObserver(checkOverflow);
-    if (contentRef.current) observer.observe(contentRef.current);
+    const el = contentRef.current;
+    if (!el) return;
+
+    const check = () => setOverflows(el.scrollHeight > COLLAPSED_HEIGHT);
+
+    // Check after the browser has painted the markdown
+    requestAnimationFrame(check);
+
+    const observer = new ResizeObserver(check);
+    observer.observe(el);
     return () => observer.disconnect();
-  }, [checkOverflow, content]);
+  }, [content]);
 
   return (
     <div className="relative">
