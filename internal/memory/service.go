@@ -284,8 +284,14 @@ func (s *Service) GenerateWeeklyMemory(ctx context.Context, userID int64) error 
 		customPrompt = prompt.Content
 	}
 
+	// Get label details for context
+	labelDetails, err := s.db.GetAllLabels(ctx, userID)
+	if err != nil {
+		log.Printf("Warning: failed to get labels for weekly memory context: %v", err)
+	}
+
 	// Generate consolidated memory (evolving from previous if exists)
-	memoryResult, err := s.consolidateMemories(ctx, previousMemory, dailyMemories, "weekly", customPrompt)
+	memoryResult, err := s.consolidateMemories(ctx, previousMemory, dailyMemories, "weekly", customPrompt, labelDetails)
 	if err != nil {
 		return fmt.Errorf("failed to consolidate memories: %w", err)
 	}
@@ -360,8 +366,14 @@ func (s *Service) GenerateMonthlyMemory(ctx context.Context, userID int64) error
 		customPrompt = prompt.Content
 	}
 
+	// Get label details for context
+	labelDetails, err := s.db.GetAllLabels(ctx, userID)
+	if err != nil {
+		log.Printf("Warning: failed to get labels for monthly memory context: %v", err)
+	}
+
 	// Generate consolidated memory (evolving from previous if exists)
-	memoryResult, err := s.consolidateMemories(ctx, previousMemory, weeklyMemories, "monthly", customPrompt)
+	memoryResult, err := s.consolidateMemories(ctx, previousMemory, weeklyMemories, "monthly", customPrompt, labelDetails)
 	if err != nil {
 		return fmt.Errorf("failed to consolidate memories: %w", err)
 	}
@@ -436,8 +448,14 @@ func (s *Service) GenerateYearlyMemory(ctx context.Context, userID int64) error 
 		customPrompt = prompt.Content
 	}
 
+	// Get label details for context
+	labelDetails, err := s.db.GetAllLabels(ctx, userID)
+	if err != nil {
+		log.Printf("Warning: failed to get labels for yearly memory context: %v", err)
+	}
+
 	// Generate consolidated memory (evolving from previous if exists)
-	memoryResult, err := s.consolidateMemories(ctx, previousMemory, monthlyMemories, "yearly", customPrompt)
+	memoryResult, err := s.consolidateMemories(ctx, previousMemory, monthlyMemories, "yearly", customPrompt, labelDetails)
 	if err != nil {
 		return fmt.Errorf("failed to consolidate memories: %w", err)
 	}
@@ -466,7 +484,24 @@ func (s *Service) GenerateYearlyMemory(ctx context.Context, userID int64) error 
 }
 
 // consolidateMemories uses AI to evolve an existing memory by incorporating new lower-level memories
-func (s *Service) consolidateMemories(ctx context.Context, previousMemory *database.Memory, newMemories []*database.Memory, period string, customPrompt string) (*openai.MemoryResult, error) {
+func (s *Service) consolidateMemories(ctx context.Context, previousMemory *database.Memory, newMemories []*database.Memory, period string, customPrompt string, labelDetails []*database.Label) (*openai.MemoryResult, error) {
+	// Build available labels section for context
+	labelsSection := ""
+	if len(labelDetails) > 0 {
+		var labelLines []string
+		for _, label := range labelDetails {
+			line := fmt.Sprintf("- **%s**", label.Name)
+			if label.Description != "" {
+				line += fmt.Sprintf(": %s", label.Description)
+			}
+			if len(label.Reasons) > 0 {
+				line += fmt.Sprintf(" (reasons: %s)", strings.Join(label.Reasons, "; "))
+			}
+			labelLines = append(labelLines, line)
+		}
+		labelsSection = fmt.Sprintf("\n\nCurrent labels configured in the system:\n%s", strings.Join(labelLines, "\n"))
+	}
+
 	systemPrompt := customPrompt
 	if systemPrompt == "" {
 		if previousMemory != nil {
@@ -489,6 +524,13 @@ DO NOT write a new memory from scratch. Instead:
 - Show evolution over time rather than replacement
 - Keep the most valuable long-term learnings
 
+**Suggestions for label improvements:**
+Review the current labels (listed below) against the patterns you've observed and suggest:
+- New labels that would help categorize recurring email types not well covered by existing labels
+- Additions or refinements to existing label descriptions that would help the AI make better decisions
+- New reasons to add to existing labels based on patterns seen in recent emails
+- Labels that appear underused or redundant
+
 IMPORTANT: Keep your response concise - aim for around 400 words maximum. Focus only on the most significant changes and patterns. The goal is an EVOLVED memory that's better than the previous one, not a brand new memory. Format as bullet points.`, period)
 		} else {
 			// Initial creation mode: no previous memory exists
@@ -500,8 +542,19 @@ IMPORTANT: Keep your response concise - aim for around 400 words maximum. Focus 
 4. Providing strategic insights for email management
 5. Suggesting process improvements
 
+**Suggestions for label improvements:**
+Review the current labels (listed below) against the patterns observed and suggest:
+- New labels that would help categorize recurring email types not well covered by existing labels
+- Additions or refinements to existing label descriptions that would help the AI make better decisions
+- New reasons to add to existing labels based on patterns seen in the emails
+- Labels that appear underused or redundant
+
 IMPORTANT: Keep your response concise - aim for around 800 words maximum. Focus on the most important actionable patterns. Format as bullet points.`, period)
 		}
+	}
+
+	if labelsSection != "" {
+		systemPrompt += labelsSection
 	}
 
 	// Prepare summary of new memories
