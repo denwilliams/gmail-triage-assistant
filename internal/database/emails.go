@@ -6,6 +6,16 @@ import (
 	"fmt"
 )
 
+// EmailExists checks if an email has already been processed
+func (db *DB) EmailExists(ctx context.Context, emailID string) (bool, error) {
+	var exists bool
+	err := db.conn.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM emails WHERE id = $1)", emailID).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("failed to check email existence: %w", err)
+	}
+	return exists, nil
+}
+
 // CreateEmail saves email analysis results to the database
 func (db *DB) CreateEmail(ctx context.Context, email *Email) error {
 	// Convert slices to JSON for PostgreSQL JSONB

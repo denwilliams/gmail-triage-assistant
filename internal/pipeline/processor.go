@@ -35,6 +35,15 @@ func NewProcessor(db *database.DB, openaiClient *openai.Client, oauthConfig *oau
 func (p *Processor) ProcessEmail(ctx context.Context, user *database.User, message *gmail.Message) error {
 	log.Printf("[%s] Processing email: %s - %s", user.Email, message.From, message.Subject)
 
+	// Skip if already processed (prevents duplicate notifications on retry)
+	exists, err := p.db.EmailExists(ctx, message.ID)
+	if err != nil {
+		log.Printf("[%s] Warning: failed to check if email exists: %v", user.Email, err)
+	} else if exists {
+		log.Printf("[%s] Skipping already processed email: %s", user.Email, message.ID)
+		return nil
+	}
+
 	// Decode body if it's base64 encoded
 	body := message.Body
 	if body != "" {
