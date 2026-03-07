@@ -1,10 +1,58 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
+import ReactMarkdown from "react-markdown";
 import type { Memory } from "@/lib/types";
 import { api } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+
+const COLLAPSED_HEIGHT = 192; // 12rem in px
+
+function MemoryContent({ content }: { content: string }) {
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [overflows, setOverflows] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+
+  const checkOverflow = useCallback(() => {
+    const el = contentRef.current;
+    if (el) {
+      setOverflows(el.scrollHeight > COLLAPSED_HEIGHT);
+    }
+  }, []);
+
+  useEffect(() => {
+    checkOverflow();
+    const observer = new ResizeObserver(checkOverflow);
+    if (contentRef.current) observer.observe(contentRef.current);
+    return () => observer.disconnect();
+  }, [checkOverflow, content]);
+
+  return (
+    <div className="relative">
+      <div
+        ref={contentRef}
+        className={cn(
+          "prose prose-sm max-w-none dark:prose-invert",
+          !expanded && overflows && "max-h-48 overflow-hidden"
+        )}
+      >
+        <ReactMarkdown>{content}</ReactMarkdown>
+      </div>
+      {overflows && !expanded && (
+        <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-card to-transparent" />
+      )}
+      {overflows && (
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="mt-1 text-xs font-medium text-muted-foreground hover:text-foreground"
+        >
+          {expanded ? "Show less" : "Show more"}
+        </button>
+      )}
+    </div>
+  );
+}
 
 const typeColors: Record<string, string> = {
   daily: "border-l-blue-500",
@@ -111,7 +159,7 @@ export default function MemoriesPage() {
               </div>
             </CardHeader>
             <CardContent className="pt-0">
-              <pre className="whitespace-pre-wrap text-sm">{memory.content}</pre>
+              <MemoryContent content={memory.content} />
               <p className="mt-2 text-xs text-muted-foreground">
                 Created: {new Date(memory.created_at).toLocaleString()}
               </p>
