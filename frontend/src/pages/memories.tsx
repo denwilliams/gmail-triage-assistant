@@ -45,7 +45,7 @@ function MemoryContent({ content }: { content: string }) {
       {overflows && (
         <button
           onClick={() => setExpanded(!expanded)}
-          className="mt-1 text-xs font-medium text-muted-foreground hover:text-foreground"
+          className="relative z-10 mt-1 text-xs font-medium text-muted-foreground hover:text-foreground"
         >
           {expanded ? "Show less" : "Show more"}
         </button>
