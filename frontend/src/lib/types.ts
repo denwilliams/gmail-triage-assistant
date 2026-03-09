@@ -114,3 +114,80 @@ export interface SenderProfilesResponse {
   sender: SenderProfile | null;
   domain: SenderProfile | null;
 }
+
+// Dashboard stats types
+
+export interface SenderStatItem {
+  address: string;
+  count: number;
+  archive_rate: number;
+}
+
+export interface DomainStatItem {
+  domain: string;
+  count: number;
+  archive_rate: number;
+}
+
+export interface SlugStatItem {
+  slug: string;
+  count: number;
+}
+
+export interface LabelStatItem {
+  label: string;
+  count: number;
+}
+
+export interface KeywordStatItem {
+  keyword: string;
+  count: number;
+}
+
+export interface DashboardSummary {
+  total_emails: number;
+  emails_today: number;
+  emails_this_week: number;
+  unique_senders: number;
+  bypass_rate: number;
+  notification_rate: number;
+  top_senders: SenderStatItem[];
+  top_domains: DomainStatItem[];
+  top_slugs: SlugStatItem[];
+  label_distribution: LabelStatItem[];
+  top_keywords: KeywordStatItem[];
+  new_slugs_this_week: number;
+  recurring_slugs_this_week: number;
+}
+
+export interface DayCount {
+  date: string;
+  count: number;
+}
+
+export interface DayRate {
+  date: string;
+  total: number;
+  count: number;
+  rate: number;
+}
+
+export interface DayLabelCount {
+  date: string;
+  label: string;
+  count: number;
+}
+
+export interface HourCount {
+  day_of_week: number;
+  hour: number;
+  count: number;
+}
+
+export interface DashboardTimeseries {
+  daily_volume: DayCount[];
+  daily_bypass_rate: DayRate[];
+  daily_notifications: DayCount[];
+  label_trends: DayLabelCount[];
+  hourly_heatmap: HourCount[];
+}

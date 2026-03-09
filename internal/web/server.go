@@ -105,6 +105,9 @@ func (s *Server) routes() {
 
 	api.HandleFunc("/wrapups", s.requireAuthAPI(s.handleAPIGetWrapups)).Methods("GET")
 
+	api.HandleFunc("/stats/summary", s.requireAuthAPI(s.handleAPIGetStatsSummary)).Methods("GET")
+	api.HandleFunc("/stats/timeseries", s.requireAuthAPI(s.handleAPIGetStatsTimeseries)).Methods("GET")
+
 	// SPA fallback — serves React app for all other routes
 	spa := newSPAHandler(s.frontendFS)
 	s.router.PathPrefix("/").Handler(spa)

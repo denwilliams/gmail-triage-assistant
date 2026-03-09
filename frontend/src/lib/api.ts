@@ -89,6 +89,10 @@ export const api = {
       body: JSON.stringify({ profile_type: profileType, identifier }),
     }),
 
+  getStatsSummary: () => request<import("./types").DashboardSummary>("/stats/summary"),
+  getStatsTimeseries: (days = 30) =>
+    request<import("./types").DashboardTimeseries>(`/stats/timeseries?days=${days}`),
+
   getSettings: () => request<import("./types").UserSettings>("/settings"),
   updatePushover: (user_key: string, app_token: string) =>
     request<{ status: string }>("/settings/pushover", {

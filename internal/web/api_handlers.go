@@ -574,6 +574,45 @@ func (s *Server) handleAPIUpdateSenderProfile(w http.ResponseWriter, r *http.Req
 	respondJSON(w, http.StatusOK, profile)
 }
 
+// GET /api/v1/stats/summary
+func (s *Server) handleAPIGetStatsSummary(w http.ResponseWriter, r *http.Request) {
+	session, _ := s.sessionStore.Get(r, "session")
+	userID := session.Values["user_id"].(int64)
+
+	ctx := context.Background()
+	summary, err := s.db.GetDashboardSummary(ctx, userID)
+	if err != nil {
+		log.Printf("API: Failed to load stats summary: %v", err)
+		respondError(w, http.StatusInternalServerError, "Failed to load stats summary")
+		return
+	}
+
+	respondJSON(w, http.StatusOK, summary)
+}
+
+// GET /api/v1/stats/timeseries?days=30
+func (s *Server) handleAPIGetStatsTimeseries(w http.ResponseWriter, r *http.Request) {
+	session, _ := s.sessionStore.Get(r, "session")
+	userID := session.Values["user_id"].(int64)
+
+	days := 30
+	if d := r.URL.Query().Get("days"); d != "" {
+		if parsed, err := strconv.Atoi(d); err == nil && parsed > 0 && parsed <= 365 {
+			days = parsed
+		}
+	}
+
+	ctx := context.Background()
+	timeseries, err := s.db.GetDashboardTimeseries(ctx, userID, days)
+	if err != nil {
+		log.Printf("API: Failed to load stats timeseries: %v", err)
+		respondError(w, http.StatusInternalServerError, "Failed to load stats timeseries")
+		return
+	}
+
+	respondJSON(w, http.StatusOK, timeseries)
+}
+
 // GET /api/v1/wrapups
 func (s *Server) handleAPIGetWrapups(w http.ResponseWriter, r *http.Request) {
 	session, _ := s.sessionStore.Get(r, "session")
