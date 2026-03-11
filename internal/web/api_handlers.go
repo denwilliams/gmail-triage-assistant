@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/den/gmail-triage-assistant/internal/database"
 	"github.com/gorilla/mux"
@@ -332,7 +333,7 @@ func (s *Server) handleAPIGetSettings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Mask the user key for display (show last 4 chars)
+	// Mask the pushover user key for display (show last 4 chars)
 	maskedKey := ""
 	if user.PushoverUserKey != "" {
 		if len(user.PushoverUserKey) > 4 {
@@ -342,9 +343,23 @@ func (s *Server) handleAPIGetSettings(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Mask the webhook header value for display (show last 4 chars)
+	maskedHeaderValue := ""
+	if user.WebhookHeaderValue != "" {
+		if len(user.WebhookHeaderValue) > 4 {
+			maskedHeaderValue = "****" + user.WebhookHeaderValue[len(user.WebhookHeaderValue)-4:]
+		} else {
+			maskedHeaderValue = "****"
+		}
+	}
+
 	respondJSON(w, http.StatusOK, map[string]interface{}{
-		"pushover_user_key":  maskedKey,
-		"pushover_configured": user.HasPushoverConfig(),
+		"pushover_user_key":    maskedKey,
+		"pushover_configured":  user.HasPushoverConfig(),
+		"webhook_url":          user.WebhookURL,
+		"webhook_header_key":   user.WebhookHeaderKey,
+		"webhook_header_value": maskedHeaderValue,
+		"webhook_configured":   user.HasWebhookConfig(),
 	})
 }
 
@@ -366,6 +381,31 @@ func (s *Server) handleAPIUpdatePushover(w http.ResponseWriter, r *http.Request)
 	if err := s.db.UpdatePushoverConfig(ctx, userID, body.UserKey, body.AppToken); err != nil {
 		log.Printf("API: Failed to update pushover config: %v", err)
 		respondError(w, http.StatusInternalServerError, "Failed to save Pushover settings")
+		return
+	}
+
+	respondJSON(w, http.StatusOK, map[string]string{"status": "updated"})
+}
+
+// PUT /api/v1/settings/webhook
+func (s *Server) handleAPIUpdateWebhook(w http.ResponseWriter, r *http.Request) {
+	session, _ := s.sessionStore.Get(r, "session")
+	userID := session.Values["user_id"].(int64)
+
+	var body struct {
+		URL         string `json:"url"`
+		HeaderKey   string `json:"header_key"`
+		HeaderValue string `json:"header_value"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		respondError(w, http.StatusBadRequest, "Invalid JSON")
+		return
+	}
+
+	ctx := context.Background()
+	if err := s.db.UpdateWebhookConfig(ctx, userID, body.URL, body.HeaderKey, body.HeaderValue); err != nil {
+		log.Printf("API: Failed to update webhook config: %v", err)
+		respondError(w, http.StatusInternalServerError, "Failed to save webhook settings")
 		return
 	}
 
@@ -634,4 +674,102 @@ func (s *Server) handleAPIGetWrapups(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respondJSON(w, http.StatusOK, reports)
+}
+
+// GET /api/v1/export
+func (s *Server) handleAPIExport(w http.ResponseWriter, r *http.Request) {
+	session, _ := s.sessionStore.Get(r, "session")
+	userID := session.Values["user_id"].(int64)
+	ctx := context.Background()
+
+	includeEmails := r.URL.Query().Get("include_emails") == "true"
+
+	envelope := database.ExportEnvelope{
+		Version:       1,
+		ExportedAt:    time.Now(),
+		App:           "gmail-triage-assistant",
+		IncludeEmails: includeEmails,
+	}
+
+	var err error
+	if envelope.Data.Labels, err = s.db.ExportLabels(ctx, userID); err != nil {
+		log.Printf("API: Failed to export labels: %v", err)
+		respondError(w, http.StatusInternalServerError, "Failed to export labels")
+		return
+	}
+	if envelope.Data.SystemPrompts, err = s.db.ExportSystemPrompts(ctx, userID); err != nil {
+		log.Printf("API: Failed to export system prompts: %v", err)
+		respondError(w, http.StatusInternalServerError, "Failed to export system prompts")
+		return
+	}
+	if envelope.Data.AIPrompts, err = s.db.ExportAIPrompts(ctx, userID); err != nil {
+		log.Printf("API: Failed to export AI prompts: %v", err)
+		respondError(w, http.StatusInternalServerError, "Failed to export AI prompts")
+		return
+	}
+	if envelope.Data.Memories, err = s.db.ExportMemories(ctx, userID); err != nil {
+		log.Printf("API: Failed to export memories: %v", err)
+		respondError(w, http.StatusInternalServerError, "Failed to export memories")
+		return
+	}
+	if envelope.Data.SenderProfiles, err = s.db.ExportSenderProfiles(ctx, userID); err != nil {
+		log.Printf("API: Failed to export sender profiles: %v", err)
+		respondError(w, http.StatusInternalServerError, "Failed to export sender profiles")
+		return
+	}
+	if envelope.Data.WrapupReports, err = s.db.ExportWrapupReports(ctx, userID); err != nil {
+		log.Printf("API: Failed to export wrapup reports: %v", err)
+		respondError(w, http.StatusInternalServerError, "Failed to export wrapup reports")
+		return
+	}
+	if envelope.Data.Notifications, err = s.db.ExportNotifications(ctx, userID); err != nil {
+		log.Printf("API: Failed to export notifications: %v", err)
+		respondError(w, http.StatusInternalServerError, "Failed to export notifications")
+		return
+	}
+	if includeEmails {
+		if envelope.Data.Emails, err = s.db.ExportEmails(ctx, userID); err != nil {
+			log.Printf("API: Failed to export emails: %v", err)
+			respondError(w, http.StatusInternalServerError, "Failed to export emails")
+			return
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Disposition", "attachment; filename=gmail-triage-export.json")
+	json.NewEncoder(w).Encode(envelope)
+}
+
+// POST /api/v1/import
+func (s *Server) handleAPIImport(w http.ResponseWriter, r *http.Request) {
+	session, _ := s.sessionStore.Get(r, "session")
+	userID := session.Values["user_id"].(int64)
+	ctx := context.Background()
+
+	// Limit request body to 100MB
+	r.Body = http.MaxBytesReader(w, r.Body, 100<<20)
+
+	var envelope database.ExportEnvelope
+	if err := json.NewDecoder(r.Body).Decode(&envelope); err != nil {
+		respondError(w, http.StatusBadRequest, "Invalid JSON or file too large")
+		return
+	}
+
+	if envelope.App != "gmail-triage-assistant" {
+		respondError(w, http.StatusBadRequest, "Invalid export file: wrong app identifier")
+		return
+	}
+	if envelope.Version != 1 {
+		respondError(w, http.StatusBadRequest, "Unsupported export version")
+		return
+	}
+
+	result, err := s.db.ImportAllData(ctx, userID, envelope.Data)
+	if err != nil {
+		log.Printf("API: Failed to import data: %v", err)
+		respondError(w, http.StatusInternalServerError, "Import failed: "+err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusOK, result)
 }

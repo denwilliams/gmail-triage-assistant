@@ -10,6 +10,7 @@ import MemoriesPage from "@/pages/memories";
 import WrapupsPage from "@/pages/wrapups";
 import NotificationsPage from "@/pages/notifications";
 import SettingsPage from "@/pages/settings";
+import PromptWizardPage from "@/pages/prompt-wizard";
 
 export default function App() {
   return (
@@ -23,6 +24,7 @@ export default function App() {
             <Route path="/history" element={<HistoryPage />} />
             <Route path="/history/:emailId" element={<HistoryPage />} />
             <Route path="/prompts" element={<PromptsPage />} />
+            <Route path="/prompt-wizard" element={<PromptWizardPage />} />
             <Route path="/memories" element={<MemoriesPage />} />
             <Route path="/wrapups" element={<WrapupsPage />} />
             <Route path="/notifications" element={<NotificationsPage />} />

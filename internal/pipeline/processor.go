@@ -12,6 +12,7 @@ import (
 	"github.com/den/gmail-triage-assistant/internal/gmail"
 	"github.com/den/gmail-triage-assistant/internal/openai"
 	"github.com/den/gmail-triage-assistant/internal/pushover"
+	"github.com/den/gmail-triage-assistant/internal/webhook"
 	"golang.org/x/oauth2"
 )
 
@@ -20,14 +21,16 @@ type Processor struct {
 	openai      *openai.Client
 	oauthConfig *oauth2.Config
 	pushover    *pushover.Client
+	webhook     *webhook.Client
 }
 
-func NewProcessor(db *database.DB, openaiClient *openai.Client, oauthConfig *oauth2.Config, pushoverClient *pushover.Client) *Processor {
+func NewProcessor(db *database.DB, openaiClient *openai.Client, oauthConfig *oauth2.Config, pushoverClient *pushover.Client, webhookClient *webhook.Client) *Processor {
 	return &Processor{
 		db:          db,
 		openai:      openaiClient,
 		oauthConfig: oauthConfig,
 		pushover:    pushoverClient,
+		webhook:     webhookClient,
 	}
 }
 
@@ -166,11 +169,32 @@ func (p *Processor) ProcessEmail(ctx context.Context, user *database.User, messa
 		}
 	}
 
+	// Send webhook notification if AI provided a notification message and user has webhook configured
+	if actions.NotificationMessage != "" && user.HasWebhookConfig() {
+		payload := webhook.Payload{
+			Title:         message.Subject,
+			Message:       actions.NotificationMessage,
+			FromAddress:   message.From,
+			EmailID:       message.ID,
+			Slug:          analysis.Slug,
+			Subject:       message.Subject,
+			LabelsApplied: actions.Labels,
+			ProcessedAt:   time.Now().UTC().Format(time.RFC3339),
+		}
+		if err := p.webhook.Send(user.WebhookURL, user.WebhookHeaderKey, user.WebhookHeaderValue, payload); err != nil {
+			log.Printf("[%s] Failed to send webhook notification: %v", user.Email, err)
+		} else {
+			notificationSent = true
+			log.Printf("[%s] Webhook notification sent for: %s", user.Email, message.Subject)
+		}
+	}
+
 	// Save to database
 	email := &database.Email{
 		ID:               message.ID,
 		UserID:           user.ID,
 		FromAddress:      message.From,
+		FromDomain:       domain,
 		Subject:          message.Subject,
 		Slug:             analysis.Slug,
 		Keywords:         analysis.Keywords,

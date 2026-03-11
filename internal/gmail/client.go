@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"net/mail"
 	"time"
 
 	"golang.org/x/oauth2"
@@ -124,7 +125,7 @@ func (c *Client) GetMessage(ctx context.Context, messageID string) (*Message, er
 		case "Subject":
 			message.Subject = header.Value
 		case "From":
-			message.From = header.Value
+			message.From = parseAddress(header.Value)
 		}
 	}
 
@@ -244,4 +245,15 @@ func (c *Client) SendMessage(ctx context.Context, to, subject, body string) erro
 	}
 
 	return nil
+}
+
+// parseAddress extracts just the email address from an RFC 5322 From header.
+// "John Doe <john@example.com>" → "john@example.com"
+// "john@example.com" → "john@example.com"
+func parseAddress(raw string) string {
+	addr, err := mail.ParseAddress(raw)
+	if err != nil {
+		return raw // fall back to raw value
+	}
+	return addr.Address
 }

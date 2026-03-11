@@ -136,10 +136,10 @@ func (db *DB) GetDashboardSummary(ctx context.Context, userID int64) (*Dashboard
 
 	// Top 15 domains
 	rows2, err := db.conn.QueryContext(ctx, `
-		SELECT split_part(from_address, '@', 2) as domain, COUNT(*) as cnt,
+		SELECT from_domain, COUNT(*) as cnt,
 			AVG(CASE WHEN bypassed_inbox THEN 1.0 ELSE 0.0 END) as archive_rate
-		FROM emails WHERE user_id = $1
-		GROUP BY domain ORDER BY cnt DESC LIMIT 15
+		FROM emails WHERE user_id = $1 AND from_domain != ''
+		GROUP BY from_domain ORDER BY cnt DESC LIMIT 15
 	`, userID)
 	if err != nil {
 		return nil, fmt.Errorf("top domains query failed: %w", err)

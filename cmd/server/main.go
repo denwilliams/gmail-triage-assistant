@@ -17,6 +17,7 @@ import (
 	"github.com/den/gmail-triage-assistant/internal/openai"
 	"github.com/den/gmail-triage-assistant/internal/pipeline"
 	"github.com/den/gmail-triage-assistant/internal/pushover"
+	"github.com/den/gmail-triage-assistant/internal/webhook"
 	"github.com/den/gmail-triage-assistant/internal/scheduler"
 	"github.com/den/gmail-triage-assistant/internal/web"
 	"github.com/den/gmail-triage-assistant/internal/wrapup"
@@ -88,8 +89,12 @@ func main() {
 	pushoverClient := pushover.NewClient()
 	log.Printf("✓ Pushover client initialized")
 
+	// Initialize webhook client for webhook notifications
+	webhookClient := webhook.NewClient()
+	log.Printf("✓ Webhook client initialized")
+
 	// Initialize email processor pipeline
-	processor := pipeline.NewProcessor(db, openaiClient, oauthConfig, pushoverClient)
+	processor := pipeline.NewProcessor(db, openaiClient, oauthConfig, pushoverClient, webhookClient)
 	log.Printf("✓ Email processing pipeline initialized")
 
 	// Create message handler using the pipeline

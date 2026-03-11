@@ -182,7 +182,7 @@ func (db *DB) GetHistoricalEmailsFromDomain(ctx context.Context, userID int64, d
 		SELECT id, user_id, from_address, subject, slug, keywords, summary,
 		       labels_applied, bypassed_inbox, reasoning, COALESCE(human_feedback, ''), notification_sent, processed_at, created_at
 		FROM emails
-		WHERE user_id = $1 AND from_address LIKE '%@' || $2
+		WHERE user_id = $1 AND from_domain = $2
 		ORDER BY processed_at DESC
 		LIMIT $3
 	`

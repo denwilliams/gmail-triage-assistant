@@ -22,8 +22,8 @@ func (db *DB) CreateUser(ctx context.Context, email, googleID string, token *oau
 	}
 
 	query := `
-		INSERT INTO users (email, google_id, access_token, refresh_token, token_expiry, is_active, pushover_user_key, pushover_app_token, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		INSERT INTO users (email, google_id, access_token, refresh_token, token_expiry, is_active, pushover_user_key, pushover_app_token, webhook_url, webhook_header_key, webhook_header_value, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 		RETURNING id
 	`
 
@@ -38,6 +38,9 @@ func (db *DB) CreateUser(ctx context.Context, email, googleID string, token *oau
 		user.IsActive,
 		user.PushoverUserKey,
 		user.PushoverAppToken,
+		user.WebhookURL,
+		user.WebhookHeaderKey,
+		user.WebhookHeaderValue,
 		user.CreatedAt,
 		user.UpdatedAt,
 	).Scan(&user.ID)
@@ -54,7 +57,7 @@ func (db *DB) GetUserByEmail(ctx context.Context, email string) (*User, error) {
 	user := &User{}
 
 	query := `
-		SELECT id, email, google_id, access_token, refresh_token, token_expiry, is_active, last_checked_at, pushover_user_key, pushover_app_token, created_at, updated_at
+		SELECT id, email, google_id, access_token, refresh_token, token_expiry, is_active, last_checked_at, pushover_user_key, pushover_app_token, webhook_url, webhook_header_key, webhook_header_value, created_at, updated_at
 		FROM users
 		WHERE email = $1
 	`
@@ -70,6 +73,9 @@ func (db *DB) GetUserByEmail(ctx context.Context, email string) (*User, error) {
 		&user.LastCheckedAt,
 		&user.PushoverUserKey,
 		&user.PushoverAppToken,
+		&user.WebhookURL,
+		&user.WebhookHeaderKey,
+		&user.WebhookHeaderValue,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -86,7 +92,7 @@ func (db *DB) GetUserByGoogleID(ctx context.Context, googleID string) (*User, er
 	user := &User{}
 
 	query := `
-		SELECT id, email, google_id, access_token, refresh_token, token_expiry, is_active, last_checked_at, pushover_user_key, pushover_app_token, created_at, updated_at
+		SELECT id, email, google_id, access_token, refresh_token, token_expiry, is_active, last_checked_at, pushover_user_key, pushover_app_token, webhook_url, webhook_header_key, webhook_header_value, created_at, updated_at
 		FROM users
 		WHERE google_id = $1
 	`
@@ -102,6 +108,9 @@ func (db *DB) GetUserByGoogleID(ctx context.Context, googleID string) (*User, er
 		&user.LastCheckedAt,
 		&user.PushoverUserKey,
 		&user.PushoverAppToken,
+		&user.WebhookURL,
+		&user.WebhookHeaderKey,
+		&user.WebhookHeaderValue,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -141,7 +150,7 @@ func (db *DB) UpdateUserToken(ctx context.Context, userID int64, token *oauth2.T
 // GetAllActiveUsers retrieves all users with monitoring enabled
 func (db *DB) GetAllActiveUsers(ctx context.Context) ([]*User, error) {
 	query := `
-		SELECT id, email, google_id, access_token, refresh_token, token_expiry, is_active, last_checked_at, pushover_user_key, pushover_app_token, created_at, updated_at
+		SELECT id, email, google_id, access_token, refresh_token, token_expiry, is_active, last_checked_at, pushover_user_key, pushover_app_token, webhook_url, webhook_header_key, webhook_header_value, created_at, updated_at
 		FROM users
 		WHERE is_active = true
 		ORDER BY created_at ASC
@@ -228,7 +237,7 @@ func (u *User) GetOAuth2Token() *oauth2.Token {
 // GetActiveUsers retrieves all active users
 func (db *DB) GetActiveUsers(ctx context.Context) ([]*User, error) {
 	query := `
-		SELECT id, email, google_id, access_token, refresh_token, token_expiry, is_active, last_checked_at, pushover_user_key, pushover_app_token, created_at, updated_at
+		SELECT id, email, google_id, access_token, refresh_token, token_expiry, is_active, last_checked_at, pushover_user_key, pushover_app_token, webhook_url, webhook_header_key, webhook_header_value, created_at, updated_at
 		FROM users
 		WHERE is_active = true
 		ORDER BY email
@@ -271,7 +280,7 @@ func (db *DB) GetUserByID(ctx context.Context, userID int64) (*User, error) {
 	user := &User{}
 
 	query := `
-		SELECT id, email, google_id, access_token, refresh_token, token_expiry, is_active, last_checked_at, pushover_user_key, pushover_app_token, created_at, updated_at
+		SELECT id, email, google_id, access_token, refresh_token, token_expiry, is_active, last_checked_at, pushover_user_key, pushover_app_token, webhook_url, webhook_header_key, webhook_header_value, created_at, updated_at
 		FROM users
 		WHERE id = $1
 	`
@@ -287,6 +296,9 @@ func (db *DB) GetUserByID(ctx context.Context, userID int64) (*User, error) {
 		&user.LastCheckedAt,
 		&user.PushoverUserKey,
 		&user.PushoverAppToken,
+		&user.WebhookURL,
+		&user.WebhookHeaderKey,
+		&user.WebhookHeaderValue,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -309,6 +321,22 @@ func (db *DB) UpdatePushoverConfig(ctx context.Context, userID int64, userKey, a
 	_, err := db.conn.ExecContext(ctx, query, userKey, appToken, time.Now(), userID)
 	if err != nil {
 		return fmt.Errorf("failed to update pushover config: %w", err)
+	}
+
+	return nil
+}
+
+// UpdateWebhookConfig updates a user's webhook settings
+func (db *DB) UpdateWebhookConfig(ctx context.Context, userID int64, url, headerKey, headerValue string) error {
+	query := `
+		UPDATE users
+		SET webhook_url = $1, webhook_header_key = $2, webhook_header_value = $3, updated_at = $4
+		WHERE id = $5
+	`
+
+	_, err := db.conn.ExecContext(ctx, query, url, headerKey, headerValue, time.Now(), userID)
+	if err != nil {
+		return fmt.Errorf("failed to update webhook config: %w", err)
 	}
 
 	return nil

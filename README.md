@@ -540,6 +540,79 @@ sudo systemctl start gmail-triage
 sudo systemctl status gmail-triage
 ```
 
+### macOS (launchd)
+
+Run as a background service that starts automatically on login:
+
+1. **Build the binary**
+   ```bash
+   make build
+   ```
+
+2. **Create the plist file** at `~/Library/LaunchAgents/com.gmail-triage-assistant.plist`:
+   ```xml
+   <?xml version="1.0" encoding="UTF-8"?>
+   <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://apple.com/DTDs/PropertyList-1.0.dtd">
+   <plist version="1.0">
+   <dict>
+     <key>Label</key>
+     <string>com.gmail-triage-assistant</string>
+     <key>ProgramArguments</key>
+     <array>
+       <string>/path/to/gmail-triage-assistant/bin/gmail-triage-assistant</string>
+     </array>
+     <key>WorkingDirectory</key>
+     <string>/path/to/gmail-triage-assistant</string>
+     <key>EnvironmentVariables</key>
+     <dict>
+       <key>DATABASE_URL</key>
+       <string>postgres://user:password@localhost:5432/gmail_triage?sslmode=disable</string>
+       <key>GOOGLE_CLIENT_ID</key>
+       <string>your-client-id</string>
+       <key>GOOGLE_CLIENT_SECRET</key>
+       <string>your-client-secret</string>
+       <key>GOOGLE_REDIRECT_URL</key>
+       <string>http://localhost:8080/auth/callback</string>
+       <key>OPENAI_API_KEY</key>
+       <string>sk-your-key</string>
+       <key>OPENAI_MODEL</key>
+       <string>gpt-5-nano</string>
+     </dict>
+     <key>RunAtLoad</key>
+     <true/>
+     <key>KeepAlive</key>
+     <true/>
+     <key>StandardOutPath</key>
+     <string>/tmp/gmail-triage.log</string>
+     <key>StandardErrorPath</key>
+     <string>/tmp/gmail-triage.err</string>
+   </dict>
+   </plist>
+   ```
+
+3. **Load and start**
+   ```bash
+   launchctl load ~/Library/LaunchAgents/com.gmail-triage-assistant.plist
+   ```
+
+4. **Manage the service**
+   ```bash
+   # Check status
+   launchctl list | grep gmail-triage
+
+   # Stop
+   launchctl unload ~/Library/LaunchAgents/com.gmail-triage-assistant.plist
+
+   # Restart (unload + load)
+   launchctl unload ~/Library/LaunchAgents/com.gmail-triage-assistant.plist
+   launchctl load ~/Library/LaunchAgents/com.gmail-triage-assistant.plist
+
+   # View logs
+   tail -f /tmp/gmail-triage.log
+   ```
+
+The service starts on login, restarts automatically if it crashes (`KeepAlive`), and runs whenever your Mac is awake.
+
 ### Raspberry Pi Deployment
 
 Perfect for home server deployment:

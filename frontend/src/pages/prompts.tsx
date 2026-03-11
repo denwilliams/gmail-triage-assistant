@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router";
 import type { SystemPrompt, AIPrompt } from "@/lib/types";
 import { api } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
@@ -67,6 +68,7 @@ function AIPromptDisplay({ prompt, label }: { prompt: AIPrompt; label: string })
 }
 
 export default function PromptsPage() {
+  const navigate = useNavigate();
   const [prompts, setPrompts] = useState<SystemPrompt[]>([]);
   const [aiAnalyze, setAIAnalyze] = useState<AIPrompt | null>(null);
   const [aiActions, setAIActions] = useState<AIPrompt | null>(null);
@@ -97,9 +99,14 @@ export default function PromptsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">System Prompts</h1>
-        {prompts.length === 0 && (
-          <Button onClick={handleInitDefaults}>Initialize Defaults</Button>
-        )}
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => navigate("/prompt-wizard")}>
+            Setup Wizard
+          </Button>
+          {prompts.length === 0 && (
+            <Button onClick={handleInitDefaults}>Initialize Defaults</Button>
+          )}
+        </div>
       </div>
 
       <div className="space-y-4">

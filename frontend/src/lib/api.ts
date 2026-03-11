@@ -93,10 +93,53 @@ export const api = {
   getStatsTimeseries: (days = 30) =>
     request<import("./types").DashboardTimeseries>(`/stats/timeseries?days=${days}`),
 
+  startPromptWizard: () =>
+    request<import("./types").WizardStartResponse>("/prompt-wizard/start", {
+      method: "POST",
+    }),
+  continuePromptWizard: (body: import("./types").WizardContinueRequest) =>
+    request<import("./types").WizardContinueResponse>("/prompt-wizard/continue", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
   getSettings: () => request<import("./types").UserSettings>("/settings"),
   updatePushover: (user_key: string, app_token: string) =>
     request<{ status: string }>("/settings/pushover", {
       method: "PUT",
       body: JSON.stringify({ user_key, app_token }),
+    }),
+  updateWebhook: (url: string, header_key: string, header_value: string) =>
+    request<{ status: string }>("/settings/webhook", {
+      method: "PUT",
+      body: JSON.stringify({ url, header_key, header_value }),
+    }),
+
+  exportData: async (includeEmails: boolean) => {
+    const res = await fetch(
+      `${BASE}/export?include_emails=${includeEmails}`,
+      { headers: { "Content-Type": "application/json" } }
+    );
+    if (res.status === 401) {
+      window.location.href = "/auth/login";
+      throw new Error("Not authenticated");
+    }
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({ error: res.statusText }));
+      throw new Error(body.error || res.statusText);
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "gmail-triage-export.json";
+    a.click();
+    URL.revokeObjectURL(url);
+  },
+
+  importData: (data: unknown) =>
+    request<import("./types").ImportResult>("/import", {
+      method: "POST",
+      body: JSON.stringify(data),
     }),
 };

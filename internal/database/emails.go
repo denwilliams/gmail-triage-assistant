@@ -30,8 +30,8 @@ func (db *DB) CreateEmail(ctx context.Context, email *Email) error {
 	}
 
 	query := `
-		INSERT INTO emails (id, user_id, from_address, subject, slug, keywords, summary, labels_applied, bypassed_inbox, reasoning, notification_sent, processed_at, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+		INSERT INTO emails (id, user_id, from_address, from_domain, subject, slug, keywords, summary, labels_applied, bypassed_inbox, reasoning, notification_sent, processed_at, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 		ON CONFLICT (id) DO NOTHING
 	`
 
@@ -41,6 +41,7 @@ func (db *DB) CreateEmail(ctx context.Context, email *Email) error {
 		email.ID,
 		email.UserID,
 		email.FromAddress,
+		email.FromDomain,
 		email.Subject,
 		email.Slug,
 		keywordsJSON,
@@ -125,7 +126,7 @@ func (db *DB) GetUserLabelsWithDetails(ctx context.Context, userID int64) ([]*La
 // GetRecentEmails retrieves recent processed emails for a user
 func (db *DB) GetRecentEmails(ctx context.Context, userID int64, limit int, offset int) ([]*Email, error) {
 	query := `
-		SELECT id, user_id, from_address, subject, slug, keywords, summary,
+		SELECT id, user_id, from_address, from_domain, subject, slug, keywords, summary,
 		       labels_applied, bypassed_inbox, reasoning, COALESCE(human_feedback, ''), COALESCE(feedback_dirty, FALSE), notification_sent, processed_at, created_at
 		FROM emails
 		WHERE user_id = $1
@@ -148,6 +149,7 @@ func (db *DB) GetRecentEmails(ctx context.Context, userID int64, limit int, offs
 			&email.ID,
 			&email.UserID,
 			&email.FromAddress,
+			&email.FromDomain,
 			&email.Subject,
 			&email.Slug,
 			&keywordsJSON,

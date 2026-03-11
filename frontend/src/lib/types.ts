@@ -87,6 +87,21 @@ export interface PromptsResponse {
 export interface UserSettings {
   pushover_user_key: string;
   pushover_configured: boolean;
+  webhook_url: string;
+  webhook_header_key: string;
+  webhook_header_value: string;
+  webhook_configured: boolean;
+}
+
+export interface ImportResult {
+  labels: number;
+  system_prompts: number;
+  ai_prompts: number;
+  memories: number;
+  sender_profiles: number;
+  wrapup_reports: number;
+  notifications: number;
+  emails: number;
 }
 
 export interface AuthUser {
@@ -182,6 +197,51 @@ export interface HourCount {
   day_of_week: number;
   hour: number;
   count: number;
+}
+
+// Prompt Wizard types
+
+export interface WizardOption {
+  value: string;
+  label: string;
+}
+
+export interface WizardQuestion {
+  id: string;
+  text: string;
+  type: "single_select" | "multi_select" | "text";
+  options: WizardOption[];
+}
+
+export interface WizardAnswer {
+  question_id: string;
+  question: string;
+  answer: string;
+}
+
+export interface WizardPrompts {
+  email_analyze: string;
+  email_actions: string;
+}
+
+export interface WizardStartResponse {
+  done: boolean;
+  message: string;
+  questions: WizardQuestion[];
+  prompts: WizardPrompts;
+  email_summary: string;
+}
+
+export interface WizardContinueRequest {
+  email_summary: string;
+  history: WizardAnswer[];
+}
+
+export interface WizardContinueResponse {
+  done: boolean;
+  message: string;
+  questions: WizardQuestion[];
+  prompts: WizardPrompts;
 }
 
 export interface DashboardTimeseries {

@@ -100,6 +100,7 @@ func (s *Server) routes() {
 
 	api.HandleFunc("/settings", s.requireAuthAPI(s.handleAPIGetSettings)).Methods("GET")
 	api.HandleFunc("/settings/pushover", s.requireAuthAPI(s.handleAPIUpdatePushover)).Methods("PUT")
+	api.HandleFunc("/settings/webhook", s.requireAuthAPI(s.handleAPIUpdateWebhook)).Methods("PUT")
 
 	api.HandleFunc("/notifications", s.requireAuthAPI(s.handleAPIGetNotifications)).Methods("GET")
 
@@ -107,6 +108,12 @@ func (s *Server) routes() {
 
 	api.HandleFunc("/stats/summary", s.requireAuthAPI(s.handleAPIGetStatsSummary)).Methods("GET")
 	api.HandleFunc("/stats/timeseries", s.requireAuthAPI(s.handleAPIGetStatsTimeseries)).Methods("GET")
+
+	api.HandleFunc("/prompt-wizard/start", s.requireAuthAPI(s.handleAPIPromptWizardStart)).Methods("POST")
+	api.HandleFunc("/prompt-wizard/continue", s.requireAuthAPI(s.handleAPIPromptWizardContinue)).Methods("POST")
+
+	api.HandleFunc("/export", s.requireAuthAPI(s.handleAPIExport)).Methods("GET")
+	api.HandleFunc("/import", s.requireAuthAPI(s.handleAPIImport)).Methods("POST")
 
 	// SPA fallback — serves React app for all other routes
 	spa := newSPAHandler(s.frontendFS)

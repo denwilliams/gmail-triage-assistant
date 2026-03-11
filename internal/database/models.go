@@ -19,6 +19,9 @@ type User struct {
 	LastCheckedAt    *time.Time `db:"last_checked_at" json:"last_checked_at"` // Last time Gmail was checked for this user
 	PushoverUserKey  string     `db:"pushover_user_key" json:"-"`  // Pushover user key (not exposed in JSON)
 	PushoverAppToken string     `db:"pushover_app_token" json:"-"` // Pushover app token (not exposed in JSON)
+	WebhookURL         string   `db:"webhook_url" json:"-"`            // Webhook URL for notifications
+	WebhookHeaderKey   string   `db:"webhook_header_key" json:"-"`     // Optional custom header name
+	WebhookHeaderValue string   `db:"webhook_header_value" json:"-"`   // Optional custom header value
 	CreatedAt        time.Time  `db:"created_at" json:"created_at"`
 	UpdatedAt        time.Time  `db:"updated_at" json:"updated_at"`
 }
@@ -28,6 +31,7 @@ type Email struct {
 	ID            string    `db:"id" json:"id"`                       // Gmail message ID
 	UserID        int64     `db:"user_id" json:"user_id"`             // User who owns this email
 	FromAddress   string    `db:"from_address" json:"from_address"`   // Sender email address
+	FromDomain    string    `db:"from_domain" json:"from_domain"`     // Domain part of sender address
 	Subject       string    `db:"subject" json:"subject"`             // Email subject
 	Slug          string    `db:"slug" json:"slug"`                   // snake_case slug like "marketing_newsletter"
 	Keywords      []string  `db:"keywords" json:"keywords"`           // Array of keywords
@@ -45,6 +49,11 @@ type Email struct {
 // HasPushoverConfig returns true if the user has Pushover credentials configured
 func (u *User) HasPushoverConfig() bool {
 	return u.PushoverUserKey != "" && u.PushoverAppToken != ""
+}
+
+// HasWebhookConfig returns true if the user has a webhook URL configured
+func (u *User) HasWebhookConfig() bool {
+	return u.WebhookURL != ""
 }
 
 // Label represents a Gmail label with its configuration
@@ -167,10 +176,13 @@ func IsIgnoredDomain(domain string) bool {
 	return IgnoredDomains[strings.ToLower(domain)]
 }
 
-// ExtractDomain extracts the domain part from an email address
+// ExtractDomain extracts the domain part from an email address.
+// Handles both plain "user@example.com" and RFC 5322 "Name <user@example.com>" formats.
 func ExtractDomain(email string) string {
 	if i := strings.LastIndex(email, "@"); i >= 0 {
-		return strings.ToLower(email[i+1:])
+		domain := strings.ToLower(email[i+1:])
+		domain = strings.TrimRight(domain, "> ")
+		return domain
 	}
 	return ""
 }
