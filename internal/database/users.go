@@ -176,6 +176,9 @@ func (db *DB) GetAllActiveUsers(ctx context.Context) ([]*User, error) {
 			&user.LastCheckedAt,
 			&user.PushoverUserKey,
 			&user.PushoverAppToken,
+			&user.WebhookURL,
+			&user.WebhookHeaderKey,
+			&user.WebhookHeaderValue,
 			&user.CreatedAt,
 			&user.UpdatedAt,
 		)
@@ -263,6 +266,9 @@ func (db *DB) GetActiveUsers(ctx context.Context) ([]*User, error) {
 			&user.LastCheckedAt,
 			&user.PushoverUserKey,
 			&user.PushoverAppToken,
+			&user.WebhookURL,
+			&user.WebhookHeaderKey,
+			&user.WebhookHeaderValue,
 			&user.CreatedAt,
 			&user.UpdatedAt,
 		)

@@ -184,8 +184,23 @@ func (p *Processor) ProcessEmail(ctx context.Context, user *database.User, messa
 		if err := p.webhook.Send(user.WebhookURL, user.WebhookHeaderKey, user.WebhookHeaderValue, payload); err != nil {
 			log.Printf("[%s] Failed to send webhook notification: %v", user.Email, err)
 		} else {
-			notificationSent = true
 			log.Printf("[%s] Webhook notification sent for: %s", user.Email, message.Subject)
+
+			// Persist notification to database if not already saved by Pushover
+			if !notificationSent {
+				notif := &database.Notification{
+					UserID:      user.ID,
+					EmailID:     message.ID,
+					FromAddress: message.From,
+					Subject:     message.Subject,
+					Message:     actions.NotificationMessage,
+					SentAt:      time.Now(),
+				}
+				if err := p.db.CreateNotification(ctx, notif); err != nil {
+					log.Printf("[%s] Failed to save notification: %v", user.Email, err)
+				}
+			}
+			notificationSent = true
 		}
 	}
 
