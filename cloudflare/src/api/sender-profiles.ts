@@ -21,6 +21,7 @@ type AppContext = Context<{ Bindings: Env; Variables: { userId: number; email: s
 function profileToJSON(p: SenderProfile) {
   return {
     id: p.id,
+    user_id: p.userId,
     profile_type: p.profileType,
     identifier: p.identifier,
     email_count: p.emailCount,
