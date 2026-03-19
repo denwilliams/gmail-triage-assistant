@@ -6,22 +6,26 @@ import (
 	"time"
 
 	"github.com/den/gmail-triage-assistant/internal/database"
+	"github.com/den/gmail-triage-assistant/internal/gmail"
 	"github.com/den/gmail-triage-assistant/internal/memory"
 	"github.com/den/gmail-triage-assistant/internal/wrapup"
+	"golang.org/x/oauth2"
 )
 
 type Scheduler struct {
 	db            *database.DB
 	memoryService *memory.Service
 	wrapupService *wrapup.Service
+	oauthConfig   *oauth2.Config
 	stopChan      chan struct{}
 }
 
-func NewScheduler(db *database.DB, memoryService *memory.Service, wrapupService *wrapup.Service) *Scheduler {
+func NewScheduler(db *database.DB, memoryService *memory.Service, wrapupService *wrapup.Service, oauthConfig *oauth2.Config) *Scheduler {
 	return &Scheduler{
 		db:            db,
 		memoryService: memoryService,
 		wrapupService: wrapupService,
+		oauthConfig:   oauthConfig,
 		stopChan:      make(chan struct{}),
 	}
 }
@@ -63,6 +67,12 @@ func (s *Scheduler) Start(ctx context.Context) {
 			hour, minute := now.Hour(), now.Minute()
 			weekday := now.Weekday()
 			day := now.Day()
+
+			// Every 6 hours: Process timed labels (0, 6, 12, 18)
+			if (hour == 0 || hour == 6 || hour == 12 || hour == 18) && minute == 0 {
+				log.Println("⏰ Processing timed labels sweep")
+				go s.runTimedLabelsSweep(ctx)
+			}
 
 			// 8AM: Morning wrapup
 			if hour == 8 && minute == 0 && !morningRun {
@@ -222,6 +232,46 @@ func (s *Scheduler) runYearlyMemory(ctx context.Context) {
 			log.Printf("Failed to generate yearly memory for %s: %v", user.Email, err)
 		} else {
 			log.Printf("✓ Yearly memory generated for %s", user.Email)
+		}
+	}
+}
+
+func (s *Scheduler) runTimedLabelsSweep(ctx context.Context) {
+	users, err := s.db.GetActiveUsers(ctx)
+	if err != nil {
+		log.Printf("Error getting active users for timed labels sweep: %v", err)
+		return
+	}
+
+	for _, user := range users {
+		token := user.GetOAuth2Token()
+
+		// Refresh token if expired
+		if time.Now().After(token.Expiry) {
+			tokenSource := s.oauthConfig.TokenSource(ctx, token)
+			newToken, err := tokenSource.Token()
+			if err != nil {
+				log.Printf("Failed to refresh token for %s during timed labels sweep: %v", user.Email, err)
+				continue
+			}
+			if err := s.db.UpdateUserToken(ctx, user.ID, newToken); err != nil {
+				log.Printf("Failed to update token for %s: %v", user.Email, err)
+				continue
+			}
+			token = newToken
+		}
+
+		client, err := gmail.NewClient(ctx, s.oauthConfig, token)
+		if err != nil {
+			log.Printf("Failed to create Gmail client for %s during timed labels sweep: %v", user.Email, err)
+			continue
+		}
+
+		log.Printf("Processing timed labels for user %s", user.Email)
+		if err := client.ProcessTimedLabels(ctx); err != nil {
+			log.Printf("Failed to process timed labels for %s: %v", user.Email, err)
+		} else {
+			log.Printf("✓ Timed labels processed for %s", user.Email)
 		}
 	}
 }

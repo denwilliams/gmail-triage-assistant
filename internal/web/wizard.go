@@ -28,11 +28,12 @@ You will receive an email summary with statistics about the user's recent emails
 The system processes each email ONCE when it arrives. For each email it can:
 - Apply one or more Gmail labels
 - Archive immediately (bypass inbox) — yes or no
+- Apply a timed archive label (📥/1d, 📥/1w, 📥/1m, 📥/1y) to archive after a delay
+- Apply a timed delete label (🗑️/1d, 🗑️/1w, 🗑️/1m, 🗑️/1y) to delete after a delay
 - Send a push notification with a short message — or not
 - Generate a slug, keywords, and summary for categorization
 
 The system CANNOT:
-- Archive or act on emails after a delay (e.g., "archive after 7 days")
 - Delete, mark as read, forward, or reply to emails
 - Move emails between folders/labels after initial processing
 - Schedule future actions on emails

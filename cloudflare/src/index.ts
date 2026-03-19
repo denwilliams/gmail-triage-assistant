@@ -9,6 +9,7 @@ import {
   generateYearlyMemory,
   generateAIPrompts,
 } from './jobs/memory';
+import { processTimedLabels } from './jobs/timed-labels';
 import { processEmail } from './pipeline/processor';
 import { getAllActiveUsers } from './db/users';
 
@@ -125,6 +126,12 @@ export default {
             }
           })(),
         );
+        break;
+      }
+
+      // Every 6 hours — timed label sweep (archive/trash expired emails)
+      case '0 */6 * * *': {
+        ctx.waitUntil(processTimedLabels(env));
         break;
       }
 

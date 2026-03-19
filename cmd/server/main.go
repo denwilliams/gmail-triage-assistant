@@ -114,7 +114,7 @@ func main() {
 	server := web.NewServer(db, cfg, memoryService, openaiClient, frontendFS)
 
 	// Initialize scheduler
-	sched := scheduler.NewScheduler(db, memoryService, wrapupService)
+	sched := scheduler.NewScheduler(db, memoryService, wrapupService, oauthConfig)
 
 	log.Printf("✓ Multi-user Gmail monitor initialized (checking every %v)", checkInterval)
 	log.Printf("✓ Web server ready on: http://%s:%s", cfg.ServerHost, cfg.ServerPort)

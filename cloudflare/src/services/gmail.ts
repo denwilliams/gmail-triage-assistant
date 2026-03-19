@@ -245,6 +245,63 @@ export async function sendMessage(
   }
 }
 
+/** Trash a message (move to Gmail trash). */
+export async function trashMessage(accessToken: string, messageId: string): Promise<void> {
+  const res = await fetch(`${GMAIL_BASE}/messages/${messageId}/trash`, {
+    method: 'POST',
+    headers: authHeaders(accessToken),
+  });
+  if (!res.ok) {
+    throw new Error(`Gmail trash error: ${res.status} ${await res.text()}`);
+  }
+}
+
+/** Remove labels from a message. */
+export async function removeLabels(
+  accessToken: string,
+  messageId: string,
+  labelIds: string[],
+): Promise<void> {
+  const res = await fetch(`${GMAIL_BASE}/messages/${messageId}/modify`, {
+    method: 'POST',
+    headers: { ...authHeaders(accessToken), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ removeLabelIds: labelIds }),
+  });
+  if (!res.ok) {
+    throw new Error(`Gmail remove labels error: ${res.status} ${await res.text()}`);
+  }
+}
+
+/** List message IDs with a specific label. */
+export async function listMessagesByLabel(
+  accessToken: string,
+  labelId: string,
+): Promise<Array<{ id: string }>> {
+  const res = await fetch(`${GMAIL_BASE}/messages?labelIds=${labelId}&maxResults=100`, {
+    headers: authHeaders(accessToken),
+  });
+  if (!res.ok) {
+    throw new Error(`Gmail list by label error: ${res.status} ${await res.text()}`);
+  }
+  const data = (await res.json()) as { messages?: { id: string }[] };
+  return data.messages ?? [];
+}
+
+/** Get message metadata (minimal format for date checking). */
+export async function getMessageMetadata(
+  accessToken: string,
+  messageId: string,
+): Promise<{ id: string; internalDate: number }> {
+  const res = await fetch(`${GMAIL_BASE}/messages/${messageId}?format=minimal`, {
+    headers: authHeaders(accessToken),
+  });
+  if (!res.ok) {
+    throw new Error(`Gmail get metadata error: ${res.status} ${await res.text()}`);
+  }
+  const data = (await res.json()) as { id: string; internalDate: string };
+  return { id: data.id, internalDate: parseInt(data.internalDate, 10) };
+}
+
 /** Refresh an OAuth2 access token using a refresh token. */
 export async function refreshAccessToken(
   clientId: string,

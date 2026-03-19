@@ -188,6 +188,12 @@ func (c *Client) ArchiveMessage(ctx context.Context, messageID string) error {
 	return c.RemoveLabels(ctx, messageID, []string{"INBOX"})
 }
 
+// TrashMessage moves a message to the trash
+func (c *Client) TrashMessage(ctx context.Context, messageID string) error {
+	_, err := c.service.Users.Messages.Trash(c.userID, messageID).Context(ctx).Do()
+	return err
+}
+
 // ListLabels returns all labels for the user
 func (c *Client) ListLabels(ctx context.Context) ([]*gmail.Label, error) {
 	res, err := c.service.Users.Labels.List(c.userID).Do()
