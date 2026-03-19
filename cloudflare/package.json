@@ -7,8 +7,8 @@
     "dev": "wrangler dev",
     "deploy": "npm run build && wrangler deploy",
     "build": "cd ../frontend && npm run build",
-    "migrate": "wrangler d1 migrations apply gmail-triage --local",
-    "migrate:prod": "wrangler d1 migrations apply gmail-triage --remote",
+    "migrate": "wrangler d1 migrations apply gmail-assistant --local",
+    "migrate:prod": "wrangler d1 migrations apply gmail-assistant --remote",
     "typecheck": "tsc --noEmit"
   },
   "keywords": [],

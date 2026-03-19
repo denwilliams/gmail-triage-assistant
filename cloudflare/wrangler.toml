@@ -7,24 +7,24 @@ directory = "../frontend/dist"
 
 [[d1_databases]]
 binding = "DB"
-database_name = "gmail-triage"
+database_name = "gmail-assistant"
 database_id = "placeholder"
 
 [[queues.producers]]
-queue = "email-processing"
+queue = "gmail-assistant-processing"
 binding = "EMAIL_QUEUE"
 
 [[queues.producers]]
-queue = "background-jobs"
+queue = "gmail-assistant-background-jobs"
 binding = "BACKGROUND_QUEUE"
 
 [[queues.consumers]]
-queue = "email-processing"
+queue = "gmail-assistant-processing"
 max_batch_size = 5
 max_retries = 3
 
 [[queues.consumers]]
-queue = "background-jobs"
+queue = "gmail-assistant-background-jobs"
 max_batch_size = 1
 max_retries = 3
 
