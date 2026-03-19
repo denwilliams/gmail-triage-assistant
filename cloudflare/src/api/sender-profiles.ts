@@ -199,7 +199,7 @@ export async function handleUpdateSenderProfile(c: AppContext) {
   }
 
   const body = await c.req
-    .json<{ summary?: string; label_counts?: Record<string, number> }>()
+    .json<{ summary?: string; sender_type?: string; label_counts?: Record<string, number> }>()
     .catch(() => null);
   if (!body) {
     return c.json({ error: 'Invalid request body' }, 400);
@@ -213,6 +213,9 @@ export async function handleUpdateSenderProfile(c: AppContext) {
 
     if (body.summary !== undefined) {
       profile.summary = body.summary;
+    }
+    if (body.sender_type !== undefined) {
+      profile.senderType = body.sender_type;
     }
     if (body.label_counts !== undefined) {
       profile.labelCounts = body.label_counts;

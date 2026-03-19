@@ -77,7 +77,7 @@ export const api = {
     ),
   updateSenderProfile: (
     id: number,
-    body: { summary?: string; label_counts?: Record<string, number> }
+    body: { summary?: string; sender_type?: string; label_counts?: Record<string, number> }
   ) =>
     request<import("./types").SenderProfile>(`/sender-profiles/${id}`, {
       method: "PATCH",

@@ -613,6 +613,7 @@ func (s *Server) handleAPIUpdateSenderProfile(w http.ResponseWriter, r *http.Req
 
 	var body struct {
 		Summary     *string         `json:"summary"`
+		SenderType  *string         `json:"sender_type"`
 		LabelCounts *map[string]int `json:"label_counts"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -635,6 +636,9 @@ func (s *Server) handleAPIUpdateSenderProfile(w http.ResponseWriter, r *http.Req
 
 	if body.Summary != nil {
 		profile.Summary = *body.Summary
+	}
+	if body.SenderType != nil {
+		profile.SenderType = *body.SenderType
 	}
 	if body.LabelCounts != nil {
 		profile.LabelCounts = *body.LabelCounts

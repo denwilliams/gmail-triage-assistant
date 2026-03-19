@@ -110,16 +110,20 @@ function ProfileDetailDialog({
   onProfileUpdated: (updated: SenderProfile) => void;
 }) {
   const [editSummary, setEditSummary] = useState(profile.summary || "");
+  const [editSenderType, setEditSenderType] = useState(profile.sender_type || "");
   const [saving, setSaving] = useState(false);
   const [confirmRegen, setConfirmRegen] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
 
   useEffect(() => {
     setEditSummary(profile.summary || "");
+    setEditSenderType(profile.sender_type || "");
     setConfirmRegen(false);
-  }, [profile.id, profile.summary]);
+  }, [profile.id, profile.summary, profile.sender_type]);
 
   const summaryChanged = editSummary !== (profile.summary || "");
+  const typeChanged = editSenderType !== (profile.sender_type || "");
+  const hasChanges = summaryChanged || typeChanged;
 
   const archiveRate =
     profile.email_count > 0
@@ -130,12 +134,13 @@ function ProfileDetailDialog({
       ? Math.round((profile.emails_notified / profile.email_count) * 100)
       : 0;
 
-  const handleSaveSummary = async () => {
+  const handleSave = async () => {
     setSaving(true);
     try {
-      const updated = await api.updateSenderProfile(profile.id, {
-        summary: editSummary,
-      });
+      const body: { summary?: string; sender_type?: string } = {};
+      if (summaryChanged) body.summary = editSummary;
+      if (typeChanged) body.sender_type = editSenderType;
+      const updated = await api.updateSenderProfile(profile.id, body);
       onProfileUpdated(updated);
     } finally {
       setSaving(false);
@@ -170,7 +175,6 @@ function ProfileDetailDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-base">
             <span className="flex-1 truncate">{profile.identifier}</span>
-            <SenderTypeBadge type={profile.sender_type} />
           </DialogTitle>
           <DialogDescription className="text-left">
             {profile.profile_type === "sender" ? "Sender" : "Domain"} profile
@@ -214,6 +218,25 @@ function ProfileDetailDialog({
             </div>
           </div>
 
+          {/* Sender Type */}
+          <div className="space-y-2">
+            <span className="text-xs font-medium text-muted-foreground">
+              Sender Type
+            </span>
+            <select
+              value={editSenderType}
+              onChange={(e) => setEditSenderType(e.target.value)}
+              className="flex h-9 w-full max-w-xs rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            >
+              <option value="">Unknown</option>
+              <option value="human">Human</option>
+              <option value="newsletter">Newsletter</option>
+              <option value="automated">Automated</option>
+              <option value="marketing">Marketing</option>
+              <option value="notification">Notification</option>
+            </select>
+          </div>
+
           {/* Summary */}
           <div className="space-y-2">
             <span className="text-xs font-medium text-muted-foreground">
@@ -225,9 +248,9 @@ function ProfileDetailDialog({
               rows={3}
               className="text-sm"
             />
-            {summaryChanged && (
-              <Button size="sm" onClick={handleSaveSummary} disabled={saving}>
-                {saving ? "Saving..." : "Save Summary"}
+            {hasChanges && (
+              <Button size="sm" onClick={handleSave} disabled={saving}>
+                {saving ? "Saving..." : "Save"}
               </Button>
             )}
           </div>
