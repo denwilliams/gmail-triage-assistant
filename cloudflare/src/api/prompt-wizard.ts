@@ -26,6 +26,7 @@ The system processes each email ONCE when it arrives. For each email it can:
 - Apply one or more Gmail labels
 - Archive immediately (bypass inbox) — yes or no
 - Apply a timed archive label (📥/1d, 📥/1w, 📥/1m, 📥/1y) to archive after a delay
+- Apply 📥/read to archive after the user reads the email
 - Apply a timed delete label (🗑️/1d, 🗑️/1w, 🗑️/1m, 🗑️/1y) to delete after a delay
 - Send a push notification with a short message — or not
 - Generate a slug, keywords, and summary for categorization

@@ -286,8 +286,11 @@ export async function removeLabels(
 export async function listMessagesByLabel(
   accessToken: string,
   labelId: string,
+  query?: string,
 ): Promise<Array<{ id: string }>> {
-  const res = await fetch(`${GMAIL_BASE}/messages?labelIds=${labelId}&maxResults=100`, {
+  let url = `${GMAIL_BASE}/messages?labelIds=${labelId}&maxResults=100`;
+  if (query) url += `&q=${encodeURIComponent(query)}`;
+  const res = await fetch(url, {
     headers: authHeaders(accessToken),
   });
   if (!res.ok) {

@@ -28,7 +28,11 @@ var TimedDeleteLabels = []TimedLabel{
 	{"🗑️/1y", "365d"},
 }
 
+// ArchiveAfterReadLabel is applied to emails that should be archived once the user reads them.
+const ArchiveAfterReadLabel = "📥/read"
+
 // ProcessTimedLabels searches for emails with expired timed labels and archives/trashes them.
+// Also processes the archive-after-read label.
 func (c *Client) ProcessTimedLabels(ctx context.Context) error {
 	// Process archive labels
 	for _, tl := range TimedArchiveLabels {
@@ -44,6 +48,46 @@ func (c *Client) ProcessTimedLabels(ctx context.Context) error {
 			log.Printf("Error processing timed delete label %s: %v", tl.Name, err)
 			continue
 		}
+	}
+
+	// Process archive-after-read
+	if err := c.processArchiveAfterRead(ctx); err != nil {
+		log.Printf("Error processing archive-after-read label: %v", err)
+	}
+
+	return nil
+}
+
+func (c *Client) processArchiveAfterRead(ctx context.Context) error {
+	labelID, err := c.GetLabelID(ctx, ArchiveAfterReadLabel)
+	if err != nil {
+		return nil // Label doesn't exist yet
+	}
+
+	// List messages with this label that are NOT unread (i.e., have been read)
+	// Gmail: messages with the label but without the UNREAD label
+	msgs, err := c.service.Users.Messages.List(c.userID).
+		LabelIds(labelID).
+		Q("-is:unread").
+		Context(ctx).
+		Do()
+	if err != nil {
+		return err
+	}
+
+	if msgs.Messages == nil {
+		return nil
+	}
+
+	for _, msg := range msgs.Messages {
+		// Remove the label and archive
+		if err := c.RemoveLabels(ctx, msg.Id, []string{labelID}); err != nil {
+			continue
+		}
+		if err := c.ArchiveMessage(ctx, msg.Id); err != nil {
+			continue
+		}
+		log.Printf("Archived read message %s (📥/read)", msg.Id)
 	}
 
 	return nil

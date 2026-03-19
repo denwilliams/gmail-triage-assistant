@@ -143,6 +143,7 @@ func (p *Processor) ProcessEmail(ctx context.Context, user *database.User, messa
 	formattedLabels += `- "📥/1w": Archive this email after 1 week (use for newsletters, digests, weekly content)` + "\n"
 	formattedLabels += `- "📥/1m": Archive this email after 1 month` + "\n"
 	formattedLabels += `- "📥/1y": Archive this email after 1 year` + "\n"
+	formattedLabels += `- "📥/read": Archive this email after the user reads it (use for emails worth glancing at but not keeping in inbox)` + "\n"
 	formattedLabels += `- "🗑️/1d": Delete this email after 1 day (use for truly disposable emails like OTP codes, shipping notifications after delivery)` + "\n"
 	formattedLabels += `- "🗑️/1w": Delete this email after 1 week` + "\n"
 	formattedLabels += `- "🗑️/1m": Delete this email after 1 month` + "\n"

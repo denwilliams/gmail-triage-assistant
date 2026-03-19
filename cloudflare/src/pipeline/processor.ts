@@ -172,6 +172,7 @@ export async function processEmail(env: Env, userId: number, messageId: string):
 - "📥/1w": Archive this email after 1 week (use for newsletters, digests, weekly content)
 - "📥/1m": Archive this email after 1 month
 - "📥/1y": Archive this email after 1 year
+- "📥/read": Archive this email after the user reads it (use for emails worth glancing at but not keeping in inbox)
 - "🗑️/1d": Delete this email after 1 day (use for truly disposable emails like OTP codes, shipping notifications after delivery)
 - "🗑️/1w": Delete this email after 1 week
 - "🗑️/1m": Delete this email after 1 month
@@ -183,7 +184,7 @@ You may apply ONE timed label per email alongside regular labels. Use these inst
 
   // Add timed label names so they're valid in the structured output enum
   const timedLabelNames = [
-    '📥/1d', '📥/1w', '📥/1m', '📥/1y',
+    '📥/1d', '📥/1w', '📥/1m', '📥/1y', '📥/read',
     '🗑️/1d', '🗑️/1w', '🗑️/1m', '🗑️/1y',
   ];
   labelNames.push(...timedLabelNames);

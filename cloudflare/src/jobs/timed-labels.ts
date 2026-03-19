@@ -63,9 +63,32 @@ export async function processTimedLabels(env: Env): Promise<void> {
         await processLabel(accessToken, tl, true);
       }
 
+      // Process archive-after-read
+      await processArchiveAfterRead(accessToken);
+
       console.log(`timed-labels: processed for ${user.email}`);
     } catch (e) {
       console.error(`timed-labels: failed for ${user.email}:`, e);
+    }
+  }
+}
+
+const ARCHIVE_AFTER_READ_LABEL = '📥/read';
+
+async function processArchiveAfterRead(accessToken: string): Promise<void> {
+  const labelId = await getLabelId(accessToken, ARCHIVE_AFTER_READ_LABEL);
+  if (!labelId) return;
+
+  // List messages with this label that are NOT unread (i.e., have been read)
+  const messages = await listMessagesByLabel(accessToken, labelId, '-is:unread');
+  if (messages.length === 0) return;
+
+  for (const msg of messages) {
+    try {
+      await removeLabels(accessToken, msg.id, [labelId]);
+      await archiveMessage(accessToken, msg.id);
+    } catch (e) {
+      console.error(`timed-labels: failed to archive read message ${msg.id}:`, e);
     }
   }
 }
