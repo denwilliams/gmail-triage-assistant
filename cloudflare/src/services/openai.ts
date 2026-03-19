@@ -338,7 +338,7 @@ export async function bootstrapSenderProfile(
 
 Given the email history below, produce a JSON response:
 {
-  "sender_type": "human|newsletter|automated|marketing|notification",
+  "sender_type": "human|newsletter|automated|marketing|notification|mixed",
   "summary": "2-3 sentence description of who this sender is, what they typically send, and how their emails should be handled"
 }
 
@@ -347,7 +347,8 @@ Classify sender_type as:
 - newsletter: regular informational content or digests
 - automated: system-generated messages (receipts, confirmations, alerts)
 - marketing: promotional content, sales, offers
-- notification: app/service notifications (social media, tools, etc.)`;
+- notification: app/service notifications (social media, tools, etc.)
+- mixed: sends multiple types of emails (e.g., a domain that sends both marketing and transactional)`;
 
   const userPrompt = `Sender/Domain: ${identifier}
 
@@ -365,7 +366,7 @@ ${emailSummaries}`;
       properties: {
         sender_type: {
           type: 'string',
-          description: 'Classification: human, newsletter, automated, marketing, or notification',
+          description: 'Classification: human, newsletter, automated, marketing, notification, or mixed',
         },
         summary: {
           type: 'string',
@@ -394,7 +395,7 @@ export async function evolveProfileSummary(
 
 Given the current profile summary and a new email outcome, produce an updated JSON response:
 {
-  "sender_type": "human|newsletter|automated|marketing|notification",
+  "sender_type": "human|newsletter|automated|marketing|notification|mixed",
   "summary": "updated 2-3 sentence summary"
 }
 
@@ -421,7 +422,7 @@ ${updateContext}`;
       properties: {
         sender_type: {
           type: 'string',
-          description: 'Classification: human, newsletter, automated, marketing, or notification',
+          description: 'Classification: human, newsletter, automated, marketing, notification, or mixed',
         },
         summary: {
           type: 'string',

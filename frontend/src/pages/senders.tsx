@@ -56,6 +56,7 @@ const senderTypeBadgeColor: Record<string, string> = {
     "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300",
   notification:
     "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300",
+  mixed: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300",
 };
 
 function SenderTypeBadge({ type }: { type: string }) {
@@ -234,6 +235,7 @@ function ProfileDetailDialog({
               <option value="automated">Automated</option>
               <option value="marketing">Marketing</option>
               <option value="notification">Notification</option>
+              <option value="mixed">Mixed</option>
             </select>
           </div>
 
