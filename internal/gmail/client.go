@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/mail"
+	"strings"
 	"time"
 
 	"golang.org/x/oauth2"
@@ -220,13 +221,25 @@ func (c *Client) GetLabelID(ctx context.Context, labelName string) (string, erro
 	return "", fmt.Errorf("label not found: %s", labelName)
 }
 
-// CreateLabel creates a new label
+// CreateLabel creates a new label, ensuring parent labels exist for nested paths (e.g., "📥/1d").
 func (c *Client) CreateLabel(ctx context.Context, labelName string) (*gmail.Label, error) {
+	// If the label contains a "/", ensure the parent exists first
+	// so Gmail creates it as a nested label rather than a flat one.
+	if idx := strings.LastIndex(labelName, "/"); idx > 0 {
+		parentName := labelName[:idx]
+		if _, err := c.GetLabelID(ctx, parentName); err != nil {
+			// Parent doesn't exist, create it recursively
+			if _, err := c.CreateLabel(ctx, parentName); err != nil {
+				return nil, fmt.Errorf("failed to create parent label %q: %w", parentName, err)
+			}
+		}
+	}
+
 	label := &gmail.Label{
-		Name:                   labelName,
-		MessageListVisibility:  "show",
-		LabelListVisibility:    "labelShow",
-		Type:                   "user",
+		Name:                  labelName,
+		MessageListVisibility: "show",
+		LabelListVisibility:   "labelShow",
+		Type:                  "user",
 	}
 
 	created, err := c.service.Users.Labels.Create(c.userID, label).Do()

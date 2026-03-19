@@ -206,8 +206,18 @@ export async function getLabelId(accessToken: string, labelName: string): Promis
   return null;
 }
 
-/** Create a new user label. */
+/** Create a new user label, ensuring parent labels exist for nested paths (e.g., "📥/1d"). */
 export async function createLabel(accessToken: string, labelName: string): Promise<GmailLabel> {
+  // If the label contains "/", ensure parent exists first so Gmail creates a nested label
+  const slashIdx = labelName.lastIndexOf('/');
+  if (slashIdx > 0) {
+    const parentName = labelName.slice(0, slashIdx);
+    const parentId = await getLabelId(accessToken, parentName);
+    if (!parentId) {
+      await createLabel(accessToken, parentName);
+    }
+  }
+
   const res = await fetch(`${GMAIL_BASE}/labels`, {
     method: 'POST',
     headers: { ...authHeaders(accessToken), 'Content-Type': 'application/json' },
