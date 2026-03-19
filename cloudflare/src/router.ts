@@ -92,4 +92,9 @@ api.post('/import', handleImport);
 
 app.route('/api/v1', api);
 
+// SPA fallback — serve static assets for all non-API/auth routes
+app.all('*', async (c) => {
+  return c.env.ASSETS.fetch(c.req.raw);
+});
+
 export default app;

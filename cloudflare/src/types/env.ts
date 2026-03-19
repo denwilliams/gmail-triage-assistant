@@ -1,4 +1,5 @@
 export interface Env {
+  ASSETS: Fetcher;
   DB: D1Database;
   EMAIL_QUEUE: Queue;
   BACKGROUND_QUEUE: Queue;
