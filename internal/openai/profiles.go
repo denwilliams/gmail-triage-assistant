@@ -43,9 +43,9 @@ Given the email history below, produce a JSON response:
 Classify sender_type as:
 - human: personal or professional correspondence from an individual
 - newsletter: regular informational content or digests
-- automated: system-generated messages (receipts, confirmations, alerts)
+- automated: transactional messages triggered by the user's actions (order confirmations, receipts, password resets, 2FA codes, booking confirmations)
 - marketing: promotional content, sales, offers
-- notification: app/service notifications (social media, tools, etc.)
+- notification: alerts about external activity or events (social media mentions, PR comments, calendar reminders, flight delays, monitoring alerts)
 - mixed: sends multiple types of emails (e.g., a domain that sends both marketing and transactional)`
 
 	var emailLines []string
