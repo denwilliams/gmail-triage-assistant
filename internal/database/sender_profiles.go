@@ -151,6 +151,91 @@ func (db *DB) UpsertSenderProfile(ctx context.Context, profile *SenderProfile) e
 	return nil
 }
 
+// GetAllSenderProfiles returns a paginated list of sender profiles with optional filters
+func (db *DB) GetAllSenderProfiles(ctx context.Context, userID int64, profileType string, search string, limit, offset int) ([]*SenderProfile, int, error) {
+	where := "WHERE user_id = $1"
+	args := []interface{}{userID}
+	argIdx := 2
+
+	if profileType != "" {
+		where += fmt.Sprintf(" AND profile_type = $%d", argIdx)
+		args = append(args, profileType)
+		argIdx++
+	}
+
+	if search != "" {
+		where += fmt.Sprintf(" AND LOWER(identifier) LIKE LOWER($%d)", argIdx)
+		args = append(args, "%"+search+"%")
+		argIdx++
+	}
+
+	// Count total matching rows
+	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM sender_profiles %s", where)
+	var total int
+	if err := db.conn.QueryRowContext(ctx, countQuery, args...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("failed to count sender profiles: %w", err)
+	}
+
+	// Fetch paginated results
+	dataQuery := fmt.Sprintf(`
+		SELECT id, user_id, profile_type, identifier,
+		       email_count, emails_archived, emails_notified,
+		       slug_counts, label_counts, keyword_counts,
+		       sender_type, summary,
+		       first_seen_at, last_seen_at, modified_at, created_at
+		FROM sender_profiles
+		%s
+		ORDER BY email_count DESC, last_seen_at DESC
+		LIMIT $%d OFFSET $%d
+	`, where, argIdx, argIdx+1)
+	args = append(args, limit, offset)
+
+	rows, err := db.conn.QueryContext(ctx, dataQuery, args...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to query sender profiles: %w", err)
+	}
+	defer rows.Close()
+
+	var profiles []*SenderProfile
+	for rows.Next() {
+		var p SenderProfile
+		var slugCountsJSON, labelCountsJSON, keywordCountsJSON []byte
+
+		err := rows.Scan(
+			&p.ID, &p.UserID, &p.ProfileType, &p.Identifier,
+			&p.EmailCount, &p.EmailsArchived, &p.EmailsNotified,
+			&slugCountsJSON, &labelCountsJSON, &keywordCountsJSON,
+			&p.SenderType, &p.Summary,
+			&p.FirstSeenAt, &p.LastSeenAt, &p.ModifiedAt, &p.CreatedAt,
+		)
+		if err != nil {
+			return nil, 0, fmt.Errorf("failed to scan sender profile: %w", err)
+		}
+
+		p.SlugCounts = make(map[string]int)
+		p.LabelCounts = make(map[string]int)
+		p.KeywordCounts = make(map[string]int)
+
+		if err := json.Unmarshal(slugCountsJSON, &p.SlugCounts); err != nil {
+			return nil, 0, fmt.Errorf("failed to unmarshal slug_counts: %w", err)
+		}
+		if err := json.Unmarshal(labelCountsJSON, &p.LabelCounts); err != nil {
+			return nil, 0, fmt.Errorf("failed to unmarshal label_counts: %w", err)
+		}
+		if err := json.Unmarshal(keywordCountsJSON, &p.KeywordCounts); err != nil {
+			return nil, 0, fmt.Errorf("failed to unmarshal keyword_counts: %w", err)
+		}
+
+		profiles = append(profiles, &p)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("failed to iterate sender profiles: %w", err)
+	}
+
+	return profiles, total, nil
+}
+
 // DeleteStaleProfiles removes profiles not modified in over 1 year
 func (db *DB) DeleteStaleProfiles(ctx context.Context) (int64, error) {
 	query := `DELETE FROM sender_profiles WHERE modified_at < NOW() - INTERVAL '1 year'`

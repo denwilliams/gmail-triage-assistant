@@ -83,6 +83,20 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify(body),
     }),
+  getAllSenderProfiles: (params: {
+    type?: "sender" | "domain";
+    search?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<{ profiles: import("./types").SenderProfile[]; total: number }> => {
+    const searchParams = new URLSearchParams();
+    if (params.type) searchParams.set("type", params.type);
+    if (params.search) searchParams.set("search", params.search);
+    if (params.limit) searchParams.set("limit", String(params.limit));
+    if (params.offset) searchParams.set("offset", String(params.offset));
+    return request(`/sender-profiles/all?${searchParams.toString()}`);
+  },
+
   generateSenderProfile: (profileType: "sender" | "domain", identifier: string) =>
     request<{ profile: import("./types").SenderProfile; ai_error?: string }>("/sender-profiles/generate", {
       method: "POST",

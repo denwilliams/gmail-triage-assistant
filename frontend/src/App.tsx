@@ -9,6 +9,7 @@ import PromptsPage from "@/pages/prompts";
 import MemoriesPage from "@/pages/memories";
 import WrapupsPage from "@/pages/wrapups";
 import NotificationsPage from "@/pages/notifications";
+import SendersPage from "@/pages/senders";
 import SettingsPage from "@/pages/settings";
 import PromptWizardPage from "@/pages/prompt-wizard";
 
@@ -21,6 +22,7 @@ export default function App() {
           <Route element={<AppLayout />}>
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/labels" element={<LabelsPage />} />
+            <Route path="/senders" element={<SendersPage />} />
             <Route path="/history" element={<HistoryPage />} />
             <Route path="/history/:emailId" element={<HistoryPage />} />
             <Route path="/prompts" element={<PromptsPage />} />

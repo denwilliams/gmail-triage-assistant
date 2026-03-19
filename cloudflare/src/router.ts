@@ -13,6 +13,7 @@ import { handleGetNotifications } from './api/notifications';
 import { handleGetWrapups } from './api/wrapups';
 import { handleGetStatsSummary, handleGetStatsTimeseries } from './api/stats';
 import {
+  handleGetAllSenderProfiles,
   handleGetSenderProfiles,
   handleGenerateSenderProfile,
   handleUpdateSenderProfile,
@@ -78,6 +79,7 @@ api.get('/stats/summary', handleGetStatsSummary);
 api.get('/stats/timeseries', handleGetStatsTimeseries);
 
 // Sender profiles
+api.get('/sender-profiles/all', handleGetAllSenderProfiles);
 api.get('/sender-profiles', handleGetSenderProfiles);
 api.post('/sender-profiles/generate', handleGenerateSenderProfile);
 api.patch('/sender-profiles/:id', handleUpdateSenderProfile);

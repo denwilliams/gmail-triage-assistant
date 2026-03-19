@@ -106,6 +106,47 @@ export async function upsertSenderProfile(db: D1Database, profile: SenderProfile
     .run();
 }
 
+export async function getAllSenderProfiles(
+  db: D1Database,
+  userId: number,
+  profileType: string | null,
+  search: string | null,
+  limit: number,
+  offset: number,
+): Promise<{ profiles: SenderProfile[]; total: number }> {
+  let where = 'WHERE user_id = ?';
+  const args: unknown[] = [userId];
+
+  if (profileType) {
+    where += ' AND profile_type = ?';
+    args.push(profileType);
+  }
+
+  if (search) {
+    where += " AND LOWER(identifier) LIKE LOWER('%' || ? || '%')";
+    args.push(search);
+  }
+
+  // Count total matching rows
+  const countRow = await db
+    .prepare(`SELECT COUNT(*) as cnt FROM sender_profiles ${where}`)
+    .bind(...args)
+    .first<{ cnt: number }>();
+  const total = countRow?.cnt ?? 0;
+
+  // Fetch paginated results
+  const dataArgs = [...args, limit, offset];
+  const { results } = await db
+    .prepare(
+      `${PROFILE_SELECT} ${where} ORDER BY email_count DESC, last_seen_at DESC LIMIT ? OFFSET ?`,
+    )
+    .bind(...dataArgs)
+    .all<SenderProfileRow>();
+
+  const profiles = (results ?? []).map(mapSenderProfile);
+  return { profiles, total };
+}
+
 export async function deleteStaleProfiles(db: D1Database): Promise<number> {
   const result = await db
     .prepare("DELETE FROM sender_profiles WHERE modified_at < datetime('now', '-1 year')")

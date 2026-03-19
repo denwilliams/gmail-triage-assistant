@@ -435,6 +435,41 @@ func (s *Server) handleAPIGetNotifications(w http.ResponseWriter, r *http.Reques
 	respondJSON(w, http.StatusOK, notifications)
 }
 
+// GET /api/v1/sender-profiles/all?type=sender&search=foo&limit=50&offset=0
+func (s *Server) handleAPIGetAllSenderProfiles(w http.ResponseWriter, r *http.Request) {
+	session, _ := s.sessionStore.Get(r, "session")
+	userID := session.Values["user_id"].(int64)
+
+	profileType := r.URL.Query().Get("type")
+	search := r.URL.Query().Get("search")
+
+	limit := 50
+	if l := r.URL.Query().Get("limit"); l != "" {
+		if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 {
+			limit = parsed
+		}
+	}
+	offset := 0
+	if o := r.URL.Query().Get("offset"); o != "" {
+		if parsed, err := strconv.Atoi(o); err == nil && parsed >= 0 {
+			offset = parsed
+		}
+	}
+
+	ctx := context.Background()
+	profiles, total, err := s.db.GetAllSenderProfiles(ctx, userID, profileType, search, limit, offset)
+	if err != nil {
+		log.Printf("API: Failed to load sender profiles: %v", err)
+		respondError(w, http.StatusInternalServerError, "Failed to load sender profiles")
+		return
+	}
+
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"profiles": profiles,
+		"total":    total,
+	})
+}
+
 // GET /api/v1/sender-profiles?address=user@example.com
 func (s *Server) handleAPIGetSenderProfiles(w http.ResponseWriter, r *http.Request) {
 	session, _ := s.sessionStore.Get(r, "session")

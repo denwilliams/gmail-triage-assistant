@@ -4,6 +4,7 @@ import type { SenderProfile, ProfileType } from '../types/models';
 import {
   getSenderProfile,
   getSenderProfileByID,
+  getAllSenderProfiles,
   upsertSenderProfile,
   extractDomain,
   isIgnoredDomain,
@@ -35,6 +36,45 @@ function profileToJSON(p: SenderProfile) {
     first_seen_at: p.firstSeenAt,
     last_seen_at: p.lastSeenAt,
   };
+}
+
+export async function handleGetAllSenderProfiles(c: AppContext) {
+  const userId = c.get('userId');
+  const profileType = c.req.query('type') || null;
+  const search = c.req.query('search') || null;
+
+  let limit = 50;
+  const limitParam = c.req.query('limit');
+  if (limitParam) {
+    const parsed = parseInt(limitParam, 10);
+    if (!isNaN(parsed) && parsed > 0) limit = parsed;
+  }
+
+  let offset = 0;
+  const offsetParam = c.req.query('offset');
+  if (offsetParam) {
+    const parsed = parseInt(offsetParam, 10);
+    if (!isNaN(parsed) && parsed >= 0) offset = parsed;
+  }
+
+  try {
+    const { profiles, total } = await getAllSenderProfiles(
+      c.env.DB,
+      userId,
+      profileType,
+      search,
+      limit,
+      offset,
+    );
+
+    return c.json({
+      profiles: profiles.map(profileToJSON),
+      total,
+    });
+  } catch (e) {
+    console.error('Failed to load all sender profiles:', e);
+    return c.json({ error: 'Failed to load sender profiles' }, 500);
+  }
 }
 
 export async function handleGetSenderProfiles(c: AppContext) {
