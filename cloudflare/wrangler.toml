@@ -39,6 +39,14 @@ queue = "gmail-assistant-background-jobs"
 max_batch_size = 1
 max_retries = 3
 
+# Cron triggers
+# */5 * * * *   - Poll Gmail for new emails
+# 0 8 * * *     - Morning wrapup report
+# 0 17 * * *    - Evening wrapup + daily memory
+# 0 18 * * 6    - Weekly memory + AI prompt generation (Saturday)
+# 0 19 1 * *    - Monthly memory (1st of month)
+# 0 20 1 1 *    - Yearly memory (January 1st)
+# 0 */6 * * *   - Process timed archive/delete labels
 [triggers]
 crons = [
   "*/5 * * * *",
@@ -47,5 +55,5 @@ crons = [
   "0 18 * * 6",
   "0 19 1 * *",
   "0 20 1 1 *",
-  "0 */6 * * *"
+  "0 */6 * * *",
 ]
