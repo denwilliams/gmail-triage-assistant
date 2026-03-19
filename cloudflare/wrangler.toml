@@ -1,14 +1,22 @@
-name = "gmail-triage-assistant"
+name = "gmail-assistant"
 main = "src/index.ts"
 compatibility_date = "2024-12-01"
 
 [assets]
 directory = "../frontend/dist"
+html_handling = "drop-trailing-slash"
+not_found_handling = "single-page-application"
+
+[vars]
+GOOGLE_REDIRECT_URL = "https://gmail-assistant.loke.tools/auth/callback"
+OPENAI_MODEL = "gpt-5-nano"
+OPENAI_BASE_URL = "https://api.openai.com/v1"
+SERVER_URL = "https://gmail-assistant.loke.tools"
 
 [[d1_databases]]
 binding = "DB"
 database_name = "gmail-assistant"
-database_id = "placeholder"
+database_id = "05a94f76-e07f-45cc-83c3-b5829aaa6479"
 
 [[queues.producers]]
 queue = "gmail-assistant-processing"
