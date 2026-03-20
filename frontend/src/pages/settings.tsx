@@ -21,6 +21,9 @@ export default function SettingsPage() {
   const [webhookSaving, setWebhookSaving] = useState(false);
   const [webhookMessage, setWebhookMessage] = useState("");
 
+  // Processing toggle
+  const [processingToggling, setProcessingToggling] = useState(false);
+
   // Export/Import state
   const [includeEmails, setIncludeEmails] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -150,6 +153,59 @@ export default function SettingsPage() {
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-bold">Settings</h1>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Email Processing</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            When enabled, the system will automatically poll your Gmail inbox and process new emails through the AI pipeline.
+          </p>
+
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              role="switch"
+              aria-checked={settings?.processing_enabled ?? false}
+              onClick={async () => {
+                if (!settings) return;
+                setProcessingToggling(true);
+                try {
+                  const newValue = !settings.processing_enabled;
+                  await api.updateProcessing(newValue);
+                  setSettings({ ...settings, processing_enabled: newValue });
+                } catch (err) {
+                  console.error('Failed to toggle processing:', err);
+                } finally {
+                  setProcessingToggling(false);
+                }
+              }}
+              disabled={processingToggling}
+              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${
+                settings?.processing_enabled
+                  ? 'bg-green-600'
+                  : 'bg-gray-200 dark:bg-gray-700'
+              }`}
+            >
+              <span
+                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition-transform ${
+                  settings?.processing_enabled ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </button>
+            <span className="text-sm font-medium">
+              {settings?.processing_enabled ? 'Processing enabled' : 'Processing disabled'}
+            </span>
+          </div>
+
+          {!settings?.processing_enabled && (
+            <div className="rounded-md border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-800 dark:border-yellow-800 dark:bg-yellow-950 dark:text-yellow-200">
+              Email processing is off. New emails will not be analyzed, labeled, or archived.
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

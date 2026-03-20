@@ -118,6 +118,11 @@ export const api = {
     }),
 
   getSettings: () => request<import("./types").UserSettings>("/settings"),
+  updateProcessing: (enabled: boolean) =>
+    request<{ status: string; processing_enabled: boolean }>("/settings/processing", {
+      method: "PUT",
+      body: JSON.stringify({ enabled }),
+    }),
   updatePushover: (user_key: string, app_token: string) =>
     request<{ status: string }>("/settings/pushover", {
       method: "PUT",

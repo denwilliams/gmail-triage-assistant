@@ -16,7 +16,7 @@ func (db *DB) CreateUser(ctx context.Context, email, googleID string, token *oau
 		AccessToken:  token.AccessToken,
 		RefreshToken: token.RefreshToken,
 		TokenExpiry:  token.Expiry,
-		IsActive:     true,
+		IsActive:     false,
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
 	}

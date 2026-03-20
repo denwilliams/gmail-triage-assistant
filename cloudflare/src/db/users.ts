@@ -34,7 +34,7 @@ export async function createUser(
       `INSERT INTO users (email, google_id, access_token, refresh_token, token_expiry, is_active,
         pushover_user_key, pushover_app_token, webhook_url, webhook_header_key, webhook_header_value,
         created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, 1, '', '', '', '', '', ?, ?)
+       VALUES (?, ?, ?, ?, ?, 0, '', '', '', '', '', ?, ?)
        RETURNING *`,
     )
     .bind(email, googleId, accessToken, refreshToken, tokenExpiry, now, now)

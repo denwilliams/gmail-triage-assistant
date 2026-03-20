@@ -85,6 +85,7 @@ export interface PromptsResponse {
 }
 
 export interface UserSettings {
+  processing_enabled: boolean;
   pushover_user_key: string;
   pushover_configured: boolean;
   webhook_url: string;

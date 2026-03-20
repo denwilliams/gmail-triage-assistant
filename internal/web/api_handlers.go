@@ -354,12 +354,39 @@ func (s *Server) handleAPIGetSettings(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"processing_enabled":   user.IsActive,
 		"pushover_user_key":    maskedKey,
 		"pushover_configured":  user.HasPushoverConfig(),
 		"webhook_url":          user.WebhookURL,
 		"webhook_header_key":   user.WebhookHeaderKey,
 		"webhook_header_value": maskedHeaderValue,
 		"webhook_configured":   user.HasWebhookConfig(),
+	})
+}
+
+// PUT /api/v1/settings/processing
+func (s *Server) handleAPIUpdateProcessing(w http.ResponseWriter, r *http.Request) {
+	session, _ := s.sessionStore.Get(r, "session")
+	userID := session.Values["user_id"].(int64)
+
+	var body struct {
+		Enabled *bool `json:"enabled"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Enabled == nil {
+		respondError(w, http.StatusBadRequest, "Invalid request body: expected { enabled: boolean }")
+		return
+	}
+
+	ctx := context.Background()
+	if err := s.db.SetUserActive(ctx, userID, *body.Enabled); err != nil {
+		log.Printf("API: Failed to update processing setting: %v", err)
+		respondError(w, http.StatusInternalServerError, "Failed to save processing setting")
+		return
+	}
+
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"status":              "updated",
+		"processing_enabled":  *body.Enabled,
 	})
 }
 

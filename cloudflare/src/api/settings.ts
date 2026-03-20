@@ -1,6 +1,6 @@
 import type { Context } from 'hono';
 import type { Env } from '../types/env';
-import { getUserByID, updatePushoverConfig, updateWebhookConfig } from '../db/users';
+import { getUserByID, updatePushoverConfig, updateWebhookConfig, setUserActive } from '../db/users';
 
 type AppContext = Context<{ Bindings: Env; Variables: { userId: number; email: string } }>;
 
@@ -25,6 +25,7 @@ export async function handleGetSettings(c: AppContext) {
     const webhookConfigured = !!(user.webhookUrl && user.webhookHeaderKey && user.webhookHeaderValue);
 
     return c.json({
+      processing_enabled: user.isActive,
       pushover_user_key: maskValue(user.pushoverUserKey),
       pushover_configured: pushoverConfigured,
       webhook_url: user.webhookUrl,
@@ -52,6 +53,23 @@ export async function handleUpdatePushover(c: AppContext) {
   } catch (e) {
     console.error('Failed to update pushover config:', e);
     return c.json({ error: 'Failed to save Pushover settings' }, 500);
+  }
+}
+
+export async function handleUpdateProcessing(c: AppContext) {
+  const userId = c.get('userId');
+
+  const body = await c.req.json<{ enabled?: boolean }>().catch(() => null);
+  if (!body || typeof body.enabled !== 'boolean') {
+    return c.json({ error: 'Invalid JSON: expected { enabled: boolean }' }, 400);
+  }
+
+  try {
+    await setUserActive(c.env.DB, userId, body.enabled);
+    return c.json({ status: 'updated', processing_enabled: body.enabled });
+  } catch (e) {
+    console.error('Failed to update processing setting:', e);
+    return c.json({ error: 'Failed to save processing setting' }, 500);
   }
 }
 

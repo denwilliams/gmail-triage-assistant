@@ -100,6 +100,7 @@ func (s *Server) routes() {
 	api.HandleFunc("/memories/generate-ai-prompts", s.requireAuthAPI(s.handleAPIGenerateAIPrompts)).Methods("POST")
 
 	api.HandleFunc("/settings", s.requireAuthAPI(s.handleAPIGetSettings)).Methods("GET")
+	api.HandleFunc("/settings/processing", s.requireAuthAPI(s.handleAPIUpdateProcessing)).Methods("PUT")
 	api.HandleFunc("/settings/pushover", s.requireAuthAPI(s.handleAPIUpdatePushover)).Methods("PUT")
 	api.HandleFunc("/settings/webhook", s.requireAuthAPI(s.handleAPIUpdateWebhook)).Methods("PUT")
 
