@@ -12,11 +12,11 @@ function mapEmail(row: EmailRow): Email {
     summary: row.summary,
     labelsApplied: safeParseJSON<string[]>(row.labels_applied, []),
     bypassedInbox: row.bypassed_inbox === 1,
-    reasoning: row.reasoning ?? '',
-    humanFeedback: row.human_feedback ?? '',
-    feedbackDirty: (row.feedback_dirty ?? 0) === 1,
+    reasoning: row.reasoning,
+    humanFeedback: row.human_feedback,
+    feedbackDirty: row.feedback_dirty === 1,
     notificationSent: row.notification_sent === 1,
-    draftCreated: (row.draft_created ?? 0) === 1,
+    draftCreated: row.draft_created === 1,
     processedAt: row.processed_at,
     createdAt: row.created_at,
   };
@@ -75,8 +75,8 @@ export async function getRecentEmails(
   const { results } = await db
     .prepare(
       `SELECT id, user_id, from_address, from_domain, subject, slug, keywords, summary,
-              labels_applied, bypassed_inbox, reasoning, COALESCE(human_feedback, '') as human_feedback,
-              COALESCE(feedback_dirty, 0) as feedback_dirty, notification_sent, COALESCE(draft_created, 0) as draft_created, processed_at, created_at
+              labels_applied, bypassed_inbox, reasoning, human_feedback,
+              feedback_dirty, notification_sent, draft_created, processed_at, created_at
        FROM emails
        WHERE user_id = ?
        ORDER BY processed_at DESC
@@ -123,8 +123,8 @@ export async function getEmailsByDateRange(
   const { results } = await db
     .prepare(
       `SELECT id, user_id, from_address, from_domain, subject, slug, keywords, summary,
-              labels_applied, bypassed_inbox, reasoning, COALESCE(human_feedback, '') as human_feedback,
-              COALESCE(feedback_dirty, 0) as feedback_dirty, notification_sent, COALESCE(draft_created, 0) as draft_created, processed_at, created_at
+              labels_applied, bypassed_inbox, reasoning, human_feedback,
+              feedback_dirty, notification_sent, draft_created, processed_at, created_at
        FROM emails
        WHERE user_id = ? AND processed_at >= ? AND processed_at < ?
        ORDER BY processed_at ASC`,
@@ -138,8 +138,8 @@ export async function getEmailsWithDirtyFeedback(db: D1Database, userId: number)
   const { results } = await db
     .prepare(
       `SELECT id, user_id, from_address, from_domain, subject, slug, keywords, summary,
-              labels_applied, bypassed_inbox, reasoning, COALESCE(human_feedback, '') as human_feedback,
-              COALESCE(feedback_dirty, 0) as feedback_dirty, notification_sent, COALESCE(draft_created, 0) as draft_created, processed_at, created_at
+              labels_applied, bypassed_inbox, reasoning, human_feedback,
+              feedback_dirty, notification_sent, draft_created, processed_at, created_at
        FROM emails
        WHERE user_id = ? AND feedback_dirty = 1
        ORDER BY processed_at ASC`,
@@ -166,8 +166,8 @@ export async function getHistoricalEmailsFromAddress(
   const { results } = await db
     .prepare(
       `SELECT id, user_id, from_address, from_domain, subject, slug, keywords, summary,
-              labels_applied, bypassed_inbox, reasoning, COALESCE(human_feedback, '') as human_feedback,
-              COALESCE(feedback_dirty, 0) as feedback_dirty, notification_sent, COALESCE(draft_created, 0) as draft_created, processed_at, created_at
+              labels_applied, bypassed_inbox, reasoning, human_feedback,
+              feedback_dirty, notification_sent, draft_created, processed_at, created_at
        FROM emails
        WHERE user_id = ? AND from_address = ?
        ORDER BY processed_at DESC
@@ -187,8 +187,8 @@ export async function getHistoricalEmailsFromDomain(
   const { results } = await db
     .prepare(
       `SELECT id, user_id, from_address, from_domain, subject, slug, keywords, summary,
-              labels_applied, bypassed_inbox, reasoning, COALESCE(human_feedback, '') as human_feedback,
-              COALESCE(feedback_dirty, 0) as feedback_dirty, notification_sent, COALESCE(draft_created, 0) as draft_created, processed_at, created_at
+              labels_applied, bypassed_inbox, reasoning, human_feedback,
+              feedback_dirty, notification_sent, draft_created, processed_at, created_at
        FROM emails
        WHERE user_id = ? AND from_domain = ?
        ORDER BY processed_at DESC
