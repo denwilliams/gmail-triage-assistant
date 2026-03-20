@@ -250,6 +250,27 @@ func (c *Client) CreateLabel(ctx context.Context, labelName string) (*gmail.Labe
 	return created, nil
 }
 
+// CreateDraft creates a draft reply to a message in the same thread.
+func (c *Client) CreateDraft(ctx context.Context, threadID, to, subject, body string) error {
+	raw := fmt.Sprintf("To: %s\r\nSubject: Re: %s\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n%s",
+		to, subject, body)
+
+	encoded := base64.URLEncoding.EncodeToString([]byte(raw))
+
+	draft := &gmail.Draft{
+		Message: &gmail.Message{
+			ThreadId: threadID,
+			Raw:      encoded,
+		},
+	}
+
+	_, err := c.service.Users.Drafts.Create(c.userID, draft).Context(ctx).Do()
+	if err != nil {
+		return fmt.Errorf("failed to create draft: %w", err)
+	}
+	return nil
+}
+
 // SendMessage sends an email via the Gmail API
 func (c *Client) SendMessage(ctx context.Context, to, subject, body string) error {
 	raw := fmt.Sprintf("To: %s\r\nSubject: %s\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n%s", to, subject, body)

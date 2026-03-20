@@ -168,6 +168,7 @@ interface ImportBody {
       human_feedback: string;
       feedback_dirty: boolean;
       notification_sent: boolean;
+      draft_created?: boolean;
       processed_at: string;
       created_at: string;
     }>;
@@ -257,6 +258,7 @@ export async function handleImport(c: AppContext) {
         humanFeedback: e.human_feedback,
         feedbackDirty: e.feedback_dirty,
         notificationSent: e.notification_sent,
+        draftCreated: e.draft_created ?? false,
         processedAt: e.processed_at,
         createdAt: e.created_at,
       })),

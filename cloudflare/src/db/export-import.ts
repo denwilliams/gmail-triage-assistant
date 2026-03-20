@@ -123,7 +123,7 @@ export async function exportEmails(db: D1Database, userId: number): Promise<Expo
               labels_applied, bypassed_inbox, reasoning,
               COALESCE(human_feedback, '') as human_feedback,
               COALESCE(feedback_dirty, 0) as feedback_dirty,
-              notification_sent, processed_at, created_at
+              notification_sent, COALESCE(draft_created, 0) as draft_created, processed_at, created_at
        FROM emails WHERE user_id = ? ORDER BY processed_at`,
     )
     .bind(userId)
@@ -145,6 +145,7 @@ export async function exportEmails(db: D1Database, userId: number): Promise<Expo
       humanFeedback: r.human_feedback ?? '',
       feedbackDirty: (r.feedback_dirty ?? 0) === 1,
       notificationSent: r.notification_sent === 1,
+      draftCreated: (r.draft_created ?? 0) === 1,
       processedAt: r.processed_at,
       createdAt: r.created_at,
     };
@@ -358,8 +359,8 @@ export async function importAllData(
         .prepare(
           `INSERT INTO emails (id, user_id, from_address, from_domain, subject, slug, keywords, summary,
                                labels_applied, bypassed_inbox, reasoning, human_feedback,
-                               feedback_dirty, notification_sent, processed_at, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                               feedback_dirty, notification_sent, draft_created, processed_at, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT (id)
            DO UPDATE SET
              from_address = excluded.from_address,
@@ -373,13 +374,14 @@ export async function importAllData(
              reasoning = excluded.reasoning,
              human_feedback = excluded.human_feedback,
              feedback_dirty = excluded.feedback_dirty,
-             notification_sent = excluded.notification_sent`,
+             notification_sent = excluded.notification_sent,
+             draft_created = excluded.draft_created`,
         )
         .bind(
           e.id, userId, e.fromAddress, domain, e.subject, e.slug,
           JSON.stringify(e.keywords), e.summary, JSON.stringify(e.labelsApplied),
           e.bypassedInbox ? 1 : 0, e.reasoning, e.humanFeedback,
-          e.feedbackDirty ? 1 : 0, e.notificationSent ? 1 : 0,
+          e.feedbackDirty ? 1 : 0, e.notificationSent ? 1 : 0, e.draftCreated ? 1 : 0,
           e.processedAt, e.createdAt,
         ),
     );

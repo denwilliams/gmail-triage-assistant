@@ -17,6 +17,7 @@ function emailToJSON(e: Email) {
     labels_applied: e.labelsApplied,
     bypassed_inbox: e.bypassedInbox,
     notification_sent: e.notificationSent,
+    draft_created: e.draftCreated,
     reasoning: e.reasoning,
     human_feedback: e.humanFeedback,
     feedback_dirty: e.feedbackDirty,

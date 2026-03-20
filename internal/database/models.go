@@ -42,6 +42,7 @@ type Email struct {
 	HumanFeedback    string    `db:"human_feedback" json:"human_feedback"` // Human feedback: "do differently next time"
 	FeedbackDirty    bool      `db:"feedback_dirty" json:"feedback_dirty"` // Whether feedback needs to be included in next memory
 	NotificationSent bool      `db:"notification_sent" json:"notification_sent"` // Whether a push notification was sent
+	DraftCreated     bool      `db:"draft_created" json:"draft_created"`       // Whether a draft reply was created
 	ProcessedAt      time.Time `db:"processed_at" json:"processed_at"`   // When email was processed
 	CreatedAt        time.Time `db:"created_at" json:"created_at"`       // When record was created
 }

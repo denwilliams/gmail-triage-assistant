@@ -66,6 +66,7 @@ type ExportEmail struct {
 	HumanFeedback    string    `json:"human_feedback"`
 	FeedbackDirty    bool      `json:"feedback_dirty"`
 	NotificationSent bool      `json:"notification_sent"`
+	DraftCreated     bool      `json:"draft_created"`
 	ProcessedAt      time.Time `json:"processed_at"`
 	CreatedAt        time.Time `json:"created_at"`
 }
@@ -263,7 +264,7 @@ func (db *DB) ExportEmails(ctx context.Context, userID int64) ([]ExportEmail, er
 		SELECT id, from_address, from_domain, subject, slug, keywords, summary,
 		       labels_applied, bypassed_inbox, reasoning,
 		       COALESCE(human_feedback, ''), COALESCE(feedback_dirty, FALSE),
-		       notification_sent, processed_at, created_at
+		       notification_sent, COALESCE(draft_created, FALSE), processed_at, created_at
 		FROM emails
 		WHERE user_id = $1
 		ORDER BY processed_at
@@ -282,7 +283,7 @@ func (db *DB) ExportEmails(ctx context.Context, userID int64) ([]ExportEmail, er
 			&e.ID, &e.FromAddress, &e.FromDomain, &e.Subject, &e.Slug,
 			&keywordsJSON, &e.Summary, &labelsJSON,
 			&e.BypassedInbox, &e.Reasoning, &e.HumanFeedback,
-			&e.FeedbackDirty, &e.NotificationSent,
+			&e.FeedbackDirty, &e.NotificationSent, &e.DraftCreated,
 			&e.ProcessedAt, &e.CreatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("failed to scan email: %w", err)
@@ -496,8 +497,8 @@ func importEmails(ctx context.Context, tx *sql.Tx, userID int64, emails []Export
 	query := `
 		INSERT INTO emails (id, user_id, from_address, from_domain, subject, slug, keywords, summary,
 		                     labels_applied, bypassed_inbox, reasoning, human_feedback,
-		                     feedback_dirty, notification_sent, processed_at, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+		                     feedback_dirty, notification_sent, draft_created, processed_at, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
 		ON CONFLICT (id)
 		DO UPDATE SET
 			from_address = EXCLUDED.from_address,
@@ -511,7 +512,8 @@ func importEmails(ctx context.Context, tx *sql.Tx, userID int64, emails []Export
 			reasoning = EXCLUDED.reasoning,
 			human_feedback = EXCLUDED.human_feedback,
 			feedback_dirty = EXCLUDED.feedback_dirty,
-			notification_sent = EXCLUDED.notification_sent
+			notification_sent = EXCLUDED.notification_sent,
+			draft_created = EXCLUDED.draft_created
 	`
 	count := 0
 	for _, e := range emails {
@@ -525,7 +527,7 @@ func importEmails(ctx context.Context, tx *sql.Tx, userID int64, emails []Export
 			e.ID, userID, e.FromAddress, domain, e.Subject, e.Slug,
 			keywordsJSON, e.Summary, labelsJSON,
 			e.BypassedInbox, e.Reasoning, e.HumanFeedback,
-			e.FeedbackDirty, e.NotificationSent,
+			e.FeedbackDirty, e.NotificationSent, e.DraftCreated,
 			e.ProcessedAt, e.CreatedAt,
 		); err != nil {
 			return 0, fmt.Errorf("failed to import email %s: %w", e.ID, err)

@@ -18,11 +18,12 @@ import {
 import { createNotification } from '../db/notifications';
 
 // Service clients
-import { getMessage, refreshAccessToken } from '../services/gmail';
+import { getMessage, refreshAccessToken, createDraft } from '../services/gmail';
 import type { OpenAIConfig, EmailAnalysis, EmailActions } from '../services/openai';
 import {
   analyzeEmail,
   determineActions,
+  generateDraftReply,
   bootstrapSenderProfile,
   evolveProfileSummary,
 } from '../services/openai';
@@ -267,7 +268,29 @@ You may apply ONE timed label per email alongside regular labels. Use these inst
     }
   }
 
-  // 14. Save email to D1
+  // 14. Draft reply if AI decided one is warranted
+  let draftCreated = false;
+  if (actions.draft_reply) {
+    try {
+      const draftBody = await generateDraftReply(
+        openaiConfig,
+        message.from,
+        message.subject,
+        body,
+        senderContext,
+        actionsPrompt,
+      );
+      if (draftBody) {
+        await createDraft(accessToken, message.threadId, message.from, message.subject, draftBody);
+        draftCreated = true;
+        console.log(`[${user.email}] Draft reply created for: ${message.subject}`);
+      }
+    } catch (e) {
+      console.error(`[${user.email}] Failed to create draft reply:`, e);
+    }
+  }
+
+  // 15. Save email to D1
   const now = new Date().toISOString();
   const email: Email = {
     id: messageId,
@@ -284,6 +307,7 @@ You may apply ONE timed label per email alongside regular labels. Use these inst
     humanFeedback: '',
     feedbackDirty: false,
     notificationSent,
+    draftCreated,
     processedAt: now,
     createdAt: now,
   };

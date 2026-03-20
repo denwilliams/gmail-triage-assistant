@@ -217,6 +217,29 @@ func (p *Processor) ProcessEmail(ctx context.Context, user *database.User, messa
 		}
 	}
 
+	// Draft reply if AI decided one is warranted
+	draftCreated := false
+	if actions.DraftReply {
+		draftBody, err := p.openai.GenerateDraftReply(ctx, message.From, message.Subject, body, senderContext, actionsPrompt)
+		if err != nil {
+			log.Printf("[%s] Failed to generate draft reply: %v", user.Email, err)
+		} else if draftBody != "" {
+			// Create Gmail client for this user
+			token := user.GetOAuth2Token()
+			draftClient, err := gmail.NewClient(ctx, p.oauthConfig, token)
+			if err != nil {
+				log.Printf("[%s] Failed to create gmail client for draft: %v", user.Email, err)
+			} else {
+				if err := draftClient.CreateDraft(ctx, message.ThreadID, message.From, message.Subject, draftBody); err != nil {
+					log.Printf("[%s] Failed to create draft: %v", user.Email, err)
+				} else {
+					draftCreated = true
+					log.Printf("[%s] Draft reply created for: %s", user.Email, message.Subject)
+				}
+			}
+		}
+	}
+
 	// Save to database
 	email := &database.Email{
 		ID:               message.ID,
@@ -231,6 +254,7 @@ func (p *Processor) ProcessEmail(ctx context.Context, user *database.User, messa
 		BypassedInbox:    actions.BypassInbox,
 		Reasoning:        actions.Reasoning,
 		NotificationSent: notificationSent,
+		DraftCreated:     draftCreated,
 		ProcessedAt:      time.Now(),
 		CreatedAt:        time.Now(),
 	}

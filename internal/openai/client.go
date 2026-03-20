@@ -49,6 +49,7 @@ type EmailActions struct {
 	Labels              []string `json:"labels"`
 	BypassInbox         bool     `json:"bypass_inbox"`
 	NotificationMessage string   `json:"notification_message"`
+	DraftReply          bool     `json:"draft_reply"`
 	Reasoning           string   `json:"reasoning"`
 }
 
@@ -163,6 +164,7 @@ Decide:
 2. Whether to bypass the inbox (archive immediately)
 3. notification_message: leave blank unless this is an important email the user should be alerted about immediately. When needed, write a short friendly message summarizing why it matters (e.g. "Hi, the school nurse said your daughter was taken to the sick bay" or "Heads up — you have a late invoice from PowerCo"). Keep it conversational and to the point.
 4. Brief reasoning for your decisions
+5. draft_reply: set to true if this email is from a human and would benefit from a response. Never draft replies to newsletters, notifications, automated emails, or marketing. Consider the sender type and email content.
 
 Use the learnings from past email processing (provided below) to make better decisions about labeling and archiving.`
 	}
@@ -215,12 +217,16 @@ Summary: %s
 								"type":        "string",
 								"description": "Short friendly notification message explaining why this email matters. Leave as empty string unless the email is important enough to alert the user immediately.",
 							},
+							"draft_reply": map[string]interface{}{
+								"type":        "boolean",
+								"description": "Whether to create a draft reply for this email. Set to true only for emails from humans that expect or would benefit from a response. Never draft replies to newsletters, notifications, automated messages, or marketing emails.",
+							},
 							"reasoning": map[string]interface{}{
 								"type":        "string",
 								"description": "Brief explanation of the decision",
 							},
 						},
-						"required":             []string{"labels", "bypass_inbox", "notification_message", "reasoning"},
+						"required":             []string{"labels", "bypass_inbox", "notification_message", "draft_reply", "reasoning"},
 						"additionalProperties": false,
 					},
 				},
@@ -339,6 +345,47 @@ func (c *Client) GenerateMemory(ctx context.Context, systemPrompt, userPrompt st
 		},
 		// Temperature: openai.Float(0.5),
 		MaxCompletionTokens: openai.Int(20000),
+	})
+
+	if err != nil {
+		return "", fmt.Errorf("openai api error: %w", err)
+	}
+
+	if len(response.Choices) == 0 {
+		return "", fmt.Errorf("no response from openai")
+	}
+
+	return response.Choices[0].Message.Content, nil
+}
+
+// GenerateDraftReply generates a draft reply body for an email using AI.
+func (c *Client) GenerateDraftReply(ctx context.Context, from, subject, body, senderContext, customPrompt string) (string, error) {
+	systemPrompt := `You are drafting a reply to an email on behalf of the user. Write a natural, professional response that:
+- Addresses the key points in the original email
+- Is concise and to the point
+- Matches a professional but friendly tone
+- Does NOT include a subject line — only the body text
+- Does NOT include greetings like "Dear..." unless the original email used them
+- Ends with a simple sign-off if appropriate
+
+The user will review and edit this draft before sending, so aim for a good starting point rather than a perfect response.`
+
+	if customPrompt != "" {
+		systemPrompt += "\n\nAdditional context about the user's preferences:\n" + customPrompt
+	}
+
+	userPrompt := fmt.Sprintf("From: %s\nSubject: %s\n\nBody:\n%s\n\n%sDraft a reply to this email.",
+		from, subject, body, senderContext)
+
+	c.logPrompts("GenerateDraftReply", systemPrompt, userPrompt)
+
+	response, err := c.client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
+		Model: shared.ChatModel(c.model),
+		Messages: []openai.ChatCompletionMessageParamUnion{
+			openai.SystemMessage(systemPrompt),
+			openai.UserMessage(userPrompt),
+		},
+		MaxCompletionTokens: openai.Int(10000),
 	})
 
 	if err != nil {

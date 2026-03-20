@@ -16,6 +16,7 @@ function mapEmail(row: EmailRow): Email {
     humanFeedback: row.human_feedback ?? '',
     feedbackDirty: (row.feedback_dirty ?? 0) === 1,
     notificationSent: row.notification_sent === 1,
+    draftCreated: (row.draft_created ?? 0) === 1,
     processedAt: row.processed_at,
     createdAt: row.created_at,
   };
@@ -41,8 +42,8 @@ export async function createEmail(db: D1Database, email: Email): Promise<void> {
   await db
     .prepare(
       `INSERT INTO emails (id, user_id, from_address, from_domain, subject, slug, keywords, summary,
-        labels_applied, bypassed_inbox, reasoning, notification_sent, processed_at, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        labels_applied, bypassed_inbox, reasoning, notification_sent, draft_created, processed_at, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT (id) DO NOTHING`,
     )
     .bind(
@@ -58,6 +59,7 @@ export async function createEmail(db: D1Database, email: Email): Promise<void> {
       email.bypassedInbox ? 1 : 0,
       email.reasoning,
       email.notificationSent ? 1 : 0,
+      email.draftCreated ? 1 : 0,
       email.processedAt,
       email.createdAt,
     )
@@ -74,7 +76,7 @@ export async function getRecentEmails(
     .prepare(
       `SELECT id, user_id, from_address, from_domain, subject, slug, keywords, summary,
               labels_applied, bypassed_inbox, reasoning, COALESCE(human_feedback, '') as human_feedback,
-              COALESCE(feedback_dirty, 0) as feedback_dirty, notification_sent, processed_at, created_at
+              COALESCE(feedback_dirty, 0) as feedback_dirty, notification_sent, COALESCE(draft_created, 0) as draft_created, processed_at, created_at
        FROM emails
        WHERE user_id = ?
        ORDER BY processed_at DESC
@@ -122,7 +124,7 @@ export async function getEmailsByDateRange(
     .prepare(
       `SELECT id, user_id, from_address, from_domain, subject, slug, keywords, summary,
               labels_applied, bypassed_inbox, reasoning, COALESCE(human_feedback, '') as human_feedback,
-              COALESCE(feedback_dirty, 0) as feedback_dirty, notification_sent, processed_at, created_at
+              COALESCE(feedback_dirty, 0) as feedback_dirty, notification_sent, COALESCE(draft_created, 0) as draft_created, processed_at, created_at
        FROM emails
        WHERE user_id = ? AND processed_at >= ? AND processed_at < ?
        ORDER BY processed_at ASC`,
@@ -137,7 +139,7 @@ export async function getEmailsWithDirtyFeedback(db: D1Database, userId: number)
     .prepare(
       `SELECT id, user_id, from_address, from_domain, subject, slug, keywords, summary,
               labels_applied, bypassed_inbox, reasoning, COALESCE(human_feedback, '') as human_feedback,
-              COALESCE(feedback_dirty, 0) as feedback_dirty, notification_sent, processed_at, created_at
+              COALESCE(feedback_dirty, 0) as feedback_dirty, notification_sent, COALESCE(draft_created, 0) as draft_created, processed_at, created_at
        FROM emails
        WHERE user_id = ? AND feedback_dirty = 1
        ORDER BY processed_at ASC`,
@@ -165,7 +167,7 @@ export async function getHistoricalEmailsFromAddress(
     .prepare(
       `SELECT id, user_id, from_address, from_domain, subject, slug, keywords, summary,
               labels_applied, bypassed_inbox, reasoning, COALESCE(human_feedback, '') as human_feedback,
-              COALESCE(feedback_dirty, 0) as feedback_dirty, notification_sent, processed_at, created_at
+              COALESCE(feedback_dirty, 0) as feedback_dirty, notification_sent, COALESCE(draft_created, 0) as draft_created, processed_at, created_at
        FROM emails
        WHERE user_id = ? AND from_address = ?
        ORDER BY processed_at DESC
@@ -186,7 +188,7 @@ export async function getHistoricalEmailsFromDomain(
     .prepare(
       `SELECT id, user_id, from_address, from_domain, subject, slug, keywords, summary,
               labels_applied, bypassed_inbox, reasoning, COALESCE(human_feedback, '') as human_feedback,
-              COALESCE(feedback_dirty, 0) as feedback_dirty, notification_sent, processed_at, created_at
+              COALESCE(feedback_dirty, 0) as feedback_dirty, notification_sent, COALESCE(draft_created, 0) as draft_created, processed_at, created_at
        FROM emails
        WHERE user_id = ? AND from_domain = ?
        ORDER BY processed_at DESC

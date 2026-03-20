@@ -19,6 +19,7 @@ export interface EmailActions {
   labels: string[];
   bypass_inbox: boolean;
   notification_message: string;
+  draft_reply: boolean;
   reasoning: string;
 }
 
@@ -215,6 +216,7 @@ Decide:
 2. Whether to bypass the inbox (archive immediately)
 3. notification_message: leave blank unless this is an important email the user should be alerted about immediately. When needed, write a short friendly message summarizing why it matters (e.g. "Hi, the school nurse said your daughter was taken to the sick bay" or "Heads up — you have a late invoice from PowerCo"). Keep it conversational and to the point.
 4. Brief reasoning for your decisions
+5. draft_reply: set to true if this email is from a human and would benefit from a response. Never draft replies to newsletters, notifications, automated emails, or marketing. Consider the sender type and email content.
 
 Use the learnings from past email processing (provided below) to make better decisions about labeling and archiving.`;
   }
@@ -251,17 +253,56 @@ ${senderContext}${memoryContext}What actions should be taken for this email?`;
           description:
             'Short friendly notification message explaining why this email matters. Leave as empty string unless the email is important enough to alert the user immediately.',
         },
+        draft_reply: {
+          type: 'boolean',
+          description: 'Whether to create a draft reply for this email. Set to true only for emails from humans that expect or would benefit from a response. Never draft replies to newsletters, notifications, automated messages, or marketing emails.',
+        },
         reasoning: {
           type: 'string',
           description: 'Brief explanation of the decision',
         },
       },
-      required: ['labels', 'bypass_inbox', 'notification_message', 'reasoning'],
+      required: ['labels', 'bypass_inbox', 'notification_message', 'draft_reply', 'reasoning'],
       additionalProperties: false,
     }),
   });
 
   return JSON.parse(content) as EmailActions;
+}
+
+/**
+ * Generate a draft reply to an email.
+ * Returns plain text reply body.
+ */
+export async function generateDraftReply(
+  config: OpenAIConfig,
+  from: string,
+  subject: string,
+  body: string,
+  senderContext: string,
+  customPrompt: string,
+): Promise<string> {
+  let systemPrompt = `You are drafting a reply to an email on behalf of the user. Write a natural, professional response that:
+- Addresses the key points in the original email
+- Is concise and to the point
+- Matches a professional but friendly tone
+- Does NOT include a subject line — only the body text
+- Does NOT include greetings like "Dear..." unless the original email used them
+- Ends with a simple sign-off if appropriate
+
+The user will review and edit this draft before sending, so aim for a good starting point rather than a perfect response.`;
+
+  if (customPrompt) {
+    systemPrompt += `\n\nAdditional context about user preferences:\n${customPrompt}`;
+  }
+
+  if (senderContext) {
+    systemPrompt += `\n\nSender context:\n${senderContext}`;
+  }
+
+  const userPrompt = `From: ${from}\nSubject: ${subject}\n\n${body}`;
+
+  return generateText(config, systemPrompt, userPrompt);
 }
 
 /**

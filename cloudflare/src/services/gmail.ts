@@ -315,6 +315,36 @@ export async function getMessageMetadata(
   return { id: data.id, internalDate: parseInt(data.internalDate, 10) };
 }
 
+/** Create a draft reply to a message in the same thread. */
+export async function createDraft(
+  accessToken: string,
+  threadId: string,
+  to: string,
+  subject: string,
+  body: string,
+): Promise<void> {
+  // Build RFC 2822 message
+  const raw = `To: ${to}\r\nSubject: Re: ${subject}\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n${body}`;
+
+  // Base64url encode
+  const encoded = base64urlEncode(raw);
+
+  const res = await fetch(`${GMAIL_BASE}/drafts`, {
+    method: 'POST',
+    headers: { ...authHeaders(accessToken), 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      message: {
+        threadId,
+        raw: encoded,
+      },
+    }),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Gmail create draft error: ${res.status} ${await res.text()}`);
+  }
+}
+
 /** Refresh an OAuth2 access token using a refresh token. */
 export async function refreshAccessToken(
   clientId: string,

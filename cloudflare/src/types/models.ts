@@ -35,6 +35,7 @@ export interface EmailRow {
   human_feedback: string;
   feedback_dirty: number;
   notification_sent: number;
+  draft_created: number;
   processed_at: string;
   created_at: string;
 }
@@ -157,6 +158,7 @@ export interface Email {
   humanFeedback: string;
   feedbackDirty: boolean;
   notificationSent: boolean;
+  draftCreated: boolean;
   processedAt: string;
   createdAt: string;
 }
@@ -396,6 +398,7 @@ export interface ExportEmail {
   humanFeedback: string;
   feedbackDirty: boolean;
   notificationSent: boolean;
+  draftCreated: boolean;
   processedAt: string;
   createdAt: string;
 }
