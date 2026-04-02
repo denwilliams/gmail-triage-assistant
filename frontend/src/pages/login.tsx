@@ -8,6 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Mail } from "lucide-react";
 
 export default function LoginPage() {
   const { user, loading } = useAuth();
@@ -26,16 +27,19 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl">Gmail Triage Assistant</CardTitle>
+      <Card className="w-full max-w-sm">
+        <CardHeader className="text-center pb-4">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+            <Mail className="h-6 w-6" />
+          </div>
+          <CardTitle className="text-2xl">Gmail Triage</CardTitle>
           <CardDescription>
             AI-powered email management that automatically categorizes and
             organizes your Gmail inbox
           </CardDescription>
         </CardHeader>
         <CardContent className="flex justify-center">
-          <Button asChild size="lg">
+          <Button asChild size="lg" className="w-full">
             <a href="/auth/login">Sign in with Google</a>
           </Button>
         </CardContent>
