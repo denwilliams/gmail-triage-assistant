@@ -207,6 +207,36 @@ export type BucketStats =
   | SecurityBucketStats
   | CalendarBucketStats;
 
+export interface PipelineStageModel {
+  stage: string;
+  configured_model: string | null;
+  effective_model: string;
+}
+
+export interface PipelineConfig {
+  default_model: string;
+  openai_base_url: string;
+  stages: PipelineStageModel[];
+}
+
+export interface StuckEmailRow {
+  id: string;
+  from_address: string;
+  subject: string;
+  bucket: Bucket | null;
+  pipeline_stage: PipelineStage;
+  triage_via: TriageVia | null;
+  processed_at: string;
+  created_at: string;
+  reasoning: string;
+}
+
+export interface PipelineOps {
+  stuck: StuckEmailRow[];
+  failed: StuckEmailRow[];
+  daily_throughput: { date: string; processed: number; failed: number }[];
+}
+
 export interface SystemPrompt {
   id: number;
   user_id: number;
