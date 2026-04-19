@@ -42,4 +42,9 @@ export interface Env {
 
   JWT_SECRET: string;
   SERVER_URL: string;
+
+  // IANA timezone (e.g. "Australia/Sydney"). Used by the hourly cron
+  // dispatcher to decide when to fire daily/weekly/monthly/yearly jobs.
+  // Defaults to "UTC" when unset.
+  TIMEZONE?: string;
 }
