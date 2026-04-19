@@ -10,6 +10,8 @@ export interface GmailMessage {
   body: string;
   labelIds: string[];
   internalDate: number;
+  inReplyTo: string | null;       // RFC 2822 In-Reply-To header
+  messageIdHeader: string | null; // RFC 2822 Message-Id header
 }
 
 export interface GmailLabel {
@@ -80,9 +82,13 @@ function parseGmailMessage(raw: any): GmailMessage {
   const headers: { name: string; value: string }[] = raw.payload?.headers ?? [];
   let subject = '';
   let from = '';
+  let inReplyTo: string | null = null;
+  let messageIdHeader: string | null = null;
   for (const h of headers) {
     if (h.name === 'Subject') subject = h.value;
-    if (h.name === 'From') from = parseAddress(h.value);
+    else if (h.name === 'From') from = parseAddress(h.value);
+    else if (h.name === 'In-Reply-To') inReplyTo = h.value.trim();
+    else if (h.name === 'Message-ID' || h.name === 'Message-Id') messageIdHeader = h.value.trim();
   }
 
   const bodyData = extractBody(raw.payload ?? {});
@@ -96,6 +102,8 @@ function parseGmailMessage(raw: any): GmailMessage {
     body,
     labelIds: raw.labelIds ?? [],
     internalDate: parseInt(raw.internalDate, 10),
+    inReplyTo,
+    messageIdHeader,
   };
 }
 

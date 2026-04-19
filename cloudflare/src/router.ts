@@ -8,7 +8,13 @@ import { handleGetLabels, handleCreateLabel, handleUpdateLabel, handleDeleteLabe
 import { handleGetEmails, handleUpdateFeedback } from './api/emails';
 import { handleGetPrompts, handleUpdatePrompt, handleInitDefaults } from './api/prompts';
 import { handleGetMemories, handleGenerateMemory, handleGenerateAIPrompts } from './api/memories';
-import { handleGetSettings, handleUpdateProcessing, handleUpdatePushover, handleUpdateWebhook } from './api/settings';
+import {
+  handleGetSettings,
+  handleUpdatePipelineVersion,
+  handleUpdateProcessing,
+  handleUpdatePushover,
+  handleUpdateWebhook,
+} from './api/settings';
 import { handleGetNotifications } from './api/notifications';
 import { handleGetWrapups } from './api/wrapups';
 import { handleGetStatsSummary, handleGetStatsTimeseries } from './api/stats';
@@ -66,6 +72,7 @@ api.post('/memories/generate-ai-prompts', handleGenerateAIPrompts);
 // Settings
 api.get('/settings', handleGetSettings);
 api.put('/settings/processing', handleUpdateProcessing);
+api.put('/settings/pipeline-version', handleUpdatePipelineVersion);
 api.put('/settings/pushover', handleUpdatePushover);
 api.put('/settings/webhook', handleUpdateWebhook);
 

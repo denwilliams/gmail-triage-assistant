@@ -11,11 +11,18 @@ import {
 } from './jobs/memory';
 import { processTimedLabels } from './jobs/timed-labels';
 import { processEmail } from './pipeline/processor';
+import { runTriage } from './pipeline/triage';
 import { getAllActiveUsers } from './db/users';
 
 interface EmailMessage {
   userId: number;
   messageId: string;
+}
+
+interface BucketMessage {
+  userId: number;
+  messageId: string;
+  bucket: string;
 }
 
 interface BackgroundJob {
@@ -139,44 +146,69 @@ export default {
         console.log(`scheduled: unknown cron trigger: ${event.cron}`);
     }
   },
-  queue: async (batch: MessageBatch, env: Env, ctx: ExecutionContext) => {
+  queue: async (batch: MessageBatch, env: Env, _ctx: ExecutionContext) => {
+    const queueName = batch.queue;
     for (const msg of batch.messages) {
       try {
-        const body = msg.body as EmailMessage | BackgroundJob;
-        if ('messageId' in body) {
-          // email-processing queue
-          await processEmail(env, body.userId, body.messageId);
-        } else if ('jobType' in body) {
-          // background-jobs queue
-          switch (body.jobType) {
-            case 'morning_wrapup':
-              await runMorningWrapup(env, body.userId);
-              break;
-            case 'evening_wrapup':
-              await runEveningWrapup(env, body.userId);
-              break;
-            case 'daily_memory':
-              await generateDailyMemory(env, body.userId);
-              break;
-            case 'weekly_memory':
-              await generateWeeklyMemory(env, body.userId);
-              await generateAIPrompts(env, body.userId);
-              break;
-            case 'monthly_memory':
-              await generateMonthlyMemory(env, body.userId);
-              break;
-            case 'yearly_memory':
-              await generateYearlyMemory(env, body.userId);
-              break;
-            default:
-              console.error(`queue: unknown job type: ${body.jobType}`);
-          }
-        }
+        await dispatchQueueMessage(env, queueName, msg.body);
         msg.ack();
       } catch (e) {
-        console.error('queue: message processing failed:', e);
+        console.error(`queue[${queueName}]: message processing failed:`, e);
         msg.retry();
       }
     }
   },
 };
+
+async function dispatchQueueMessage(
+  env: Env,
+  queueName: string,
+  body: unknown,
+): Promise<void> {
+  switch (queueName) {
+    case 'gmail-assistant-processing': {
+      // v1 legacy single-stage processor
+      const m = body as EmailMessage;
+      await processEmail(env, m.userId, m.messageId);
+      return;
+    }
+    case 'gmail-assistant-triage': {
+      // v2 stage 1
+      const m = body as EmailMessage;
+      await runTriage(env, m.userId, m.messageId);
+      return;
+    }
+    case 'gmail-assistant-bucket-newsletter':
+    case 'gmail-assistant-bucket-notification':
+    case 'gmail-assistant-bucket-human':
+    case 'gmail-assistant-bucket-transactional':
+    case 'gmail-assistant-bucket-security':
+    case 'gmail-assistant-bucket-calendar': {
+      // v2 stage 2 — handled in commit 4
+      const m = body as BucketMessage;
+      console.warn(
+        `queue[${queueName}]: bucket processor not yet implemented — ` +
+        `holding email ${m.messageId} (bucket ${m.bucket})`,
+      );
+      throw new Error(`bucket processor for ${queueName} not implemented`);
+    }
+    case 'gmail-assistant-background-jobs': {
+      const job = body as BackgroundJob;
+      switch (job.jobType) {
+        case 'morning_wrapup': await runMorningWrapup(env, job.userId); return;
+        case 'evening_wrapup': await runEveningWrapup(env, job.userId); return;
+        case 'daily_memory': await generateDailyMemory(env, job.userId); return;
+        case 'weekly_memory':
+          await generateWeeklyMemory(env, job.userId);
+          await generateAIPrompts(env, job.userId);
+          return;
+        case 'monthly_memory': await generateMonthlyMemory(env, job.userId); return;
+        case 'yearly_memory': await generateYearlyMemory(env, job.userId); return;
+        default:
+          throw new Error(`unknown background job type: ${job.jobType}`);
+      }
+    }
+    default:
+      throw new Error(`unknown queue: ${queueName}`);
+  }
+}

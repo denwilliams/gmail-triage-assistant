@@ -18,6 +18,19 @@ interface GoogleUserInfo {
   email: string;
 }
 
+function isEmailAllowed(env: Env, email: string): boolean {
+  const addr = email.toLowerCase();
+  const allowEmails = (env.ALLOWED_EMAILS ?? '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
+  if (allowEmails.length > 0 && !allowEmails.includes(addr)) return false;
+
+  const allowDomain = (env.ALLOWED_DOMAIN ?? '').trim().toLowerCase();
+  if (allowDomain) {
+    const domain = addr.split('@').pop() ?? '';
+    if (domain !== allowDomain) return false;
+  }
+  return true;
+}
+
 export async function handleLogin(c: HonoContext) {
   const params = new URLSearchParams({
     client_id: c.env.GOOGLE_CLIENT_ID,
@@ -27,6 +40,10 @@ export async function handleLogin(c: HonoContext) {
     access_type: 'offline',
     prompt: 'consent',
   });
+  // Restrict to a Google Workspace domain at Google's side when configured.
+  if (c.env.ALLOWED_DOMAIN) {
+    params.set('hd', c.env.ALLOWED_DOMAIN);
+  }
 
   const url = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
   return c.redirect(url, 307);
@@ -71,6 +88,12 @@ export async function handleCallback(c: HonoContext) {
   }
 
   const userInfo = (await userInfoRes.json()) as GoogleUserInfo;
+
+  // Enforce allowlist before touching the DB.
+  if (!isEmailAllowed(c.env, userInfo.email)) {
+    console.warn(`oauth: rejected disallowed email ${userInfo.email}`);
+    return c.json({ error: 'This account is not authorised to use this service.' }, 403);
+  }
 
   // Calculate token expiry
   const tokenExpiry = new Date(Date.now() + tokenData.expires_in * 1000).toISOString();
