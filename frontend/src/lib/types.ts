@@ -304,6 +304,18 @@ export interface UserSettings {
   webhook_header_key: string;
   webhook_header_value: string;
   webhook_configured: boolean;
+  // v2 pipeline settings (migration 0005)
+  v2_newsletter_threshold: number;
+  v2_human_rating_threshold: number;
+  v2_calendar_imminent_minutes: number;
+  v2_notify_buckets: Partial<Record<Bucket, boolean>>;
+}
+
+export interface V2SettingsUpdate {
+  newsletter_threshold?: number;
+  human_rating_threshold?: number;
+  calendar_imminent_minutes?: number;
+  notify_buckets?: Partial<Record<Bucket, boolean>>;
 }
 
 export interface ImportResult {

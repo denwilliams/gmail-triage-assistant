@@ -5,9 +5,11 @@ import {
   setUserActive,
   setUserPipelineVersion,
   updatePushoverConfig,
+  updateV2Settings,
   updateWebhookConfig,
 } from '../db/users';
-import type { PipelineVersion } from '../types/models';
+import type { Bucket, PipelineVersion } from '../types/models';
+import { BUCKETS } from '../types/models';
 
 type AppContext = Context<{ Bindings: Env; Variables: { userId: number; email: string } }>;
 
@@ -40,6 +42,10 @@ export async function handleGetSettings(c: AppContext) {
       webhook_header_key: user.webhookHeaderKey,
       webhook_header_value: maskValue(user.webhookHeaderValue),
       webhook_configured: webhookConfigured,
+      v2_newsletter_threshold: user.v2NewsletterThreshold,
+      v2_human_rating_threshold: user.v2HumanRatingThreshold,
+      v2_calendar_imminent_minutes: user.v2CalendarImminentMinutes,
+      v2_notify_buckets: user.v2NotifyBuckets,
     });
   } catch (e) {
     console.error('Failed to load settings:', e);
@@ -95,6 +101,80 @@ export async function handleUpdatePipelineVersion(c: AppContext) {
   } catch (e) {
     console.error('Failed to update pipeline version:', e);
     return c.json({ error: 'Failed to save pipeline version' }, 500);
+  }
+}
+
+interface V2SettingsBody {
+  newsletter_threshold?: number;
+  human_rating_threshold?: number;
+  calendar_imminent_minutes?: number;
+  notify_buckets?: Record<string, boolean>;
+}
+
+export async function handleUpdateV2Settings(c: AppContext) {
+  const userId = c.get('userId');
+  const body = await c.req.json<V2SettingsBody>().catch(() => null);
+  if (!body || typeof body !== 'object') {
+    return c.json({ error: 'Invalid JSON' }, 400);
+  }
+
+  const update: Parameters<typeof updateV2Settings>[2] = {};
+
+  if (body.newsletter_threshold !== undefined) {
+    const v = Math.round(Number(body.newsletter_threshold));
+    if (!Number.isInteger(v) || v < 0 || v > 10) {
+      return c.json({ error: 'newsletter_threshold must be 0..10' }, 400);
+    }
+    update.newsletterThreshold = v;
+  }
+
+  if (body.human_rating_threshold !== undefined) {
+    const v = Math.round(Number(body.human_rating_threshold));
+    if (!Number.isInteger(v) || v < 0 || v > 100) {
+      return c.json({ error: 'human_rating_threshold must be 0..100' }, 400);
+    }
+    update.humanRatingThreshold = v;
+  }
+
+  if (body.calendar_imminent_minutes !== undefined) {
+    const v = Math.round(Number(body.calendar_imminent_minutes));
+    if (!Number.isInteger(v) || v < 0 || v > 1440) {
+      return c.json({ error: 'calendar_imminent_minutes must be 0..1440' }, 400);
+    }
+    update.calendarImminentMinutes = v;
+  }
+
+  if (body.notify_buckets !== undefined) {
+    if (!body.notify_buckets || typeof body.notify_buckets !== 'object') {
+      return c.json({ error: 'notify_buckets must be an object' }, 400);
+    }
+    const cleaned: Partial<Record<Bucket, boolean>> = {};
+    for (const [key, val] of Object.entries(body.notify_buckets)) {
+      if (!BUCKETS.includes(key as Bucket)) {
+        return c.json({ error: `unknown bucket: ${key}` }, 400);
+      }
+      if (typeof val !== 'boolean') {
+        return c.json({ error: `notify_buckets.${key} must be boolean` }, 400);
+      }
+      cleaned[key as Bucket] = val;
+    }
+    update.notifyBuckets = cleaned;
+  }
+
+  try {
+    await updateV2Settings(c.env.DB, userId, update);
+    const user = await getUserByID(c.env.DB, userId);
+    if (!user) return c.json({ error: 'User not found' }, 404);
+    return c.json({
+      status: 'updated',
+      v2_newsletter_threshold: user.v2NewsletterThreshold,
+      v2_human_rating_threshold: user.v2HumanRatingThreshold,
+      v2_calendar_imminent_minutes: user.v2CalendarImminentMinutes,
+      v2_notify_buckets: user.v2NotifyBuckets,
+    });
+  } catch (e) {
+    console.error('Failed to update v2 settings:', e);
+    return c.json({ error: 'Failed to save v2 settings' }, 500);
   }
 }
 

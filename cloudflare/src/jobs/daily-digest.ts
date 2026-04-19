@@ -28,8 +28,11 @@ import { composeDigestIntro } from '../services/ai';
 
 import { ensureFreshToken } from '../pipeline/shared';
 
-const NEWSLETTER_INTERESTING_THRESHOLD = 6;
-const HUMAN_RATING_THRESHOLD = 40;
+// Default thresholds. Per-user overrides live on the users table (see
+// migration 0005) and are read via `user.v2NewsletterThreshold` /
+// `user.v2HumanRatingThreshold`.
+export const DEFAULT_NEWSLETTER_INTERESTING_THRESHOLD = 6;
+export const DEFAULT_HUMAN_RATING_THRESHOLD = 40;
 
 function ymd(date: Date): string {
   return date.toISOString().slice(0, 10);
@@ -65,10 +68,11 @@ async function buildNewsletterSection(
   userId: number,
   start: string,
   end: string,
+  threshold: number,
 ): Promise<DigestNewsletterItem[]> {
   const emails = await getEmailsByBucket(env.DB, userId, 'newsletter', start, end);
   return emails
-    .filter((e) => (e.interestingScore ?? 0) >= NEWSLETTER_INTERESTING_THRESHOLD)
+    .filter((e) => (e.interestingScore ?? 0) >= threshold)
     .map<DigestNewsletterItem>((e) => ({
       emailId: firstEmailId(e),
       fromAddress: e.fromAddress,
@@ -104,6 +108,7 @@ async function buildQuietHumansSection(
   userId: number,
   start: string,
   end: string,
+  ratingThreshold: number,
 ): Promise<DigestQuietHumanItem[]> {
   const emails = await getEmailsByBucket(env.DB, userId, 'human', start, end);
   const out: DigestQuietHumanItem[] = [];
@@ -111,7 +116,7 @@ async function buildQuietHumansSection(
     if (!e.bypassedInbox) continue;
     const profile = await lookupSenderRating(env, userId, e);
     const rating = profile?.rating ?? null;
-    if (rating === null || rating >= HUMAN_RATING_THRESHOLD) continue;
+    if (rating === null || rating >= ratingThreshold) continue;
     out.push({
       emailId: firstEmailId(e),
       fromAddress: e.fromAddress,
@@ -144,9 +149,9 @@ export async function runDailyDigest(env: Env, userId: number): Promise<void> {
   const digestDate = ymd(new Date());
 
   const [newsletters, notifications, quietHumans] = await Promise.all([
-    buildNewsletterSection(env, user.id, start, end),
+    buildNewsletterSection(env, user.id, start, end, user.v2NewsletterThreshold),
     buildNotificationSection(env, user.id, start, end),
-    buildQuietHumansSection(env, user.id, start, end),
+    buildQuietHumansSection(env, user.id, start, end, user.v2HumanRatingThreshold),
   ]);
 
   const sections: DigestSections = { newsletters, notifications, quietHumans };

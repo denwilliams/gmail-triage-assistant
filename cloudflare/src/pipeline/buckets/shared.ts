@@ -207,8 +207,17 @@ export async function runBucketProcessor(
   }
 
   // ---- Pushover + webhook notifications ----
+  // Per-bucket opt-out: v2_notify_buckets is a partial map; missing keys
+  // default to allowed (true). Explicit `false` suppresses all outbound
+  // notifications for this bucket regardless of what the processor decided.
   let notificationSent = false;
-  if (outcome.notificationMessage && user.pushoverUserKey && user.pushoverAppToken) {
+  const bucketAllowsNotify = user.v2NotifyBuckets[bucket] !== false;
+  if (
+    outcome.notificationMessage &&
+    bucketAllowsNotify &&
+    user.pushoverUserKey &&
+    user.pushoverAppToken
+  ) {
     try {
       await sendPushover(
         user.pushoverUserKey,
@@ -221,7 +230,7 @@ export async function runBucketProcessor(
       console.error(`[${user.email}] ${bucket}: pushover failed:`, err);
     }
   }
-  if (outcome.notificationMessage && user.webhookUrl) {
+  if (outcome.notificationMessage && bucketAllowsNotify && user.webhookUrl) {
     try {
       const payload: WebhookPayload = {
         title: gmailMsg.subject,

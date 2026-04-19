@@ -179,6 +179,17 @@ export const api = {
       method: "PUT",
       body: JSON.stringify({ version }),
     }),
+  updateV2Settings: (body: import("./types").V2SettingsUpdate) =>
+    request<{
+      status: string;
+      v2_newsletter_threshold: number;
+      v2_human_rating_threshold: number;
+      v2_calendar_imminent_minutes: number;
+      v2_notify_buckets: Partial<Record<import("./types").Bucket, boolean>>;
+    }>("/settings/v2", {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
 
   listDigests: (limit = 30) =>
     request<{ digests: import("./types").DailyDigest[] }>(`/digests?limit=${limit}`),

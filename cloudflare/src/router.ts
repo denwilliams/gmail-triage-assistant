@@ -13,6 +13,7 @@ import {
   handleUpdatePipelineVersion,
   handleUpdateProcessing,
   handleUpdatePushover,
+  handleUpdateV2Settings,
   handleUpdateWebhook,
 } from './api/settings';
 import { handleGetNotifications } from './api/notifications';
@@ -87,6 +88,7 @@ api.put('/settings/processing', handleUpdateProcessing);
 api.put('/settings/pipeline-version', handleUpdatePipelineVersion);
 api.put('/settings/pushover', handleUpdatePushover);
 api.put('/settings/webhook', handleUpdateWebhook);
+api.put('/settings/v2', handleUpdateV2Settings);
 
 // Notifications
 api.get('/notifications', handleGetNotifications);
