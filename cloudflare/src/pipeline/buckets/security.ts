@@ -27,6 +27,8 @@ const processor: BucketProcessor = async (ctx) => {
     bypassInbox: false,
     notificationMessage: result.notification_message,
     draftBody: '',
+    actionType: result.action_type || null,
+    isOtp: result.is_otp,
     reasoning: `Security (${result.action_type}${result.is_otp ? ', OTP' : ''}). ${result.reasoning}`,
   };
 };

@@ -67,7 +67,145 @@ export interface Email {
   in_reply_to?: string | null;
   thread_id?: string | null;
   included_in_digest?: string | null;
+  // Bucket-specific extractions (migration 0004).
+  vendor?: string | null;
+  document_type?: string | null;
+  amount?: string | null;
+  action_type?: string | null;
+  is_otp?: boolean | null;
+  event_title?: string | null;
+  event_starts_at?: string | null;
+  event_ends_at?: string | null;
+  event_location?: string | null;
+  event_attendees?: string[];
 }
+
+export interface BucketTotals {
+  all_time: number;
+  month: number;
+  week: number;
+}
+
+export interface BucketEmailRef {
+  id: string;
+  subject: string;
+  from_address: string;
+  processed_at: string;
+}
+
+export interface NewsletterSenderStat {
+  address: string;
+  count: number;
+  avg_score: number;
+  max_score: number;
+  digest_included: number;
+}
+
+export interface NewsletterBucketStats {
+  bucket: "newsletter";
+  totals: BucketTotals;
+  score_histogram: { score: number; count: number }[];
+  top_scoring_senders: NewsletterSenderStat[];
+  digest_included_week: number;
+  digest_included_month: number;
+  top_interesting: (BucketEmailRef & { score: number; reasons: string[] })[];
+}
+
+export interface NoisySenderStat {
+  address: string;
+  count: number;
+  notified: number;
+  high_count: number;
+}
+
+export interface NotificationBucketStats {
+  bucket: "notification";
+  totals: BucketTotals;
+  severity_counts: Record<string, number>;
+  urgency_counts: Record<string, number>;
+  severity_urgency_matrix: { severity: string; urgency: string; count: number }[];
+  noisiest_senders: NoisySenderStat[];
+  recent_high: (BucketEmailRef & {
+    severity: string | null;
+    urgency: string | null;
+    summary: string;
+  })[];
+}
+
+export interface HumanSenderSnapshot {
+  id: number;
+  identifier: string;
+  rating: number | null;
+  rating_reasoning: string;
+  rating_manual: boolean;
+  email_count: number;
+  last_seen_at: string;
+}
+
+export interface HumanBucketStats {
+  bucket: "human";
+  totals: BucketTotals;
+  rating_histogram: { bucket: string; count: number }[];
+  at_threshold: HumanSenderSnapshot[];
+  quiet_humans: HumanSenderSnapshot[];
+  unrated_senders: number;
+  rated_senders: number;
+}
+
+export interface VendorStat {
+  vendor: string;
+  count: number;
+  last_seen_at: string;
+}
+
+export interface TransactionalBucketStats {
+  bucket: "transactional";
+  totals: BucketTotals;
+  top_vendors: VendorStat[];
+  document_type_counts: { type: string; count: number }[];
+  recent: (BucketEmailRef & {
+    vendor: string | null;
+    document_type: string | null;
+    amount: string | null;
+  })[];
+}
+
+export interface SecurityBucketStats {
+  bucket: "security";
+  totals: BucketTotals;
+  action_type_counts: { type: string; count: number }[];
+  otp_count: number;
+  otp_count_month: number;
+  recent: (BucketEmailRef & {
+    action_type: string | null;
+    is_otp: boolean | null;
+    summary: string;
+  })[];
+}
+
+export interface CalendarEventRef extends BucketEmailRef {
+  event_title: string | null;
+  event_starts_at: string | null;
+  event_ends_at: string | null;
+  event_location: string | null;
+  event_attendees: string[];
+}
+
+export interface CalendarBucketStats {
+  bucket: "calendar";
+  totals: BucketTotals;
+  upcoming: CalendarEventRef[];
+  recent_past: CalendarEventRef[];
+  undated_count: number;
+}
+
+export type BucketStats =
+  | NewsletterBucketStats
+  | NotificationBucketStats
+  | HumanBucketStats
+  | TransactionalBucketStats
+  | SecurityBucketStats
+  | CalendarBucketStats;
 
 export interface SystemPrompt {
   id: number;

@@ -490,3 +490,771 @@ export async function getV2PipelineStats(
     })),
   };
 }
+
+// ============================================================================
+// Per-bucket stats — one shape per bucket, dispatched by getBucketStats().
+// ============================================================================
+
+export interface BucketTotals {
+  allTime: number;
+  month: number;
+  week: number;
+}
+
+export interface EmailRef {
+  id: string;
+  subject: string;
+  fromAddress: string;
+  processedAt: string;
+}
+
+// --- Newsletter --------------------------------------------------------------
+
+export interface NewsletterSenderStat {
+  address: string;
+  count: number;
+  avgScore: number;
+  maxScore: number;
+  digestIncluded: number;
+}
+
+export interface NewsletterStats {
+  bucket: 'newsletter';
+  totals: BucketTotals;
+  scoreHistogram: { score: number; count: number }[];  // 0..10
+  topScoringSenders: NewsletterSenderStat[];
+  digestIncludedWeek: number;
+  digestIncludedMonth: number;
+  topInteresting: (EmailRef & { score: number; reasons: string[] })[];
+}
+
+// --- Notification ------------------------------------------------------------
+
+export interface NoisySenderStat {
+  address: string;
+  count: number;
+  notified: number;
+  highCount: number;
+}
+
+export interface NotificationStats {
+  bucket: 'notification';
+  totals: BucketTotals;
+  severityCounts: Record<string, number>;
+  urgencyCounts: Record<string, number>;
+  severityUrgencyMatrix: { severity: string; urgency: string; count: number }[];
+  noisiestSenders: NoisySenderStat[];
+  recentHigh: (EmailRef & { severity: string | null; urgency: string | null; summary: string })[];
+}
+
+// --- Human -------------------------------------------------------------------
+
+export interface HumanSenderSnapshot {
+  id: number;
+  identifier: string;
+  rating: number | null;
+  ratingReasoning: string;
+  ratingManual: boolean;
+  emailCount: number;
+  lastSeenAt: string;
+}
+
+export interface HumanStats {
+  bucket: 'human';
+  totals: BucketTotals;
+  ratingHistogram: { bucket: string; count: number }[];  // bins 0-9, 10-19, ...
+  atThreshold: HumanSenderSnapshot[];   // rating 30..49
+  quietHumans: HumanSenderSnapshot[];   // rating < 40
+  unratedSenders: number;
+  ratedSenders: number;
+}
+
+// --- Transactional -----------------------------------------------------------
+
+export interface VendorStat {
+  vendor: string;
+  count: number;
+  lastSeenAt: string;
+}
+
+export interface TransactionalStats {
+  bucket: 'transactional';
+  totals: BucketTotals;
+  topVendors: VendorStat[];
+  documentTypeCounts: { type: string; count: number }[];
+  recent: (EmailRef & {
+    vendor: string | null;
+    documentType: string | null;
+    amount: string | null;
+  })[];
+}
+
+// --- Security ----------------------------------------------------------------
+
+export interface SecurityStats {
+  bucket: 'security';
+  totals: BucketTotals;
+  actionTypeCounts: { type: string; count: number }[];
+  otpCount: number;
+  otpCountMonth: number;
+  recent: (EmailRef & {
+    actionType: string | null;
+    isOtp: boolean | null;
+    summary: string;
+  })[];
+}
+
+// --- Calendar ----------------------------------------------------------------
+
+export interface CalendarEventRef {
+  id: string;
+  subject: string;
+  fromAddress: string;
+  processedAt: string;
+  eventTitle: string | null;
+  eventStartsAt: string | null;
+  eventEndsAt: string | null;
+  eventLocation: string | null;
+  eventAttendees: string[];
+}
+
+export interface CalendarStats {
+  bucket: 'calendar';
+  totals: BucketTotals;
+  upcoming: CalendarEventRef[];
+  recentPast: CalendarEventRef[];
+  undatedCount: number;
+}
+
+export type BucketStats =
+  | NewsletterStats
+  | NotificationStats
+  | HumanStats
+  | TransactionalStats
+  | SecurityStats
+  | CalendarStats;
+
+function safeParseJSON<T>(text: string | null, fallback: T): T {
+  if (!text) return fallback;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    return fallback;
+  }
+}
+
+async function getBucketTotals(
+  db: D1Database,
+  userId: number,
+  bucket: Bucket,
+  windows: { weekStart: string; monthStart: string },
+): Promise<BucketTotals> {
+  const row = await db
+    .prepare(
+      `SELECT
+        COUNT(*) as all_time,
+        SUM(CASE WHEN processed_at >= ? THEN 1 ELSE 0 END) as month,
+        SUM(CASE WHEN processed_at >= ? THEN 1 ELSE 0 END) as week
+       FROM emails WHERE user_id = ? AND bucket = ?`,
+    )
+    .bind(windows.monthStart, windows.weekStart, userId, bucket)
+    .first<{ all_time: number; month: number; week: number }>();
+  return {
+    allTime: row?.all_time ?? 0,
+    month: row?.month ?? 0,
+    week: row?.week ?? 0,
+  };
+}
+
+function getWindows() {
+  const now = Date.now();
+  const weekStart = new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const monthStart = new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString();
+  return { weekStart, monthStart };
+}
+
+// --- Newsletter stats --------------------------------------------------------
+
+async function getNewsletterStats(db: D1Database, userId: number): Promise<NewsletterStats> {
+  const windows = getWindows();
+  const totals = await getBucketTotals(db, userId, 'newsletter', windows);
+
+  const { results: histRows } = await db
+    .prepare(
+      `SELECT interesting_score as score, COUNT(*) as cnt
+       FROM emails
+       WHERE user_id = ? AND bucket = 'newsletter' AND interesting_score IS NOT NULL
+       GROUP BY interesting_score`,
+    )
+    .bind(userId)
+    .all<{ score: number; cnt: number }>();
+  const scoreHistogram = Array.from({ length: 11 }, (_, i) => ({
+    score: i,
+    count: histRows.find((r) => r.score === i)?.cnt ?? 0,
+  }));
+
+  const { results: senderRows } = await db
+    .prepare(
+      `SELECT from_address,
+              COUNT(*) as cnt,
+              AVG(interesting_score) as avg_score,
+              MAX(interesting_score) as max_score,
+              SUM(CASE WHEN included_in_digest IS NOT NULL THEN 1 ELSE 0 END) as digested
+       FROM emails
+       WHERE user_id = ? AND bucket = 'newsletter' AND interesting_score IS NOT NULL
+       GROUP BY from_address
+       ORDER BY avg_score DESC, cnt DESC
+       LIMIT 15`,
+    )
+    .bind(userId)
+    .all<{
+      from_address: string;
+      cnt: number;
+      avg_score: number;
+      max_score: number;
+      digested: number;
+    }>();
+  const topScoringSenders: NewsletterSenderStat[] = senderRows.map((r) => ({
+    address: r.from_address,
+    count: r.cnt,
+    avgScore: Math.round((r.avg_score ?? 0) * 10) / 10,
+    maxScore: r.max_score ?? 0,
+    digestIncluded: r.digested ?? 0,
+  }));
+
+  const digestWeekRow = await db
+    .prepare(
+      `SELECT COUNT(*) as cnt FROM emails
+       WHERE user_id = ? AND bucket = 'newsletter'
+         AND included_in_digest IS NOT NULL AND processed_at >= ?`,
+    )
+    .bind(userId, windows.weekStart)
+    .first<{ cnt: number }>();
+  const digestMonthRow = await db
+    .prepare(
+      `SELECT COUNT(*) as cnt FROM emails
+       WHERE user_id = ? AND bucket = 'newsletter'
+         AND included_in_digest IS NOT NULL AND processed_at >= ?`,
+    )
+    .bind(userId, windows.monthStart)
+    .first<{ cnt: number }>();
+
+  const { results: topRows } = await db
+    .prepare(
+      `SELECT id, subject, from_address, processed_at, interesting_score, interesting_reasons
+       FROM emails
+       WHERE user_id = ? AND bucket = 'newsletter' AND interesting_score >= 6
+       ORDER BY interesting_score DESC, processed_at DESC
+       LIMIT 10`,
+    )
+    .bind(userId)
+    .all<{
+      id: string;
+      subject: string;
+      from_address: string;
+      processed_at: string;
+      interesting_score: number;
+      interesting_reasons: string;
+    }>();
+  const topInteresting = topRows.map((r) => ({
+    id: r.id,
+    subject: r.subject,
+    fromAddress: r.from_address,
+    processedAt: r.processed_at,
+    score: r.interesting_score,
+    reasons: safeParseJSON<string[]>(r.interesting_reasons, []),
+  }));
+
+  return {
+    bucket: 'newsletter',
+    totals,
+    scoreHistogram,
+    topScoringSenders,
+    digestIncludedWeek: digestWeekRow?.cnt ?? 0,
+    digestIncludedMonth: digestMonthRow?.cnt ?? 0,
+    topInteresting,
+  };
+}
+
+// --- Notification stats ------------------------------------------------------
+
+const SEVERITY_ORDER = ['low', 'medium', 'high', 'critical'];
+const URGENCY_ORDER = ['low', 'medium', 'high'];
+
+async function getNotificationStats(db: D1Database, userId: number): Promise<NotificationStats> {
+  const windows = getWindows();
+  const totals = await getBucketTotals(db, userId, 'notification', windows);
+
+  const { results: sevRows } = await db
+    .prepare(
+      `SELECT severity, COUNT(*) as cnt
+       FROM emails
+       WHERE user_id = ? AND bucket = 'notification' AND severity IS NOT NULL
+       GROUP BY severity`,
+    )
+    .bind(userId)
+    .all<{ severity: string; cnt: number }>();
+  const severityCounts: Record<string, number> = {};
+  for (const s of SEVERITY_ORDER) severityCounts[s] = 0;
+  for (const r of sevRows) severityCounts[r.severity] = r.cnt;
+
+  const { results: urgRows } = await db
+    .prepare(
+      `SELECT urgency, COUNT(*) as cnt
+       FROM emails
+       WHERE user_id = ? AND bucket = 'notification' AND urgency IS NOT NULL
+       GROUP BY urgency`,
+    )
+    .bind(userId)
+    .all<{ urgency: string; cnt: number }>();
+  const urgencyCounts: Record<string, number> = {};
+  for (const u of URGENCY_ORDER) urgencyCounts[u] = 0;
+  for (const r of urgRows) urgencyCounts[r.urgency] = r.cnt;
+
+  const { results: matrixRows } = await db
+    .prepare(
+      `SELECT severity, urgency, COUNT(*) as cnt
+       FROM emails
+       WHERE user_id = ? AND bucket = 'notification'
+         AND severity IS NOT NULL AND urgency IS NOT NULL
+       GROUP BY severity, urgency`,
+    )
+    .bind(userId)
+    .all<{ severity: string; urgency: string; cnt: number }>();
+  const severityUrgencyMatrix: { severity: string; urgency: string; count: number }[] = [];
+  for (const severity of SEVERITY_ORDER) {
+    for (const urgency of URGENCY_ORDER) {
+      severityUrgencyMatrix.push({
+        severity,
+        urgency,
+        count:
+          matrixRows.find((r) => r.severity === severity && r.urgency === urgency)?.cnt ?? 0,
+      });
+    }
+  }
+
+  const { results: noisyRows } = await db
+    .prepare(
+      `SELECT from_address,
+              COUNT(*) as cnt,
+              SUM(notification_sent) as notified,
+              SUM(CASE WHEN severity IN ('high','critical') THEN 1 ELSE 0 END) as high_cnt
+       FROM emails
+       WHERE user_id = ? AND bucket = 'notification' AND processed_at >= ?
+       GROUP BY from_address
+       ORDER BY cnt DESC
+       LIMIT 15`,
+    )
+    .bind(userId, windows.monthStart)
+    .all<{ from_address: string; cnt: number; notified: number; high_cnt: number }>();
+  const noisiestSenders: NoisySenderStat[] = noisyRows.map((r) => ({
+    address: r.from_address,
+    count: r.cnt,
+    notified: r.notified ?? 0,
+    highCount: r.high_cnt ?? 0,
+  }));
+
+  const { results: recentRows } = await db
+    .prepare(
+      `SELECT id, subject, from_address, processed_at, severity, urgency, summary
+       FROM emails
+       WHERE user_id = ? AND bucket = 'notification'
+         AND (severity IN ('high','critical') OR urgency = 'high')
+       ORDER BY processed_at DESC
+       LIMIT 15`,
+    )
+    .bind(userId)
+    .all<{
+      id: string;
+      subject: string;
+      from_address: string;
+      processed_at: string;
+      severity: string | null;
+      urgency: string | null;
+      summary: string;
+    }>();
+  const recentHigh = recentRows.map((r) => ({
+    id: r.id,
+    subject: r.subject,
+    fromAddress: r.from_address,
+    processedAt: r.processed_at,
+    severity: r.severity,
+    urgency: r.urgency,
+    summary: r.summary,
+  }));
+
+  return {
+    bucket: 'notification',
+    totals,
+    severityCounts,
+    urgencyCounts,
+    severityUrgencyMatrix,
+    noisiestSenders,
+    recentHigh,
+  };
+}
+
+// --- Human stats -------------------------------------------------------------
+
+async function getHumanStats(db: D1Database, userId: number): Promise<HumanStats> {
+  const windows = getWindows();
+  const totals = await getBucketTotals(db, userId, 'human', windows);
+
+  // Rating distribution — look at sender profiles where we've seen human emails
+  // (i.e. bucket_counts has 'human'), grouped by 10-point rating bins.
+  const { results: ratingRows } = await db
+    .prepare(
+      `SELECT rating FROM sender_profiles
+       WHERE user_id = ? AND profile_type = 'sender'
+         AND json_extract(bucket_counts, '$.human') > 0
+         AND rating IS NOT NULL`,
+    )
+    .bind(userId)
+    .all<{ rating: number }>();
+  const histogram: Record<string, number> = {};
+  for (let i = 0; i < 10; i++) {
+    const lo = i * 10;
+    const hi = lo + 9;
+    histogram[`${lo}-${hi}`] = 0;
+  }
+  histogram['100'] = 0;
+  for (const r of ratingRows) {
+    if (r.rating === 100) histogram['100'] += 1;
+    else {
+      const lo = Math.floor(r.rating / 10) * 10;
+      histogram[`${lo}-${lo + 9}`] = (histogram[`${lo}-${lo + 9}`] ?? 0) + 1;
+    }
+  }
+  const ratingHistogram = Object.entries(histogram).map(([bucket, count]) => ({
+    bucket,
+    count,
+  }));
+
+  const { results: thresholdRows } = await db
+    .prepare(
+      `SELECT id, identifier, rating, rating_reasoning, rating_manual,
+              email_count, last_seen_at
+       FROM sender_profiles
+       WHERE user_id = ? AND profile_type = 'sender'
+         AND json_extract(bucket_counts, '$.human') > 0
+         AND rating IS NOT NULL AND rating >= 30 AND rating < 50
+       ORDER BY last_seen_at DESC
+       LIMIT 20`,
+    )
+    .bind(userId)
+    .all<{
+      id: number;
+      identifier: string;
+      rating: number;
+      rating_reasoning: string;
+      rating_manual: number;
+      email_count: number;
+      last_seen_at: string;
+    }>();
+  const atThreshold: HumanSenderSnapshot[] = thresholdRows.map((r) => ({
+    id: r.id,
+    identifier: r.identifier,
+    rating: r.rating,
+    ratingReasoning: r.rating_reasoning ?? '',
+    ratingManual: (r.rating_manual ?? 0) === 1,
+    emailCount: r.email_count,
+    lastSeenAt: r.last_seen_at,
+  }));
+
+  const { results: quietRows } = await db
+    .prepare(
+      `SELECT id, identifier, rating, rating_reasoning, rating_manual,
+              email_count, last_seen_at
+       FROM sender_profiles
+       WHERE user_id = ? AND profile_type = 'sender'
+         AND json_extract(bucket_counts, '$.human') > 0
+         AND rating IS NOT NULL AND rating < 40
+       ORDER BY last_seen_at DESC
+       LIMIT 20`,
+    )
+    .bind(userId)
+    .all<{
+      id: number;
+      identifier: string;
+      rating: number;
+      rating_reasoning: string;
+      rating_manual: number;
+      email_count: number;
+      last_seen_at: string;
+    }>();
+  const quietHumans: HumanSenderSnapshot[] = quietRows.map((r) => ({
+    id: r.id,
+    identifier: r.identifier,
+    rating: r.rating,
+    ratingReasoning: r.rating_reasoning ?? '',
+    ratingManual: (r.rating_manual ?? 0) === 1,
+    emailCount: r.email_count,
+    lastSeenAt: r.last_seen_at,
+  }));
+
+  const countsRow = await db
+    .prepare(
+      `SELECT
+        SUM(CASE WHEN rating IS NULL THEN 1 ELSE 0 END) as unrated,
+        SUM(CASE WHEN rating IS NOT NULL THEN 1 ELSE 0 END) as rated
+       FROM sender_profiles
+       WHERE user_id = ? AND profile_type = 'sender'
+         AND json_extract(bucket_counts, '$.human') > 0`,
+    )
+    .bind(userId)
+    .first<{ unrated: number; rated: number }>();
+
+  return {
+    bucket: 'human',
+    totals,
+    ratingHistogram,
+    atThreshold,
+    quietHumans,
+    unratedSenders: countsRow?.unrated ?? 0,
+    ratedSenders: countsRow?.rated ?? 0,
+  };
+}
+
+// --- Transactional stats -----------------------------------------------------
+
+async function getTransactionalStats(db: D1Database, userId: number): Promise<TransactionalStats> {
+  const windows = getWindows();
+  const totals = await getBucketTotals(db, userId, 'transactional', windows);
+
+  const { results: vendorRows } = await db
+    .prepare(
+      `SELECT vendor, COUNT(*) as cnt, MAX(processed_at) as last_seen
+       FROM emails
+       WHERE user_id = ? AND bucket = 'transactional' AND vendor IS NOT NULL AND vendor != ''
+       GROUP BY vendor
+       ORDER BY cnt DESC
+       LIMIT 20`,
+    )
+    .bind(userId)
+    .all<{ vendor: string; cnt: number; last_seen: string }>();
+  const topVendors: VendorStat[] = vendorRows.map((r) => ({
+    vendor: r.vendor,
+    count: r.cnt,
+    lastSeenAt: r.last_seen,
+  }));
+
+  const { results: docRows } = await db
+    .prepare(
+      `SELECT document_type as type, COUNT(*) as cnt
+       FROM emails
+       WHERE user_id = ? AND bucket = 'transactional' AND document_type IS NOT NULL AND document_type != ''
+       GROUP BY document_type
+       ORDER BY cnt DESC`,
+    )
+    .bind(userId)
+    .all<{ type: string; cnt: number }>();
+  const documentTypeCounts = docRows.map((r) => ({
+    type: r.type,
+    count: r.cnt,
+  }));
+
+  const { results: recentRows } = await db
+    .prepare(
+      `SELECT id, subject, from_address, processed_at, vendor, document_type, amount
+       FROM emails
+       WHERE user_id = ? AND bucket = 'transactional'
+       ORDER BY processed_at DESC
+       LIMIT 20`,
+    )
+    .bind(userId)
+    .all<{
+      id: string;
+      subject: string;
+      from_address: string;
+      processed_at: string;
+      vendor: string | null;
+      document_type: string | null;
+      amount: string | null;
+    }>();
+  const recent = recentRows.map((r) => ({
+    id: r.id,
+    subject: r.subject,
+    fromAddress: r.from_address,
+    processedAt: r.processed_at,
+    vendor: r.vendor,
+    documentType: r.document_type,
+    amount: r.amount,
+  }));
+
+  return {
+    bucket: 'transactional',
+    totals,
+    topVendors,
+    documentTypeCounts,
+    recent,
+  };
+}
+
+// --- Security stats ----------------------------------------------------------
+
+async function getSecurityStats(db: D1Database, userId: number): Promise<SecurityStats> {
+  const windows = getWindows();
+  const totals = await getBucketTotals(db, userId, 'security', windows);
+
+  const { results: typeRows } = await db
+    .prepare(
+      `SELECT action_type as type, COUNT(*) as cnt
+       FROM emails
+       WHERE user_id = ? AND bucket = 'security' AND action_type IS NOT NULL AND action_type != ''
+       GROUP BY action_type
+       ORDER BY cnt DESC`,
+    )
+    .bind(userId)
+    .all<{ type: string; cnt: number }>();
+  const actionTypeCounts = typeRows.map((r) => ({
+    type: r.type,
+    count: r.cnt,
+  }));
+
+  const otpAll = await db
+    .prepare(
+      `SELECT COUNT(*) as cnt FROM emails
+       WHERE user_id = ? AND bucket = 'security' AND is_otp = 1`,
+    )
+    .bind(userId)
+    .first<{ cnt: number }>();
+  const otpMonth = await db
+    .prepare(
+      `SELECT COUNT(*) as cnt FROM emails
+       WHERE user_id = ? AND bucket = 'security' AND is_otp = 1 AND processed_at >= ?`,
+    )
+    .bind(userId, windows.monthStart)
+    .first<{ cnt: number }>();
+
+  const { results: recentRows } = await db
+    .prepare(
+      `SELECT id, subject, from_address, processed_at, action_type, is_otp, summary
+       FROM emails
+       WHERE user_id = ? AND bucket = 'security'
+       ORDER BY processed_at DESC
+       LIMIT 25`,
+    )
+    .bind(userId)
+    .all<{
+      id: string;
+      subject: string;
+      from_address: string;
+      processed_at: string;
+      action_type: string | null;
+      is_otp: number | null;
+      summary: string;
+    }>();
+  const recent = recentRows.map((r) => ({
+    id: r.id,
+    subject: r.subject,
+    fromAddress: r.from_address,
+    processedAt: r.processed_at,
+    actionType: r.action_type,
+    isOtp: r.is_otp === null ? null : r.is_otp === 1,
+    summary: r.summary,
+  }));
+
+  return {
+    bucket: 'security',
+    totals,
+    actionTypeCounts,
+    otpCount: otpAll?.cnt ?? 0,
+    otpCountMonth: otpMonth?.cnt ?? 0,
+    recent,
+  };
+}
+
+// --- Calendar stats ----------------------------------------------------------
+
+async function getCalendarStats(db: D1Database, userId: number): Promise<CalendarStats> {
+  const windows = getWindows();
+  const totals = await getBucketTotals(db, userId, 'calendar', windows);
+  const nowIso = new Date().toISOString();
+
+  const eventCols =
+    'id, subject, from_address, processed_at, event_title, event_starts_at, event_ends_at, event_location, event_attendees';
+
+  const { results: upcomingRows } = await db
+    .prepare(
+      `SELECT ${eventCols}
+       FROM emails
+       WHERE user_id = ? AND bucket = 'calendar' AND event_starts_at >= ?
+       ORDER BY event_starts_at ASC
+       LIMIT 20`,
+    )
+    .bind(userId, nowIso)
+    .all<EventRow>();
+  const { results: pastRows } = await db
+    .prepare(
+      `SELECT ${eventCols}
+       FROM emails
+       WHERE user_id = ? AND bucket = 'calendar'
+         AND event_starts_at IS NOT NULL AND event_starts_at < ?
+       ORDER BY event_starts_at DESC
+       LIMIT 10`,
+    )
+    .bind(userId, nowIso)
+    .all<EventRow>();
+  const undatedRow = await db
+    .prepare(
+      `SELECT COUNT(*) as cnt FROM emails
+       WHERE user_id = ? AND bucket = 'calendar' AND event_starts_at IS NULL`,
+    )
+    .bind(userId)
+    .first<{ cnt: number }>();
+
+  return {
+    bucket: 'calendar',
+    totals,
+    upcoming: upcomingRows.map(mapEventRow),
+    recentPast: pastRows.map(mapEventRow),
+    undatedCount: undatedRow?.cnt ?? 0,
+  };
+}
+
+interface EventRow {
+  id: string;
+  subject: string;
+  from_address: string;
+  processed_at: string;
+  event_title: string | null;
+  event_starts_at: string | null;
+  event_ends_at: string | null;
+  event_location: string | null;
+  event_attendees: string;
+}
+
+function mapEventRow(r: EventRow): CalendarEventRef {
+  return {
+    id: r.id,
+    subject: r.subject,
+    fromAddress: r.from_address,
+    processedAt: r.processed_at,
+    eventTitle: r.event_title,
+    eventStartsAt: r.event_starts_at,
+    eventEndsAt: r.event_ends_at,
+    eventLocation: r.event_location,
+    eventAttendees: safeParseJSON<string[]>(r.event_attendees, []),
+  };
+}
+
+export async function getBucketStats(
+  db: D1Database,
+  userId: number,
+  bucket: Bucket,
+): Promise<BucketStats> {
+  switch (bucket) {
+    case 'newsletter':
+      return getNewsletterStats(db, userId);
+    case 'notification':
+      return getNotificationStats(db, userId);
+    case 'human':
+      return getHumanStats(db, userId);
+    case 'transactional':
+      return getTransactionalStats(db, userId);
+    case 'security':
+      return getSecurityStats(db, userId);
+    case 'calendar':
+      return getCalendarStats(db, userId);
+  }
+}

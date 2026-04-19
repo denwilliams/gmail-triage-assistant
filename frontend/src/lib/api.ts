@@ -147,6 +147,8 @@ export const api = {
     request<import("./types").DashboardTimeseries>(`/stats/timeseries?days=${days}`),
   getV2PipelineStats: () =>
     request<import("./types").V2PipelineStats>("/stats/v2-pipeline"),
+  getBucketStats: (bucket: import("./types").Bucket) =>
+    request<import("./types").BucketStats>(`/stats/bucket/${bucket}`),
 
   startPromptWizard: () =>
     request<import("./types").WizardStartResponse>("/prompt-wizard/start", {

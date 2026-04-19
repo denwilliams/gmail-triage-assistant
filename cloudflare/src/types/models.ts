@@ -51,6 +51,18 @@ export interface EmailRow {
   in_reply_to: string | null;
   thread_id: string | null;
   included_in_digest: string | null;
+  // Bucket-specific extractions (migration 0004) — nullable for rows that
+  // weren't processed through the relevant bucket.
+  vendor: string | null;
+  document_type: string | null;
+  amount: string | null;
+  action_type: string | null;
+  is_otp: number | null;
+  event_title: string | null;
+  event_starts_at: string | null;
+  event_ends_at: string | null;
+  event_location: string | null;
+  event_attendees: string; // JSON TEXT
 }
 
 export interface LabelRow {
@@ -224,6 +236,17 @@ export interface Email {
   inReplyTo: string | null;
   threadId: string | null;
   includedInDigest: string | null;
+  // Bucket-specific extractions — nullable for buckets that don't apply.
+  vendor: string | null;
+  documentType: string | null;
+  amount: string | null;
+  actionType: string | null;
+  isOtp: boolean | null;
+  eventTitle: string | null;
+  eventStartsAt: string | null;
+  eventEndsAt: string | null;
+  eventLocation: string | null;
+  eventAttendees: string[];
 }
 
 export interface Label {

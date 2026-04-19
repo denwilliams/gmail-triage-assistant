@@ -35,6 +35,11 @@ const processor: BucketProcessor = async (ctx) => {
     bypassInbox: false,
     notificationMessage,
     draftBody: '',
+    eventTitle: result.event_title || null,
+    eventStartsAt: result.starts_at || null,
+    eventEndsAt: result.ends_at || null,
+    eventLocation: result.location || null,
+    eventAttendees: result.attendees ?? [],
     reasoning: `Calendar: ${result.event_title || 'event'}${result.starts_at ? ' at ' + result.starts_at : ''}. ${result.reasoning}`,
   };
 };

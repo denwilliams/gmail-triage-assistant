@@ -42,6 +42,9 @@ const processor: BucketProcessor = async (ctx) => {
     bypassInbox: true,
     notificationMessage: '',
     draftBody: '',
+    vendor: result.vendor || null,
+    documentType: result.document_type || null,
+    amount: result.amount || null,
     reasoning,
   };
 };

@@ -39,6 +39,16 @@ function emailToJSON(e: Email) {
     in_reply_to: e.inReplyTo,
     thread_id: e.threadId,
     included_in_digest: e.includedInDigest,
+    vendor: e.vendor,
+    document_type: e.documentType,
+    amount: e.amount,
+    action_type: e.actionType,
+    is_otp: e.isOtp,
+    event_title: e.eventTitle,
+    event_starts_at: e.eventStartsAt,
+    event_ends_at: e.eventEndsAt,
+    event_location: e.eventLocation,
+    event_attendees: e.eventAttendees,
   };
 }
 
