@@ -52,7 +52,7 @@ function BucketDistribution({
           </span>
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-2">
+      <CardContent className="space-y-1">
         {total === 0 ? (
           <p className="text-sm text-muted-foreground">No emails yet.</p>
         ) : (
@@ -60,7 +60,11 @@ function BucketDistribution({
             const count = counts[bucket] ?? 0;
             const pct = total > 0 ? (count / total) * 100 : 0;
             return (
-              <div key={bucket} className="flex items-center gap-3">
+              <Link
+                key={bucket}
+                to={`/v2/buckets/${bucket}`}
+                className="-mx-2 flex items-center gap-3 rounded-md px-2 py-1.5 transition-colors hover:bg-accent/60"
+              >
                 <div className="w-24 shrink-0">
                   <BucketBadge bucket={bucket} />
                 </div>
@@ -77,7 +81,7 @@ function BucketDistribution({
                   <span className="text-muted-foreground">{pct.toFixed(0)}%</span>
                   <span className="font-medium">{count}</span>
                 </div>
-              </div>
+              </Link>
             );
           })
         )}

@@ -322,6 +322,16 @@ You may apply ONE timed label per email alongside regular labels. Use these inst
     inReplyTo: null,
     threadId: null,
     includedInDigest: null,
+    vendor: null,
+    documentType: null,
+    amount: null,
+    actionType: null,
+    isOtp: null,
+    eventTitle: null,
+    eventStartsAt: null,
+    eventEndsAt: null,
+    eventLocation: null,
+    eventAttendees: [],
   };
   await createEmail(env.DB, email);
 

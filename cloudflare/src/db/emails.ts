@@ -11,7 +11,9 @@ const EMAIL_COLUMNS = `id, user_id, from_address, from_domain, subject, slug, ke
        labels_applied, bypassed_inbox, reasoning, human_feedback,
        feedback_dirty, notification_sent, draft_created, processed_at, created_at,
        bucket, pipeline_stage, triage_reasoning, triage_via, severity, urgency,
-       interesting_score, interesting_reasons, in_reply_to, thread_id, included_in_digest`;
+       interesting_score, interesting_reasons, in_reply_to, thread_id, included_in_digest,
+       vendor, document_type, amount, action_type, is_otp,
+       event_title, event_starts_at, event_ends_at, event_location, event_attendees`;
 
 function safeParseJSON<T>(text: string, fallback: T): T {
   try {
@@ -51,6 +53,16 @@ function mapEmail(row: EmailRow): Email {
     inReplyTo: row.in_reply_to,
     threadId: row.thread_id,
     includedInDigest: row.included_in_digest,
+    vendor: row.vendor,
+    documentType: row.document_type,
+    amount: row.amount,
+    actionType: row.action_type,
+    isOtp: row.is_otp === null ? null : row.is_otp === 1,
+    eventTitle: row.event_title,
+    eventStartsAt: row.event_starts_at,
+    eventEndsAt: row.event_ends_at,
+    eventLocation: row.event_location,
+    eventAttendees: safeParseJSON<string[]>(row.event_attendees ?? '[]', []),
   };
 }
 
@@ -76,8 +88,11 @@ export async function createEmail(db: D1Database, email: Email): Promise<void> {
       `INSERT INTO emails (id, user_id, from_address, from_domain, subject, slug, keywords, summary,
         labels_applied, bypassed_inbox, reasoning, notification_sent, draft_created, processed_at, created_at,
         bucket, pipeline_stage, triage_reasoning, triage_via, severity, urgency,
-        interesting_score, interesting_reasons, in_reply_to, thread_id, included_in_digest)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        interesting_score, interesting_reasons, in_reply_to, thread_id, included_in_digest,
+        vendor, document_type, amount, action_type, is_otp,
+        event_title, event_starts_at, event_ends_at, event_location, event_attendees)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+               ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT (id) DO NOTHING`,
     )
     .bind(
@@ -107,6 +122,16 @@ export async function createEmail(db: D1Database, email: Email): Promise<void> {
       email.inReplyTo,
       email.threadId,
       email.includedInDigest,
+      email.vendor,
+      email.documentType,
+      email.amount,
+      email.actionType,
+      email.isOtp === null ? null : email.isOtp ? 1 : 0,
+      email.eventTitle,
+      email.eventStartsAt,
+      email.eventEndsAt,
+      email.eventLocation,
+      JSON.stringify(email.eventAttendees ?? []),
     )
     .run();
 }
@@ -175,6 +200,10 @@ export async function finaliseEmail(
         slug = ?, keywords = ?, summary = ?, labels_applied = ?,
         bypassed_inbox = ?, reasoning = ?, notification_sent = ?, draft_created = ?,
         severity = ?, urgency = ?, interesting_score = ?, interesting_reasons = ?,
+        vendor = ?, document_type = ?, amount = ?,
+        action_type = ?, is_otp = ?,
+        event_title = ?, event_starts_at = ?, event_ends_at = ?,
+        event_location = ?, event_attendees = ?,
         pipeline_stage = ?, processed_at = ?
        WHERE id = ?`,
     )
@@ -191,6 +220,16 @@ export async function finaliseEmail(
       email.urgency,
       email.interestingScore,
       JSON.stringify(email.interestingReasons ?? []),
+      email.vendor,
+      email.documentType,
+      email.amount,
+      email.actionType,
+      email.isOtp === null ? null : email.isOtp ? 1 : 0,
+      email.eventTitle,
+      email.eventStartsAt,
+      email.eventEndsAt,
+      email.eventLocation,
+      JSON.stringify(email.eventAttendees ?? []),
       stage,
       email.processedAt,
       email.id,

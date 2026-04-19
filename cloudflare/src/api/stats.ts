@@ -1,6 +1,7 @@
 import type { Context } from 'hono';
 import type { Env } from '../types/env';
 import type {
+  Bucket,
   DashboardSummary,
   DashboardTimeseries,
   SenderStat,
@@ -13,8 +14,10 @@ import type {
   DayLabelCount,
   HourCount,
 } from '../types/models';
-import type { V2PipelineStats, V2FailureRow } from '../db/stats';
+import { BUCKETS } from '../types/models';
+import type { BucketStats, V2PipelineStats, V2FailureRow } from '../db/stats';
 import {
+  getBucketStats,
   getDashboardSummary,
   getDashboardTimeseries,
   getV2PipelineStats,
@@ -135,5 +138,160 @@ export async function handleGetStatsTimeseries(c: AppContext) {
   } catch (e) {
     console.error('Failed to load stats timeseries:', e);
     return c.json({ error: 'Failed to load stats timeseries' }, 500);
+  }
+}
+
+function bucketTotalsToJSON(t: BucketStats['totals']) {
+  return { all_time: t.allTime, month: t.month, week: t.week };
+}
+
+function emailRefToJSON(r: { id: string; subject: string; fromAddress: string; processedAt: string }) {
+  return {
+    id: r.id,
+    subject: r.subject,
+    from_address: r.fromAddress,
+    processed_at: r.processedAt,
+  };
+}
+
+function bucketStatsToJSON(s: BucketStats) {
+  // Discriminated union — shape switches on bucket. Keep snake_case keys
+  // per existing convention for the API layer.
+  switch (s.bucket) {
+    case 'newsletter':
+      return {
+        bucket: s.bucket,
+        totals: bucketTotalsToJSON(s.totals),
+        score_histogram: s.scoreHistogram,
+        top_scoring_senders: s.topScoringSenders.map((x) => ({
+          address: x.address,
+          count: x.count,
+          avg_score: x.avgScore,
+          max_score: x.maxScore,
+          digest_included: x.digestIncluded,
+        })),
+        digest_included_week: s.digestIncludedWeek,
+        digest_included_month: s.digestIncludedMonth,
+        top_interesting: s.topInteresting.map((r) => ({
+          ...emailRefToJSON(r),
+          score: r.score,
+          reasons: r.reasons,
+        })),
+      };
+    case 'notification':
+      return {
+        bucket: s.bucket,
+        totals: bucketTotalsToJSON(s.totals),
+        severity_counts: s.severityCounts,
+        urgency_counts: s.urgencyCounts,
+        severity_urgency_matrix: s.severityUrgencyMatrix,
+        noisiest_senders: s.noisiestSenders.map((x) => ({
+          address: x.address,
+          count: x.count,
+          notified: x.notified,
+          high_count: x.highCount,
+        })),
+        recent_high: s.recentHigh.map((r) => ({
+          ...emailRefToJSON(r),
+          severity: r.severity,
+          urgency: r.urgency,
+          summary: r.summary,
+        })),
+      };
+    case 'human':
+      return {
+        bucket: s.bucket,
+        totals: bucketTotalsToJSON(s.totals),
+        rating_histogram: s.ratingHistogram,
+        at_threshold: s.atThreshold.map((p) => ({
+          id: p.id,
+          identifier: p.identifier,
+          rating: p.rating,
+          rating_reasoning: p.ratingReasoning,
+          rating_manual: p.ratingManual,
+          email_count: p.emailCount,
+          last_seen_at: p.lastSeenAt,
+        })),
+        quiet_humans: s.quietHumans.map((p) => ({
+          id: p.id,
+          identifier: p.identifier,
+          rating: p.rating,
+          rating_reasoning: p.ratingReasoning,
+          rating_manual: p.ratingManual,
+          email_count: p.emailCount,
+          last_seen_at: p.lastSeenAt,
+        })),
+        unrated_senders: s.unratedSenders,
+        rated_senders: s.ratedSenders,
+      };
+    case 'transactional':
+      return {
+        bucket: s.bucket,
+        totals: bucketTotalsToJSON(s.totals),
+        top_vendors: s.topVendors.map((v) => ({
+          vendor: v.vendor,
+          count: v.count,
+          last_seen_at: v.lastSeenAt,
+        })),
+        document_type_counts: s.documentTypeCounts,
+        recent: s.recent.map((r) => ({
+          ...emailRefToJSON(r),
+          vendor: r.vendor,
+          document_type: r.documentType,
+          amount: r.amount,
+        })),
+      };
+    case 'security':
+      return {
+        bucket: s.bucket,
+        totals: bucketTotalsToJSON(s.totals),
+        action_type_counts: s.actionTypeCounts,
+        otp_count: s.otpCount,
+        otp_count_month: s.otpCountMonth,
+        recent: s.recent.map((r) => ({
+          ...emailRefToJSON(r),
+          action_type: r.actionType,
+          is_otp: r.isOtp,
+          summary: r.summary,
+        })),
+      };
+    case 'calendar':
+      return {
+        bucket: s.bucket,
+        totals: bucketTotalsToJSON(s.totals),
+        upcoming: s.upcoming.map((e) => ({
+          ...emailRefToJSON(e),
+          event_title: e.eventTitle,
+          event_starts_at: e.eventStartsAt,
+          event_ends_at: e.eventEndsAt,
+          event_location: e.eventLocation,
+          event_attendees: e.eventAttendees,
+        })),
+        recent_past: s.recentPast.map((e) => ({
+          ...emailRefToJSON(e),
+          event_title: e.eventTitle,
+          event_starts_at: e.eventStartsAt,
+          event_ends_at: e.eventEndsAt,
+          event_location: e.eventLocation,
+          event_attendees: e.eventAttendees,
+        })),
+        undated_count: s.undatedCount,
+      };
+  }
+}
+
+export async function handleGetBucketStats(c: AppContext) {
+  const userId = c.get('userId');
+  const bucketParam = c.req.param('bucket') ?? '';
+  if (!BUCKETS.includes(bucketParam as Bucket)) {
+    return c.json({ error: 'Invalid bucket' }, 400);
+  }
+
+  try {
+    const stats = await getBucketStats(c.env.DB, userId, bucketParam as Bucket);
+    return c.json(bucketStatsToJSON(stats));
+  } catch (e) {
+    console.error(`Failed to load bucket stats for ${bucketParam}:`, e);
+    return c.json({ error: 'Failed to load bucket stats' }, 500);
   }
 }

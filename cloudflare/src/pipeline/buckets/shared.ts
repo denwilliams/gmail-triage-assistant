@@ -68,6 +68,18 @@ export interface BucketOutcome {
   urgency?: string | null;
   interestingScore?: number | null;
   interestingReasons?: string[];
+  // Bucket-specific extractions (newsletter + notification already use
+  // fields above; transactional/security/calendar use these).
+  vendor?: string | null;
+  documentType?: string | null;
+  amount?: string | null;
+  actionType?: string | null;
+  isOtp?: boolean | null;
+  eventTitle?: string | null;
+  eventStartsAt?: string | null;
+  eventEndsAt?: string | null;
+  eventLocation?: string | null;
+  eventAttendees?: string[];
   reasoning: string;
 }
 
@@ -269,6 +281,16 @@ export async function runBucketProcessor(
     urgency: outcome.urgency ?? null,
     interestingScore: outcome.interestingScore ?? null,
     interestingReasons: outcome.interestingReasons ?? [],
+    vendor: outcome.vendor ?? null,
+    documentType: outcome.documentType ?? null,
+    amount: outcome.amount ?? null,
+    actionType: outcome.actionType ?? null,
+    isOtp: outcome.isOtp ?? null,
+    eventTitle: outcome.eventTitle ?? null,
+    eventStartsAt: outcome.eventStartsAt ?? null,
+    eventEndsAt: outcome.eventEndsAt ?? null,
+    eventLocation: outcome.eventLocation ?? null,
+    eventAttendees: outcome.eventAttendees ?? [],
     pipelineStage: 'processed',
     processedAt: now,
   };
