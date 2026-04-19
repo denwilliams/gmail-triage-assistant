@@ -10,6 +10,7 @@ import {
   generateAIPrompts,
 } from './jobs/memory';
 import { processTimedLabels } from './jobs/timed-labels';
+import { runDailyDigest } from './jobs/daily-digest';
 import { processEmail } from './pipeline/processor';
 import { runTriage } from './pipeline/triage';
 import { processNewsletterMessage } from './pipeline/buckets/newsletter';
@@ -46,7 +47,7 @@ export default {
         break;
       }
 
-      // 8 AM — morning wrapup
+      // 8 AM — morning wrapup + daily digest (v2 users only)
       case '0 8 * * *': {
         ctx.waitUntil(
           (async () => {
@@ -56,6 +57,13 @@ export default {
                 await runMorningWrapup(env, user.id);
               } catch (err) {
                 console.error(`scheduled: morning wrapup failed for ${user.email}:`, err);
+              }
+              if (user.pipelineVersion === 'v2') {
+                try {
+                  await runDailyDigest(env, user.id);
+                } catch (err) {
+                  console.error(`scheduled: daily digest failed for ${user.email}:`, err);
+                }
               }
             }
           })(),
@@ -219,6 +227,7 @@ async function dispatchQueueMessage(
       switch (job.jobType) {
         case 'morning_wrapup': await runMorningWrapup(env, job.userId); return;
         case 'evening_wrapup': await runEveningWrapup(env, job.userId); return;
+        case 'daily_digest': await runDailyDigest(env, job.userId); return;
         case 'daily_memory': await generateDailyMemory(env, job.userId); return;
         case 'weekly_memory':
           await generateWeeklyMemory(env, job.userId);

@@ -26,6 +26,7 @@ import {
 } from './api/sender-profiles';
 import { handlePromptWizardStart, handlePromptWizardContinue } from './api/prompt-wizard';
 import { handleExport, handleImport } from './api/export-import';
+import { handleGenerateDigestNow, handleGetDigest, handleListDigests } from './api/digests';
 
 // Define custom variables type for auth context
 type AppEnv = { Bindings: Env; Variables: { userId: number; email: string } };
@@ -81,6 +82,11 @@ api.get('/notifications', handleGetNotifications);
 
 // Wrapups
 api.get('/wrapups', handleGetWrapups);
+
+// Daily digests (v2 pipeline)
+api.get('/digests', handleListDigests);
+api.get('/digests/:date', handleGetDigest);
+api.post('/digests/generate', handleGenerateDigestNow);
 
 // Stats
 api.get('/stats/summary', handleGetStatsSummary);
