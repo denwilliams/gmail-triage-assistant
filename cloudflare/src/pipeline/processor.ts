@@ -310,6 +310,18 @@ You may apply ONE timed label per email alongside regular labels. Use these inst
     draftCreated,
     processedAt: now,
     createdAt: now,
+    // v1 pipeline — no bucket classification.
+    bucket: null,
+    pipelineStage: 'processed',
+    triageReasoning: null,
+    triageVia: null,
+    severity: null,
+    urgency: null,
+    interestingScore: null,
+    interestingReasons: [],
+    inReplyTo: null,
+    threadId: null,
+    includedInDigest: null,
   };
   await createEmail(env.DB, email);
 
