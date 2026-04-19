@@ -11,6 +11,7 @@ import {
 } from './jobs/memory';
 import { processTimedLabels } from './jobs/timed-labels';
 import { runDailyDigest } from './jobs/daily-digest';
+import { runSenderRatingSweep } from './jobs/sender-rating';
 import { processEmail } from './pipeline/processor';
 import { runTriage } from './pipeline/triage';
 import { processNewsletterMessage } from './pipeline/buckets/newsletter';
@@ -153,6 +154,12 @@ export default {
       // Every 6 hours — timed label sweep (archive/trash expired emails)
       case '0 */6 * * *': {
         ctx.waitUntil(processTimedLabels(env));
+        break;
+      }
+
+      // 3 AM — nightly sender rating sweep (v2 only)
+      case '0 3 * * *': {
+        ctx.waitUntil(runSenderRatingSweep(env));
         break;
       }
 

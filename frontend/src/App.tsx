@@ -12,6 +12,7 @@ import NotificationsPage from "@/pages/notifications";
 import SendersPage from "@/pages/senders";
 import SettingsPage from "@/pages/settings";
 import PromptWizardPage from "@/pages/prompt-wizard";
+import DigestsPage from "@/pages/digests";
 
 export default function App() {
   return (
@@ -29,6 +30,7 @@ export default function App() {
             <Route path="/prompt-wizard" element={<PromptWizardPage />} />
             <Route path="/memories" element={<MemoriesPage />} />
             <Route path="/wrapups" element={<WrapupsPage />} />
+            <Route path="/digests" element={<DigestsPage />} />
             <Route path="/notifications" element={<NotificationsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="*" element={<Navigate to="/dashboard" replace />} />

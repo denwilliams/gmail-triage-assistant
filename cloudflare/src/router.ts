@@ -22,6 +22,7 @@ import {
   handleGetAllSenderProfiles,
   handleGetSenderProfiles,
   handleGenerateSenderProfile,
+  handleRateSenderNow,
   handleUpdateSenderProfile,
 } from './api/sender-profiles';
 import { handlePromptWizardStart, handlePromptWizardContinue } from './api/prompt-wizard';
@@ -97,6 +98,7 @@ api.get('/sender-profiles/all', handleGetAllSenderProfiles);
 api.get('/sender-profiles', handleGetSenderProfiles);
 api.post('/sender-profiles/generate', handleGenerateSenderProfile);
 api.patch('/sender-profiles/:id', handleUpdateSenderProfile);
+api.post('/sender-profiles/:id/rate', handleRateSenderNow);
 
 // Prompt wizard
 api.post('/prompt-wizard/start', handlePromptWizardStart);
