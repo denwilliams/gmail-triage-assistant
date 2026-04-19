@@ -11,14 +11,13 @@ not_found_handling = "single-page-application"
 binding = "ASSETS"
 
 [vars]
-GOOGLE_REDIRECT_URL = "https://gmail-assistant.loke.tools/auth/callback"
+GOOGLE_REDIRECT_URL = "https://gmail-assistant.denw.au/auth/callback"
 OPENAI_MODEL = "gpt-5-nano"
 OPENAI_BASE_URL = "https://api.openai.com/v1"
-SERVER_URL = "https://gmail-assistant.loke.tools"
+SERVER_URL = "https://gmail-assistant.denw.au"
 TIMEZONE = "Australia/Sydney"
 
-# Per-stage model overrides. Unset → falls back to OPENAI_MODEL. Easy to A/B
-# swap models without code changes.
+# Per-stage model overrides (optional — fall back to OPENAI_MODEL).
 # OPENAI_MODEL_TRIAGE        = "gpt-5-nano"
 # OPENAI_MODEL_NEWSLETTER    = "gpt-5-nano"
 # OPENAI_MODEL_NOTIFICATION  = "gpt-5-nano"
@@ -29,10 +28,18 @@ TIMEZONE = "Australia/Sydney"
 # OPENAI_MODEL_SUMMARY       = "gpt-5-nano"
 # OPENAI_MODEL_SENDER_RATING = "gpt-5-nano"
 
+[[routes]]
+pattern = "gmail-assistant.denw.au"
+zone_name = "denw.au"
+custom_domain = true
+
+[observability.logs]
+enabled = true
+
 [[d1_databases]]
 binding = "DB"
 database_name = "gmail-assistant"
-database_id = "05a94f76-e07f-45cc-83c3-b5829aaa6479"
+database_id = "b0b06d59-0fa8-4633-8e79-770c91ee3791"
 
 # ----------------------------------------------------------------------------
 # Queues — v1 (legacy single-stage processor)
@@ -123,18 +130,17 @@ max_retries = 3
 
 # Cron triggers
 # ----------------------------------------------------------------------------
-# Only two crons — the hourly dispatcher handles daily/weekly/monthly/yearly
-# jobs by converting "now" to the user-configured TIMEZONE (defaults to UTC)
-# and firing whichever jobs are due this hour. Most hours are no-ops.
+# Only two crons — the hourly dispatcher reads TIMEZONE and fires
+# daily/weekly/monthly/yearly jobs at the right local hour.
 #
-# Scheduled local-time jobs:
-#   - 03:00 local — sender rating sweep (v2)
-#   - 00:00 / 06:00 / 12:00 / 18:00 local — timed label sweep
-#   - 08:00 local — morning wrapup + daily digest (v2)
-#   - 17:00 local — evening wrapup + daily memory
-#   - 18:00 Sat local — weekly memory + AI prompt generation
-#   - 19:00 on 1st local — monthly memory
-#   - 20:00 on 1 Jan local — yearly memory
+# Scheduled local-time jobs (Australia/Sydney):
+#   - 03:00 AEST — sender rating sweep (v2)
+#   - 00/06/12/18 AEST — timed label sweep
+#   - 08:00 AEST — morning wrapup + daily digest (v2)
+#   - 17:00 AEST — evening wrapup + daily memory
+#   - 18:00 Sat AEST — weekly memory + AI prompt generation
+#   - 19:00 on 1st AEST — monthly memory
+#   - 20:00 on 1 Jan AEST — yearly memory
 [triggers]
 crons = [
   "*/15 * * * *",
