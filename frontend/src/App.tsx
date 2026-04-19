@@ -13,6 +13,10 @@ import SendersPage from "@/pages/senders";
 import SettingsPage from "@/pages/settings";
 import PromptWizardPage from "@/pages/prompt-wizard";
 import DigestsPage from "@/pages/digests";
+import V2Layout from "@/pages/v2/layout";
+import V2DashboardPage from "@/pages/v2/dashboard";
+import V2EmailsPage from "@/pages/v2/emails";
+import V2SendersPage from "@/pages/v2/senders";
 
 export default function App() {
   return (
@@ -33,6 +37,11 @@ export default function App() {
             <Route path="/digests" element={<DigestsPage />} />
             <Route path="/notifications" element={<NotificationsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/v2" element={<V2Layout />}>
+              <Route index element={<V2DashboardPage />} />
+              <Route path="emails" element={<V2EmailsPage />} />
+              <Route path="senders" element={<V2SendersPage />} />
+            </Route>
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Route>
         </Routes>

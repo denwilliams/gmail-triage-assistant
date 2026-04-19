@@ -13,10 +13,12 @@ import {
   Settings,
   Mail,
   LogOut,
+  Sparkles,
 } from "lucide-react";
 
 const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/v2", label: "V2", icon: Sparkles },
   { to: "/labels", label: "Labels", icon: Tag },
   { to: "/senders", label: "Senders", icon: Users },
   { to: "/prompts", label: "Prompts", icon: FileText },

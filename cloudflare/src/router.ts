@@ -17,7 +17,11 @@ import {
 } from './api/settings';
 import { handleGetNotifications } from './api/notifications';
 import { handleGetWrapups } from './api/wrapups';
-import { handleGetStatsSummary, handleGetStatsTimeseries } from './api/stats';
+import {
+  handleGetStatsSummary,
+  handleGetStatsTimeseries,
+  handleGetV2PipelineStats,
+} from './api/stats';
 import {
   handleGetAllSenderProfiles,
   handleGetSenderProfiles,
@@ -92,6 +96,7 @@ api.post('/digests/generate', handleGenerateDigestNow);
 // Stats
 api.get('/stats/summary', handleGetStatsSummary);
 api.get('/stats/timeseries', handleGetStatsTimeseries);
+api.get('/stats/v2-pipeline', handleGetV2PipelineStats);
 
 // Sender profiles
 api.get('/sender-profiles/all', handleGetAllSenderProfiles);

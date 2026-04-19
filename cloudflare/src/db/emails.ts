@@ -211,35 +211,47 @@ export async function markIncludedInDigest(
     .run();
 }
 
+export interface RecentEmailFilters {
+  bucket?: Bucket;
+  pipelineStage?: PipelineStage;
+  triageVia?: TriageVia;
+  v2Only?: boolean;
+}
+
 export async function getRecentEmails(
   db: D1Database,
   userId: number,
   limit: number,
   offset: number,
-  bucket?: Bucket,
+  filters: RecentEmailFilters = {},
 ): Promise<Email[]> {
-  if (bucket) {
-    const { results } = await db
-      .prepare(
-        `SELECT ${EMAIL_COLUMNS}
-         FROM emails
-         WHERE user_id = ? AND bucket = ?
-         ORDER BY processed_at DESC
-         LIMIT ? OFFSET ?`,
-      )
-      .bind(userId, bucket, limit, offset)
-      .all<EmailRow>();
-    return results.map(mapEmail);
+  const clauses: string[] = ['user_id = ?'];
+  const args: unknown[] = [userId];
+  if (filters.bucket) {
+    clauses.push('bucket = ?');
+    args.push(filters.bucket);
+  } else if (filters.v2Only) {
+    clauses.push('bucket IS NOT NULL');
   }
+  if (filters.pipelineStage) {
+    clauses.push('pipeline_stage = ?');
+    args.push(filters.pipelineStage);
+  }
+  if (filters.triageVia) {
+    clauses.push('triage_via = ?');
+    args.push(filters.triageVia);
+  }
+  args.push(limit, offset);
+
   const { results } = await db
     .prepare(
       `SELECT ${EMAIL_COLUMNS}
        FROM emails
-       WHERE user_id = ?
+       WHERE ${clauses.join(' AND ')}
        ORDER BY processed_at DESC
        LIMIT ? OFFSET ?`,
     )
-    .bind(userId, limit, offset)
+    .bind(...args)
     .all<EmailRow>();
   return results.map(mapEmail);
 }

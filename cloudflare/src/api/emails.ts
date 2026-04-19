@@ -1,8 +1,12 @@
 import type { Context } from 'hono';
 import type { Env } from '../types/env';
+import type { RecentEmailFilters } from '../db/emails';
 import { getRecentEmails, updateEmailFeedback } from '../db/emails';
-import type { Bucket, Email } from '../types/models';
+import type { Bucket, Email, PipelineStage, TriageVia } from '../types/models';
 import { BUCKETS } from '../types/models';
+
+const PIPELINE_STAGES: PipelineStage[] = ['queued', 'bucketed', 'processed', 'failed'];
+const TRIAGE_VIAS: TriageVia[] = ['ai', 'thread_reply', 'consistent_sender'];
 
 type AppContext = Context<{ Bindings: Env; Variables: { userId: number; email: string } }>;
 
@@ -53,17 +57,38 @@ export async function handleGetEmails(c: AppContext) {
     if (!isNaN(parsed) && parsed >= 0) offset = parsed;
   }
 
-  let bucket: Bucket | undefined;
+  const filters: RecentEmailFilters = {};
+
   const bParam = c.req.query('bucket');
   if (bParam) {
     if (!BUCKETS.includes(bParam as Bucket)) {
       return c.json({ error: 'Invalid bucket' }, 400);
     }
-    bucket = bParam as Bucket;
+    filters.bucket = bParam as Bucket;
+  }
+
+  const sParam = c.req.query('pipeline_stage');
+  if (sParam) {
+    if (!PIPELINE_STAGES.includes(sParam as PipelineStage)) {
+      return c.json({ error: 'Invalid pipeline_stage' }, 400);
+    }
+    filters.pipelineStage = sParam as PipelineStage;
+  }
+
+  const vParam = c.req.query('triage_via');
+  if (vParam) {
+    if (!TRIAGE_VIAS.includes(vParam as TriageVia)) {
+      return c.json({ error: 'Invalid triage_via' }, 400);
+    }
+    filters.triageVia = vParam as TriageVia;
+  }
+
+  if (c.req.query('v2_only') === '1') {
+    filters.v2Only = true;
   }
 
   try {
-    const emails = await getRecentEmails(c.env.DB, userId, limit, offset, bucket);
+    const emails = await getRecentEmails(c.env.DB, userId, limit, offset, filters);
     return c.json(emails.map(emailToJSON));
   } catch (e) {
     console.error('Failed to load emails:', e);

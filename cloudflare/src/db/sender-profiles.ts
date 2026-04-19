@@ -140,26 +140,73 @@ export async function upsertSenderProfile(db: D1Database, profile: SenderProfile
     .run();
 }
 
+export type SenderProfileSort =
+  | 'volume'
+  | 'recent'
+  | 'rating_high'
+  | 'rating_low'
+  | 'consistency';
+
+export interface SenderProfileFilters {
+  profileType: string | null;
+  search: string | null;
+  sort: SenderProfileSort;
+  consistency?: BucketConsistency;
+  bucket?: Bucket;
+  // 'null' = only profiles with no rating yet; 'manual' = rating_manual = 1
+  ratingState?: 'null' | 'manual' | 'auto';
+}
+
+const SORT_CLAUSES: Record<SenderProfileSort, string> = {
+  volume: 'email_count DESC, last_seen_at DESC',
+  recent: 'last_seen_at DESC',
+  // nulls last
+  rating_high: 'CASE WHEN rating IS NULL THEN 1 ELSE 0 END, rating DESC, email_count DESC',
+  rating_low: 'CASE WHEN rating IS NULL THEN 1 ELSE 0 END, rating ASC, email_count DESC',
+  // consistent first, then mixed, then unknown
+  consistency:
+    "CASE bucket_consistency WHEN 'consistent' THEN 0 WHEN 'mixed' THEN 1 ELSE 2 END, email_count DESC",
+};
+
 export async function getAllSenderProfiles(
   db: D1Database,
   userId: number,
-  profileType: string | null,
-  search: string | null,
+  filters: SenderProfileFilters,
   limit: number,
   offset: number,
 ): Promise<{ profiles: SenderProfile[]; total: number }> {
   let where = 'WHERE user_id = ?';
   const args: unknown[] = [userId];
 
-  if (profileType) {
+  if (filters.profileType) {
     where += ' AND profile_type = ?';
-    args.push(profileType);
+    args.push(filters.profileType);
   }
 
-  if (search) {
+  if (filters.search) {
     where += " AND LOWER(identifier) LIKE LOWER('%' || ? || '%')";
-    args.push(search);
+    args.push(filters.search);
   }
+
+  if (filters.consistency) {
+    where += ' AND bucket_consistency = ?';
+    args.push(filters.consistency);
+  }
+
+  if (filters.bucket) {
+    where += ' AND primary_bucket = ?';
+    args.push(filters.bucket);
+  }
+
+  if (filters.ratingState === 'null') {
+    where += ' AND rating IS NULL';
+  } else if (filters.ratingState === 'manual') {
+    where += ' AND rating_manual = 1';
+  } else if (filters.ratingState === 'auto') {
+    where += ' AND rating IS NOT NULL AND rating_manual = 0';
+  }
+
+  const orderBy = SORT_CLAUSES[filters.sort] ?? SORT_CLAUSES.volume;
 
   // Count total matching rows
   const countRow = await db
@@ -172,7 +219,7 @@ export async function getAllSenderProfiles(
   const dataArgs = [...args, limit, offset];
   const { results } = await db
     .prepare(
-      `${PROFILE_SELECT} ${where} ORDER BY email_count DESC, last_seen_at DESC LIMIT ? OFFSET ?`,
+      `${PROFILE_SELECT} ${where} ORDER BY ${orderBy} LIMIT ? OFFSET ?`,
     )
     .bind(...dataArgs)
     .all<SenderProfileRow>();

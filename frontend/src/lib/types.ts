@@ -11,6 +11,34 @@ export interface Label {
 export type TriageVia = "ai" | "thread_reply" | "consistent_sender";
 export type PipelineStage = "queued" | "bucketed" | "processed" | "failed";
 
+export interface V2FailureRow {
+  id: string;
+  from_address: string;
+  subject: string;
+  bucket: Bucket | null;
+  pipeline_stage: PipelineStage;
+  processed_at: string;
+}
+
+export interface V2PipelineStats {
+  total_v2: number;
+  total_v2_today: number;
+  total_v2_this_week: number;
+  bucket_counts_today: Record<Bucket, number>;
+  bucket_counts_week: Record<Bucket, number>;
+  triage_via_week: Record<TriageVia, number>;
+  stage_counts: Record<PipelineStage, number>;
+  digest_included_week: number;
+  recent_failures: V2FailureRow[];
+}
+
+export type SenderProfileSort =
+  | "volume"
+  | "recent"
+  | "rating_high"
+  | "rating_low"
+  | "consistency";
+
 export interface Email {
   id: string;
   user_id: number;
