@@ -27,8 +27,8 @@ export default {
   fetch: app.fetch,
   scheduled: async (event: ScheduledEvent, env: Env, ctx: ExecutionContext) => {
     switch (event.cron) {
-      // Gmail polling — runs every 5 minutes (configured in wrangler.toml)
-      case '*/5 * * * *': {
+      // Gmail polling — runs every 15 minutes (configured in wrangler.toml)
+      case '*/15 * * * *': {
         ctx.waitUntil(pollGmail(env));
         break;
       }
