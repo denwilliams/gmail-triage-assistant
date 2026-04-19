@@ -67,35 +67,32 @@ composes and sends the per-bucket digest emails (see §7).
 
 ## 5. AI abstraction
 
-New module `services/ai.ts` — provider-agnostic interface:
+Stay on OpenAI for this PR (minimise change surface). The existing
+`services/openai.ts` chat completion + structured output plumbing is reused;
+we just add per-stage model selection so we can run cheap models where they're
+good enough.
 
-```ts
-interface AIClient {
-  generateStructured<T>(modelId: string, systemPrompt: string,
-                       userPrompt: string, schema: JSONSchema): Promise<T>;
-  generateText(modelId: string, systemPrompt: string,
-               userPrompt: string): Promise<string>;
-}
-```
-
-- Default implementation uses Cloudflare Workers AI binding `env.AI`
-  (`@cf/meta/llama-3.3-70b-instruct-fp8-fast`, `@cf/meta/llama-3.1-8b-instruct`,
-  `@cf/mistralai/mistral-small-3.1-24b-instruct`, etc.).
-- Structured output via Workers AI `response_format: json_schema` where
-  supported; fallback to JSON parsing + re-ask on failure.
-- Per-stage model selection in `wrangler.toml` vars so swapping is a deploy,
-  not a code change:
-  - `AI_TRIAGE_MODEL`
-  - `AI_NEWSLETTER_MODEL`
-  - `AI_NOTIFICATION_MODEL`
-  - `AI_HUMAN_MODEL`
-  - `AI_TRANSACTIONAL_MODEL`
-  - `AI_SECURITY_MODEL`
-  - `AI_CALENDAR_MODEL`
-  - `AI_SUMMARY_MODEL` (digests, wrapups, memories)
-  - `AI_SENDER_RATING_MODEL`
-- Keep the existing OpenAI client around unused for now; delete once the new
-  pipeline is confirmed working in prod.
+- Refactor `services/openai.ts` → `services/ai.ts`:
+  - Keep existing `chatCompletion` / structured-output helpers.
+  - Stage-specific wrappers (`triage()`, `processNewsletter()`,
+    `processNotification()`, `processHuman()`, `processTransactional()`,
+    `processSecurity()`, `processCalendar()`, `rateSender()`,
+    `composeDigest()`) each take a `model` arg.
+- Per-stage model config via `wrangler.toml` vars so swapping is a deploy,
+  not a code change — and easy to A/B:
+  - `OPENAI_MODEL_TRIAGE` (default: `gpt-5-nano` — cheap, fast)
+  - `OPENAI_MODEL_NEWSLETTER`
+  - `OPENAI_MODEL_NOTIFICATION`
+  - `OPENAI_MODEL_HUMAN` (likely the most capable model — inbox decisions matter)
+  - `OPENAI_MODEL_TRANSACTIONAL`
+  - `OPENAI_MODEL_SECURITY`
+  - `OPENAI_MODEL_CALENDAR`
+  - `OPENAI_MODEL_SUMMARY` (digests, wrapups, memories)
+  - `OPENAI_MODEL_SENDER_RATING`
+  - Existing `OPENAI_MODEL` kept as a fallback when a stage-specific var is
+    unset.
+- Workers AI migration deferred — the `AIClient` interface stays provider-
+  agnostic so swapping later is a one-module change.
 
 ## 6. Pipeline stages
 
@@ -264,10 +261,15 @@ CREATE TABLE daily_digests (
 );
 ```
 
-## 11. `wrangler.toml` changes
+## 11. Polling + `wrangler.toml` changes
 
-- Replace `*/5 * * * *` with `*/15 * * * *` (15-minute poll per user instruction).
-- Add `[ai]` binding and per-stage model vars.
+- Polling logic (`jobs/poll-gmail.ts`) is unchanged: fetch since
+  `last_checked_at`, enqueue each message. The only difference is it now
+  enqueues onto the **triage queue** instead of the monolithic processing
+  queue.
+- Bump cron from `*/5 * * * *` to `*/15 * * * *` (15-minute poll per earlier
+  agreement).
+- Add per-stage `OPENAI_MODEL_*` vars (see §5). No Workers AI binding.
 - Add queue producers/consumers for `gmail-assistant-triage`,
   `gmail-assistant-bucket-newsletter`, `-notification`, `-human`,
   `-transactional`, `-security`, `-calendar`.
@@ -316,6 +318,10 @@ manually); digests tab showing past daily digests.
 3. Flip default to `v2` once happy. Leave `v1` code for one release, then
    delete.
 
+Also update `CLAUDE.md` — it currently describes the retired Go+Postgres
+architecture and doesn't mention the deployed Cloudflare stack. Refresh it to
+document the Workers / D1 / Queues reality and the new pipeline.
+
 ## 14. Open questions
 
 1. **Digest threshold tuning** — start with newsletter `interesting_score >=
@@ -324,13 +330,10 @@ manually); digests tab showing past daily digests.
 2. **Security bucket verification** — phishing attempts often impersonate
    MFA/reset emails. Worth adding a DKIM/SPF sanity check before trusting the
    "security" bucket?
-3. **Workers AI model availability** — do we want a hard requirement on
-   Workers AI, or allow a per-stage fallback to OpenAI via the same interface
-   when a WAI model is saturated?
-4. **Historical backfill** — re-run stage 1 over existing emails to populate
+3. **Historical backfill** — re-run stage 1 over existing emails to populate
    `bucket`, or leave legacy emails as `bucket = null` and only classify from
    cutover onward?
-5. **Gmail send for digests** — using the user's own account is cleanest but
+4. **Gmail send for digests** — using the user's own account is cleanest but
    means the digest shows up in "Sent". Alternative: drop into a dedicated
    `[assistant]/digests` label as a draft-ish message, or use a separate
    `noreply@` address via a transactional provider. Recommendation: user's
