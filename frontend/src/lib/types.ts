@@ -8,6 +8,9 @@ export interface Label {
   updated_at: string;
 }
 
+export type TriageVia = "ai" | "thread_reply" | "consistent_sender";
+export type PipelineStage = "queued" | "bucketed" | "processed" | "failed";
+
 export interface Email {
   id: string;
   user_id: number;
@@ -24,6 +27,18 @@ export interface Email {
   feedback_dirty: boolean;
   processed_at: string;
   created_at: string;
+  // v2 pipeline fields — null/undefined for legacy v1 rows.
+  bucket?: Bucket | null;
+  pipeline_stage?: PipelineStage;
+  triage_via?: TriageVia | null;
+  triage_reasoning?: string | null;
+  severity?: string | null;
+  urgency?: string | null;
+  interesting_score?: number | null;
+  interesting_reasons?: string[];
+  in_reply_to?: string | null;
+  thread_id?: string | null;
+  included_in_digest?: string | null;
 }
 
 export interface SystemPrompt {

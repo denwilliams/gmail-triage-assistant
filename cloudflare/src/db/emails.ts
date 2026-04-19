@@ -216,7 +216,21 @@ export async function getRecentEmails(
   userId: number,
   limit: number,
   offset: number,
+  bucket?: Bucket,
 ): Promise<Email[]> {
+  if (bucket) {
+    const { results } = await db
+      .prepare(
+        `SELECT ${EMAIL_COLUMNS}
+         FROM emails
+         WHERE user_id = ? AND bucket = ?
+         ORDER BY processed_at DESC
+         LIMIT ? OFFSET ?`,
+      )
+      .bind(userId, bucket, limit, offset)
+      .all<EmailRow>();
+    return results.map(mapEmail);
+  }
   const { results } = await db
     .prepare(
       `SELECT ${EMAIL_COLUMNS}
