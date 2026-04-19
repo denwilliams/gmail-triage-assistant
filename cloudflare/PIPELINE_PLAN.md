@@ -23,7 +23,7 @@ queue topology — not a fresh stack. The Go implementation under `cmd/` and
 
 ## 3. Buckets
 
-Stage 1 classifies every email into exactly one bucket. Buckets:
+Six concrete buckets — every email ends up in exactly one:
 
 | Bucket | Examples | Default action |
 |---|---|---|
@@ -33,12 +33,14 @@ Stage 1 classifies every email into exactly one bucket. Buckets:
 | `transactional` | Receipts, invoices, order/shipping confirmations, booking confirmations | Archive with timed delete label (`🗑️/1m` etc.) |
 | `security` | MFA codes, password resets, login alerts, account recovery | Immediate inbox + push (fast lane) |
 | `calendar` | Invites, updates, cancellations | Inbox + extract event details |
-| `thread_reply` | Reply to an existing thread you're part of | Inherit prior classification or re-run as `human` |
-| `unknown` | Triage couldn't decide | Safe default — land in inbox, flag for review |
 
-`thread_reply` is a meta-bucket — detected via `In-Reply-To` header against
-emails we've already seen. Implementation-wise it routes to `human` but keeps
-the prior thread context.
+Triage is not always an AI call — see §6.1 for the three-path routing
+(thread-reply fast path, consistent-sender fast path, AI triage). Senders
+who send multiple bucket types (e.g. Amazon sends order confirmations,
+marketing, shipping updates, Prime Video notifications) are flagged
+`mixed` on the profile and always go through AI triage; single-purpose
+senders (a Substack, a friend) fast-path after we've seen N emails from
+them.
 
 ## 4. Queue topology
 
@@ -101,19 +103,39 @@ good enough.
 Input: `{userId, messageId}` from poller.
 
 Steps:
-1. Dedup check (email already processed? short-circuit).
-2. Fetch Gmail message (subject, from, headers, ~500 char body sample — triage
+1. Dedup check — email already processed? short-circuit.
+2. Fetch Gmail message (subject, from, headers, short body sample — triage
    doesn't need full body).
-3. Check `In-Reply-To` header against `emails` table. If hit and the prior
-   email was `human`, skip triage and route straight to `HUMAN_Q` as a
-   `thread_reply`.
-4. Look up sender + domain profiles. If profile's `sender_type` strongly
-   signals a bucket (e.g. `newsletter` with high confidence), fast-path
-   without calling AI.
-5. Otherwise, AI call: `{bucket, confidence, reasoning}`.
-6. Write `emails` row with `bucket`, `triage_reasoning`, `pipeline_stage =
-   'bucketed'`. Full analysis fields populated in stage 2.
-7. Send `{userId, messageId, bucket}` to the bucket's queue.
+3. **Thread-reply fast path** — check `In-Reply-To` header against the
+   `emails` table. On hit: inherit the thread's prior bucket, skip AI.
+   Most will be `human`, some `notification` (e.g. GitHub PR comment
+   thread) — inheriting is correct either way.
+4. **Consistent-sender fast path** — look up sender profile. If
+   `bucket_consistency = 'consistent'` and `primary_bucket` is set → route
+   straight to that bucket queue, skip AI.
+5. **AI triage** — everything else (unknown sender, `mixed` sender, not
+   yet consistent). AI call returns `{bucket, confidence, reasoning}`.
+6. Write `emails` row with `bucket`, `triage_reasoning`,
+   `pipeline_stage = 'bucketed'`. Full analysis fields populated in
+   stage 2.
+7. Update sender profile `bucket_counts[bucket]++`, re-evaluate
+   consistency (see §8.1).
+8. Enqueue `{userId, messageId, bucket}` onto the bucket's queue.
+
+### 6.1.1 Consistency evaluation
+
+After each triage result, recompute the sender profile's consistency:
+
+- `bucket_counts` total < `CONSISTENCY_MIN_SAMPLES` (default 5) →
+  `unknown`. Keep AI-triaging.
+- Top bucket has ≥90% share (`CONSISTENCY_THRESHOLD`) → `consistent`,
+  cache `primary_bucket`.
+- Otherwise → `mixed`, `primary_bucket = null`.
+
+If a sender was `consistent` but the new triage result disagrees with
+`primary_bucket`, drop back to `unknown` and require another
+`CONSISTENCY_MIN_SAMPLES` before re-deciding. Catches senders who
+branch out (e.g. a newsletter starting to send receipts).
 
 ### 6.2 Stage 2 — Newsletter
 
@@ -165,34 +187,44 @@ Steps:
 
 ## 7. Daily digest emails
 
-Delivered by email (user's choice over in-app, per their instruction).
+Delivered by email, sent via the user's own Gmail OAuth token (same
+mechanism as the existing `createDraft` flow — just `users.messages.send`
+instead of `.drafts.create`). `From:` = the user's own address; the
+digest shows up in their Sent folder. No external mail provider, no bot
+from-address.
 
 - New background job `daily_digest` triggered at 8 AM cron alongside morning
   wrapup.
 - Composes one HTML email per user with sections:
-  - **Newsletters worth your time** — items flagged as interesting over the
-    last 24h, with AI-generated "why it's interesting" blurbs.
-  - **Notifications summary** — low/medium items grouped by sender, each with
-    a 1-line justification and deep link.
-  - **Quiet humans** — low-rated human senders with 1-line summary and rating
-    reason, so the user can spot bad gradings.
-- Sent via Gmail API using the user's own OAuth token (`users.messages.send`
-  with `X-GM-THRID` omitted; from = the user's own address). No external
-  mail infrastructure needed.
+  - **Newsletters worth your time** — items flagged as interesting
+    (`interesting_score >= 6`) over the last 24h, with AI-generated "why
+    it's interesting" blurbs.
+  - **Notifications summary** — low/medium items grouped by sender, each
+    with a 1-line justification and deep link to the Gmail thread.
+  - **Quiet humans** — low-rated human senders (`rating < 40`) with
+    1-line summary and rating reason, so the user can spot bad gradings.
 - Persisted in a new `daily_digests` table for UI browsing + re-sending.
 
-Keep the existing morning/evening wrapup reports as they are — the digest is
-additive, not a replacement.
+Keep the existing morning/evening wrapup reports as they are — the digest
+is additive, not a replacement.
 
-## 8. Sender rating (auto-learned)
+## 8. Sender rating + bucket consistency (auto-learned)
 
 Extend `sender_profiles`:
 
 ```sql
+-- Rating (for human bucket gating)
 ALTER TABLE sender_profiles ADD COLUMN rating INTEGER;            -- 0..100
 ALTER TABLE sender_profiles ADD COLUMN rating_reasoning TEXT;
-ALTER TABLE sender_profiles ADD COLUMN rating_manual INTEGER NOT NULL DEFAULT 0; -- 1 if user overrode
+ALTER TABLE sender_profiles ADD COLUMN rating_manual INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE sender_profiles ADD COLUMN rating_updated_at TEXT;
+
+-- Bucket consistency (for triage fast path)
+ALTER TABLE sender_profiles ADD COLUMN bucket_consistency TEXT NOT NULL DEFAULT 'unknown';
+  -- 'unknown' | 'consistent' | 'mixed'
+ALTER TABLE sender_profiles ADD COLUMN primary_bucket TEXT;       -- null when not consistent
+ALTER TABLE sender_profiles ADD COLUMN bucket_counts TEXT NOT NULL DEFAULT '{}';
+  -- JSON: { newsletter: 12, transactional: 3, ... }
 ```
 
 Signals to auto-learn from:
@@ -247,6 +279,11 @@ ALTER TABLE sender_profiles ADD COLUMN rating INTEGER;
 ALTER TABLE sender_profiles ADD COLUMN rating_reasoning TEXT;
 ALTER TABLE sender_profiles ADD COLUMN rating_manual INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE sender_profiles ADD COLUMN rating_updated_at TEXT;
+
+-- Bucket consistency (fast-path triage)
+ALTER TABLE sender_profiles ADD COLUMN bucket_consistency TEXT NOT NULL DEFAULT 'unknown';
+ALTER TABLE sender_profiles ADD COLUMN primary_bucket TEXT;
+ALTER TABLE sender_profiles ADD COLUMN bucket_counts TEXT NOT NULL DEFAULT '{}';
 
 -- Daily digest persistence
 CREATE TABLE daily_digests (
@@ -322,22 +359,17 @@ Also update `CLAUDE.md` — it currently describes the retired Go+Postgres
 architecture and doesn't mention the deployed Cloudflare stack. Refresh it to
 document the Workers / D1 / Queues reality and the new pipeline.
 
-## 14. Open questions
+## 14. Decisions
 
-1. **Digest threshold tuning** — start with newsletter `interesting_score >=
-   6`, human `rating >= 40`; let the user tune via settings UI, or
-   auto-adjust based on what they actually read?
-2. **Security bucket verification** — phishing attempts often impersonate
-   MFA/reset emails. Worth adding a DKIM/SPF sanity check before trusting the
-   "security" bucket?
-3. **Historical backfill** — re-run stage 1 over existing emails to populate
-   `bucket`, or leave legacy emails as `bucket = null` and only classify from
-   cutover onward?
-4. **Gmail send for digests** — using the user's own account is cleanest but
-   means the digest shows up in "Sent". Alternative: drop into a dedicated
-   `[assistant]/digests` label as a draft-ish message, or use a separate
-   `noreply@` address via a transactional provider. Recommendation: user's
-   own account with a self-label for now; revisit if it gets noisy.
+1. **Digest thresholds** — fixed. Newsletter interesting `>= 6/10`, human
+   rating `>= 40/100`. Not user-tunable in v1.
+2. **Security bucket** — no DKIM/SPF sanity check. Trust Gmail's own spam
+   handling.
+3. **Historical backfill** — none. Legacy emails stay with `bucket = null`;
+   only emails processed after cutover go through the new pipeline.
+4. **Digest sender** — user's own Gmail token, `From:` = the user.
+   Shows up in their Sent folder. Matches the existing `createDraft`
+   mechanism.
 
 ---
 
