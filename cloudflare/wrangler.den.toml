@@ -28,6 +28,14 @@ TIMEZONE = "Australia/Sydney"
 # OPENAI_MODEL_SUMMARY       = "gpt-5-nano"
 # OPENAI_MODEL_SENDER_RATING = "gpt-5-nano"
 
+[[routes]]
+pattern = "gmail-assistant.denw.au"
+zone_name = "denw.au"
+custom_domain = true
+
+[observability.logs]
+enabled = true
+
 [[d1_databases]]
 binding = "DB"
 database_name = "gmail-assistant"
