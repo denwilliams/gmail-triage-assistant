@@ -11,6 +11,9 @@ import type {
   DayLabelCount,
   HourCount,
   EmailRow,
+  Bucket,
+  TriageVia,
+  PipelineStage,
 } from '../types/models';
 
 // ============================================================================
@@ -292,4 +295,198 @@ export async function getDashboardTimeseries(
   }));
 
   return ts;
+}
+
+// ============================================================================
+// V2 pipeline stats
+// ============================================================================
+
+export interface V2FailureRow {
+  id: string;
+  fromAddress: string;
+  subject: string;
+  bucket: Bucket | null;
+  pipelineStage: PipelineStage;
+  processedAt: string;
+}
+
+export interface V2PipelineStats {
+  // Counts for emails processed via v2 (bucket IS NOT NULL).
+  totalV2: number;
+  totalV2Today: number;
+  totalV2ThisWeek: number;
+  // { newsletter: 12, notification: 3, ... } over the last windowDays.
+  bucketCountsToday: Record<Bucket, number>;
+  bucketCountsWeek: Record<Bucket, number>;
+  // Triage-path distribution over the last 7d (for the fast-path ratio).
+  triageViaWeek: Record<TriageVia, number>;
+  // Pipeline stage distribution (current state of the table).
+  stageCounts: Record<PipelineStage, number>;
+  // How many emails were included in a daily digest over last 7d.
+  digestIncludedWeek: number;
+  // Recent failures — handy for an ops glance.
+  recentFailures: V2FailureRow[];
+}
+
+const EMPTY_BUCKET_COUNTS: Record<Bucket, number> = {
+  newsletter: 0,
+  notification: 0,
+  human: 0,
+  transactional: 0,
+  security: 0,
+  calendar: 0,
+};
+
+const EMPTY_TRIAGE_VIA: Record<TriageVia, number> = {
+  ai: 0,
+  thread_reply: 0,
+  consistent_sender: 0,
+};
+
+const EMPTY_STAGE_COUNTS: Record<PipelineStage, number> = {
+  queued: 0,
+  bucketed: 0,
+  processed: 0,
+  failed: 0,
+};
+
+export async function getV2PipelineStats(
+  db: D1Database,
+  userId: number,
+): Promise<V2PipelineStats> {
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+  const weekStart = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+  // Totals for v2 emails (bucket IS NOT NULL)
+  const totalsRow = await db
+    .prepare(
+      `SELECT
+        COUNT(*) as total,
+        SUM(CASE WHEN processed_at >= ? THEN 1 ELSE 0 END) as today,
+        SUM(CASE WHEN processed_at >= ? THEN 1 ELSE 0 END) as week
+       FROM emails
+       WHERE user_id = ? AND bucket IS NOT NULL`,
+    )
+    .bind(todayStart, weekStart, userId)
+    .first<{ total: number; today: number; week: number }>();
+
+  // Per-bucket counts, today
+  const { results: todayBucketRows } = await db
+    .prepare(
+      `SELECT bucket, COUNT(*) as cnt
+       FROM emails
+       WHERE user_id = ? AND bucket IS NOT NULL AND processed_at >= ?
+       GROUP BY bucket`,
+    )
+    .bind(userId, todayStart)
+    .all<{ bucket: string; cnt: number }>();
+
+  // Per-bucket counts, last 7d
+  const { results: weekBucketRows } = await db
+    .prepare(
+      `SELECT bucket, COUNT(*) as cnt
+       FROM emails
+       WHERE user_id = ? AND bucket IS NOT NULL AND processed_at >= ?
+       GROUP BY bucket`,
+    )
+    .bind(userId, weekStart)
+    .all<{ bucket: string; cnt: number }>();
+
+  // Triage-path distribution, last 7d
+  const { results: triageRows } = await db
+    .prepare(
+      `SELECT triage_via, COUNT(*) as cnt
+       FROM emails
+       WHERE user_id = ? AND triage_via IS NOT NULL AND processed_at >= ?
+       GROUP BY triage_via`,
+    )
+    .bind(userId, weekStart)
+    .all<{ triage_via: string; cnt: number }>();
+
+  // Pipeline stage distribution (all-time among v2 rows)
+  const { results: stageRows } = await db
+    .prepare(
+      `SELECT pipeline_stage, COUNT(*) as cnt
+       FROM emails
+       WHERE user_id = ? AND bucket IS NOT NULL
+       GROUP BY pipeline_stage`,
+    )
+    .bind(userId)
+    .all<{ pipeline_stage: string; cnt: number }>();
+
+  // Digest inclusions, last 7d
+  const digestRow = await db
+    .prepare(
+      `SELECT COUNT(*) as cnt
+       FROM emails
+       WHERE user_id = ? AND included_in_digest IS NOT NULL AND processed_at >= ?`,
+    )
+    .bind(userId, weekStart)
+    .first<{ cnt: number }>();
+
+  // Recent failures
+  const { results: failureRows } = await db
+    .prepare(
+      `SELECT id, from_address, subject, bucket, pipeline_stage, processed_at
+       FROM emails
+       WHERE user_id = ? AND pipeline_stage = 'failed'
+       ORDER BY processed_at DESC
+       LIMIT 10`,
+    )
+    .bind(userId)
+    .all<{
+      id: string;
+      from_address: string;
+      subject: string;
+      bucket: string | null;
+      pipeline_stage: string;
+      processed_at: string;
+    }>();
+
+  const bucketCountsToday = { ...EMPTY_BUCKET_COUNTS };
+  for (const r of todayBucketRows) {
+    if (r.bucket in bucketCountsToday) {
+      bucketCountsToday[r.bucket as Bucket] = r.cnt;
+    }
+  }
+  const bucketCountsWeek = { ...EMPTY_BUCKET_COUNTS };
+  for (const r of weekBucketRows) {
+    if (r.bucket in bucketCountsWeek) {
+      bucketCountsWeek[r.bucket as Bucket] = r.cnt;
+    }
+  }
+
+  const triageViaWeek = { ...EMPTY_TRIAGE_VIA };
+  for (const r of triageRows) {
+    if (r.triage_via in triageViaWeek) {
+      triageViaWeek[r.triage_via as TriageVia] = r.cnt;
+    }
+  }
+
+  const stageCounts = { ...EMPTY_STAGE_COUNTS };
+  for (const r of stageRows) {
+    if (r.pipeline_stage in stageCounts) {
+      stageCounts[r.pipeline_stage as PipelineStage] = r.cnt;
+    }
+  }
+
+  return {
+    totalV2: totalsRow?.total ?? 0,
+    totalV2Today: totalsRow?.today ?? 0,
+    totalV2ThisWeek: totalsRow?.week ?? 0,
+    bucketCountsToday,
+    bucketCountsWeek,
+    triageViaWeek,
+    stageCounts,
+    digestIncludedWeek: digestRow?.cnt ?? 0,
+    recentFailures: failureRows.map<V2FailureRow>((r) => ({
+      id: r.id,
+      fromAddress: r.from_address,
+      subject: r.subject,
+      bucket: (r.bucket as Bucket | null) ?? null,
+      pipelineStage: r.pipeline_stage as PipelineStage,
+      processedAt: r.processed_at,
+    })),
+  };
 }

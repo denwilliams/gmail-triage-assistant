@@ -13,7 +13,12 @@ import type {
   DayLabelCount,
   HourCount,
 } from '../types/models';
-import { getDashboardSummary, getDashboardTimeseries } from '../db/stats';
+import type { V2PipelineStats, V2FailureRow } from '../db/stats';
+import {
+  getDashboardSummary,
+  getDashboardTimeseries,
+  getV2PipelineStats,
+} from '../db/stats';
 
 type AppContext = Context<{ Bindings: Env; Variables: { userId: number; email: string } }>;
 
@@ -75,6 +80,43 @@ export async function handleGetStatsSummary(c: AppContext) {
   } catch (e) {
     console.error('Failed to load stats summary:', e);
     return c.json({ error: 'Failed to load stats summary' }, 500);
+  }
+}
+
+function failureToJSON(f: V2FailureRow) {
+  return {
+    id: f.id,
+    from_address: f.fromAddress,
+    subject: f.subject,
+    bucket: f.bucket,
+    pipeline_stage: f.pipelineStage,
+    processed_at: f.processedAt,
+  };
+}
+
+function v2StatsToJSON(s: V2PipelineStats) {
+  return {
+    total_v2: s.totalV2,
+    total_v2_today: s.totalV2Today,
+    total_v2_this_week: s.totalV2ThisWeek,
+    bucket_counts_today: s.bucketCountsToday,
+    bucket_counts_week: s.bucketCountsWeek,
+    triage_via_week: s.triageViaWeek,
+    stage_counts: s.stageCounts,
+    digest_included_week: s.digestIncludedWeek,
+    recent_failures: s.recentFailures.map(failureToJSON),
+  };
+}
+
+export async function handleGetV2PipelineStats(c: AppContext) {
+  const userId = c.get('userId');
+
+  try {
+    const stats = await getV2PipelineStats(c.env.DB, userId);
+    return c.json(v2StatsToJSON(stats));
+  } catch (e) {
+    console.error('Failed to load v2 pipeline stats:', e);
+    return c.json({ error: 'Failed to load v2 pipeline stats' }, 500);
   }
 }
 

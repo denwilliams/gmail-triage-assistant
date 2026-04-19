@@ -1,6 +1,8 @@
 import type { Context } from 'hono';
 import type { Env } from '../types/env';
-import type { SenderProfile, ProfileType } from '../types/models';
+import type { Bucket, BucketConsistency, SenderProfile, ProfileType } from '../types/models';
+import { BUCKETS } from '../types/models';
+import type { SenderProfileSort } from '../db/sender-profiles';
 import {
   getSenderProfile,
   getSenderProfileByID,
@@ -10,6 +12,15 @@ import {
   isIgnoredDomain,
   buildProfileFromEmails,
 } from '../db/sender-profiles';
+
+const SORTS: SenderProfileSort[] = [
+  'volume',
+  'recent',
+  'rating_high',
+  'rating_low',
+  'consistency',
+];
+const CONSISTENCIES: BucketConsistency[] = ['unknown', 'consistent', 'mixed'];
 import {
   getHistoricalEmailsFromAddress,
   getHistoricalEmailsFromDomain,
@@ -64,12 +75,47 @@ export async function handleGetAllSenderProfiles(c: AppContext) {
     if (!isNaN(parsed) && parsed >= 0) offset = parsed;
   }
 
+  let sort: SenderProfileSort = 'volume';
+  const sortParam = c.req.query('sort');
+  if (sortParam) {
+    if (!SORTS.includes(sortParam as SenderProfileSort)) {
+      return c.json({ error: 'Invalid sort' }, 400);
+    }
+    sort = sortParam as SenderProfileSort;
+  }
+
+  let consistency: BucketConsistency | undefined;
+  const consistencyParam = c.req.query('consistency');
+  if (consistencyParam) {
+    if (!CONSISTENCIES.includes(consistencyParam as BucketConsistency)) {
+      return c.json({ error: 'Invalid consistency' }, 400);
+    }
+    consistency = consistencyParam as BucketConsistency;
+  }
+
+  let bucket: Bucket | undefined;
+  const bucketParam = c.req.query('bucket');
+  if (bucketParam) {
+    if (!BUCKETS.includes(bucketParam as Bucket)) {
+      return c.json({ error: 'Invalid bucket' }, 400);
+    }
+    bucket = bucketParam as Bucket;
+  }
+
+  let ratingState: 'null' | 'manual' | 'auto' | undefined;
+  const ratingStateParam = c.req.query('rating_state');
+  if (ratingStateParam) {
+    if (!['null', 'manual', 'auto'].includes(ratingStateParam)) {
+      return c.json({ error: 'Invalid rating_state' }, 400);
+    }
+    ratingState = ratingStateParam as 'null' | 'manual' | 'auto';
+  }
+
   try {
     const { profiles, total } = await getAllSenderProfiles(
       c.env.DB,
       userId,
-      profileType,
-      search,
+      { profileType, search, sort, consistency, bucket, ratingState },
       limit,
       offset,
     );

@@ -5,13 +5,12 @@ import type {
   Email,
   SenderProfile,
   SenderProfilesResponse,
-  TriageVia,
 } from "@/lib/types";
 import { api } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { cn } from "@/lib/utils";
+import { cn, timeAgo } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -19,144 +18,19 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-
-function timeAgo(dateStr: string): string {
-  const seconds = Math.floor(
-    (Date.now() - new Date(dateStr).getTime()) / 1000
-  );
-  if (seconds < 60) return "just now";
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  if (days < 30) return `${days}d ago`;
-  return new Date(dateStr).toLocaleDateString();
-}
+import {
+  BUCKET_OPTIONS,
+  BUCKET_STYLES,
+  BucketBadge,
+  InterestingScoreChip,
+  SeverityUrgencyChips,
+  TriageViaChip,
+} from "@/components/v2/badges";
 
 function topEntries(counts: Record<string, number>, n = 5): [string, number][] {
   return Object.entries(counts)
     .sort((a, b) => b[1] - a[1])
     .slice(0, n);
-}
-
-const BUCKET_OPTIONS: Bucket[] = [
-  "newsletter",
-  "notification",
-  "human",
-  "transactional",
-  "security",
-  "calendar",
-];
-
-// Tailwind classes per bucket — tuned for readable contrast in light + dark.
-const BUCKET_STYLES: Record<Bucket, string> = {
-  newsletter:
-    "bg-blue-100 text-blue-800 dark:bg-blue-500/20 dark:text-blue-200",
-  notification:
-    "bg-amber-100 text-amber-900 dark:bg-amber-500/20 dark:text-amber-100",
-  human:
-    "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-200",
-  transactional:
-    "bg-violet-100 text-violet-800 dark:bg-violet-500/20 dark:text-violet-200",
-  security:
-    "bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-200",
-  calendar:
-    "bg-cyan-100 text-cyan-800 dark:bg-cyan-500/20 dark:text-cyan-200",
-};
-
-function BucketBadge({ bucket }: { bucket: Bucket }) {
-  return (
-    <Badge
-      variant="outline"
-      className={cn("border-transparent capitalize", BUCKET_STYLES[bucket])}
-    >
-      {bucket}
-    </Badge>
-  );
-}
-
-const TRIAGE_VIA_LABELS: Record<TriageVia, string> = {
-  ai: "AI",
-  thread_reply: "Thread",
-  consistent_sender: "Known sender",
-};
-
-const TRIAGE_VIA_TITLES: Record<TriageVia, string> = {
-  ai: "Triaged by AI",
-  thread_reply: "Inherited from an earlier thread reply",
-  consistent_sender: "Fast-pathed via a consistent sender profile",
-};
-
-function TriageViaChip({ via }: { via: TriageVia }) {
-  return (
-    <Badge variant="outline" className="text-xs" title={TRIAGE_VIA_TITLES[via]}>
-      {TRIAGE_VIA_LABELS[via]}
-    </Badge>
-  );
-}
-
-const SEVERITY_STYLES: Record<string, string> = {
-  critical:
-    "bg-red-100 text-red-800 dark:bg-red-500/25 dark:text-red-200",
-  high:
-    "bg-orange-100 text-orange-800 dark:bg-orange-500/25 dark:text-orange-200",
-  medium:
-    "bg-amber-100 text-amber-900 dark:bg-amber-500/20 dark:text-amber-100",
-  low:
-    "bg-slate-100 text-slate-700 dark:bg-slate-500/25 dark:text-slate-200",
-};
-
-function SeverityUrgencyChips({
-  severity,
-  urgency,
-}: {
-  severity?: string | null;
-  urgency?: string | null;
-}) {
-  return (
-    <>
-      {severity && (
-        <Badge
-          variant="outline"
-          className={cn(
-            "text-xs capitalize border-transparent",
-            SEVERITY_STYLES[severity] ?? SEVERITY_STYLES.low
-          )}
-          title={`Severity: ${severity}`}
-        >
-          sev: {severity}
-        </Badge>
-      )}
-      {urgency && (
-        <Badge
-          variant="outline"
-          className={cn(
-            "text-xs capitalize border-transparent",
-            SEVERITY_STYLES[urgency] ?? SEVERITY_STYLES.low
-          )}
-          title={`Urgency: ${urgency}`}
-        >
-          urg: {urgency}
-        </Badge>
-      )}
-    </>
-  );
-}
-
-function InterestingScoreChip({
-  score,
-  reasons,
-}: {
-  score: number;
-  reasons?: string[];
-}) {
-  const tooltip = reasons && reasons.length > 0 ? reasons[0] : `Interesting score ${score}/10`;
-  return (
-    <Badge variant="outline" className="text-xs" title={tooltip}>
-      score {score}/10
-    </Badge>
-  );
 }
 
 function GenerateProfileButton({

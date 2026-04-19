@@ -42,12 +42,23 @@ export const api = {
   getEmails: (
     limit = 50,
     offset = 0,
-    bucket?: import("./types").Bucket
+    filters:
+      | import("./types").Bucket
+      | {
+          bucket?: import("./types").Bucket;
+          pipeline_stage?: import("./types").PipelineStage;
+          triage_via?: import("./types").TriageVia;
+          v2_only?: boolean;
+        } = {}
   ) => {
+    const f = typeof filters === "string" ? { bucket: filters } : filters;
     const params = new URLSearchParams();
     params.set("limit", String(limit));
     params.set("offset", String(offset));
-    if (bucket) params.set("bucket", bucket);
+    if (f.bucket) params.set("bucket", f.bucket);
+    if (f.pipeline_stage) params.set("pipeline_stage", f.pipeline_stage);
+    if (f.triage_via) params.set("triage_via", f.triage_via);
+    if (f.v2_only) params.set("v2_only", "1");
     return request<import("./types").Email[]>(`/emails?${params.toString()}`);
   },
   updateFeedback: (id: string, feedback: string) =>
@@ -108,12 +119,20 @@ export const api = {
     search?: string;
     limit?: number;
     offset?: number;
+    sort?: import("./types").SenderProfileSort;
+    consistency?: import("./types").BucketConsistency;
+    bucket?: import("./types").Bucket;
+    rating_state?: "null" | "manual" | "auto";
   }): Promise<{ profiles: import("./types").SenderProfile[]; total: number }> => {
     const searchParams = new URLSearchParams();
     if (params.type) searchParams.set("type", params.type);
     if (params.search) searchParams.set("search", params.search);
     if (params.limit) searchParams.set("limit", String(params.limit));
     if (params.offset) searchParams.set("offset", String(params.offset));
+    if (params.sort) searchParams.set("sort", params.sort);
+    if (params.consistency) searchParams.set("consistency", params.consistency);
+    if (params.bucket) searchParams.set("bucket", params.bucket);
+    if (params.rating_state) searchParams.set("rating_state", params.rating_state);
     return request(`/sender-profiles/all?${searchParams.toString()}`);
   },
 
@@ -126,6 +145,8 @@ export const api = {
   getStatsSummary: () => request<import("./types").DashboardSummary>("/stats/summary"),
   getStatsTimeseries: (days = 30) =>
     request<import("./types").DashboardTimeseries>(`/stats/timeseries?days=${days}`),
+  getV2PipelineStats: () =>
+    request<import("./types").V2PipelineStats>("/stats/v2-pipeline"),
 
   startPromptWizard: () =>
     request<import("./types").WizardStartResponse>("/prompt-wizard/start", {

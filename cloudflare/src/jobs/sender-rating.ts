@@ -94,7 +94,13 @@ export async function runSenderRatingSweep(env: Env): Promise<void> {
     if (user.pipelineVersion !== 'v2') continue;
 
     try {
-      const { profiles } = await getAllSenderProfiles(env.DB, user.id, null, null, 500, 0);
+      const { profiles } = await getAllSenderProfiles(
+        env.DB,
+        user.id,
+        { profileType: null, search: null, sort: 'volume' },
+        500,
+        0,
+      );
       const candidates = profiles.filter(needsRating).slice(0, MAX_PROFILES_PER_USER_PER_SWEEP);
       console.log(`sender-rating-sweep: [${user.email}] ${candidates.length} profiles queued`);
 
