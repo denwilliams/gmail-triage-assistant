@@ -59,19 +59,19 @@ export interface WizardResponse {
 
 // ---------- internal helpers ----------
 
-interface ChatMessage {
+export interface ChatMessage {
   role: 'system' | 'user';
   content: string;
 }
 
-interface ChatCompletionRequest {
+export interface ChatCompletionRequest {
   model: string;
   messages: ChatMessage[];
   max_completion_tokens?: number;
   response_format?: any;
 }
 
-async function chatCompletion(config: OpenAIConfig, req: ChatCompletionRequest): Promise<string> {
+export async function chatCompletion(config: OpenAIConfig, req: ChatCompletionRequest): Promise<string> {
   const url = `${config.baseUrl}/chat/completions`;
   const res = await fetch(url, {
     method: 'POST',
@@ -107,7 +107,7 @@ async function chatCompletion(config: OpenAIConfig, req: ChatCompletionRequest):
   return content;
 }
 
-function structuredFormat(name: string, description: string, schema: Record<string, any>): any {
+export function structuredFormat(name: string, description: string, schema: Record<string, any>): any {
   return {
     type: 'json_schema',
     json_schema: {

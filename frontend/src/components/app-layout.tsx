@@ -23,6 +23,7 @@ const navItems = [
   { to: "/history", label: "History", icon: History },
   { to: "/memories", label: "Memories", icon: Brain },
   { to: "/wrapups", label: "Wrapups", icon: BarChart2 },
+  { to: "/digests", label: "Digests", icon: BarChart2 },
   { to: "/notifications", label: "Notifications", icon: Bell },
   { to: "/settings", label: "Settings", icon: Settings },
 ];

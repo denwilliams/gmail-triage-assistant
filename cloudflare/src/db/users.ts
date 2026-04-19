@@ -1,4 +1,4 @@
-import type { User, UserRow } from '../types/models';
+import type { PipelineVersion, User, UserRow } from '../types/models';
 
 function mapUser(row: UserRow): User {
   return {
@@ -15,9 +15,22 @@ function mapUser(row: UserRow): User {
     webhookUrl: row.webhook_url,
     webhookHeaderKey: row.webhook_header_key,
     webhookHeaderValue: row.webhook_header_value,
+    pipelineVersion: (row.pipeline_version as PipelineVersion) ?? 'v1',
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
+}
+
+export async function setUserPipelineVersion(
+  db: D1Database,
+  userId: number,
+  version: PipelineVersion,
+): Promise<void> {
+  const now = new Date().toISOString();
+  await db
+    .prepare('UPDATE users SET pipeline_version = ?, updated_at = ? WHERE id = ?')
+    .bind(version, now, userId)
+    .run();
 }
 
 export async function createUser(

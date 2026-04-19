@@ -1,4 +1,11 @@
-import type { SenderProfile, SenderProfileRow, ProfileType, Email } from '../types/models';
+import type {
+  Bucket,
+  BucketConsistency,
+  Email,
+  ProfileType,
+  SenderProfile,
+  SenderProfileRow,
+} from '../types/models';
 
 function safeParseJSON<T>(text: string, fallback: T): T {
   try {
@@ -26,6 +33,13 @@ function mapSenderProfile(row: SenderProfileRow): SenderProfile {
     lastSeenAt: row.last_seen_at,
     modifiedAt: row.modified_at,
     createdAt: row.created_at,
+    rating: row.rating,
+    ratingReasoning: row.rating_reasoning ?? '',
+    ratingManual: (row.rating_manual ?? 0) === 1,
+    ratingUpdatedAt: row.rating_updated_at,
+    bucketConsistency: (row.bucket_consistency as BucketConsistency) ?? 'unknown',
+    primaryBucket: (row.primary_bucket as Bucket | null) ?? null,
+    bucketCounts: safeParseJSON<Record<string, number>>(row.bucket_counts ?? '{}', {}),
   };
 }
 
@@ -33,7 +47,9 @@ const PROFILE_SELECT = `SELECT id, user_id, profile_type, identifier,
        email_count, emails_archived, emails_notified,
        slug_counts, label_counts, keyword_counts,
        sender_type, summary,
-       first_seen_at, last_seen_at, modified_at, created_at
+       first_seen_at, last_seen_at, modified_at, created_at,
+       rating, rating_reasoning, rating_manual, rating_updated_at,
+       bucket_consistency, primary_bucket, bucket_counts
 FROM sender_profiles`;
 
 export async function getSenderProfile(
@@ -65,6 +81,7 @@ export async function upsertSenderProfile(db: D1Database, profile: SenderProfile
   const slugCountsJSON = JSON.stringify(profile.slugCounts);
   const labelCountsJSON = JSON.stringify(profile.labelCounts);
   const keywordCountsJSON = JSON.stringify(profile.keywordCounts);
+  const bucketCountsJSON = JSON.stringify(profile.bucketCounts);
 
   await db
     .prepare(
@@ -73,8 +90,11 @@ export async function upsertSenderProfile(db: D1Database, profile: SenderProfile
         email_count, emails_archived, emails_notified,
         slug_counts, label_counts, keyword_counts,
         sender_type, summary,
-        first_seen_at, last_seen_at, modified_at, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+        first_seen_at, last_seen_at, modified_at, created_at,
+        rating, rating_reasoning, rating_manual, rating_updated_at,
+        bucket_consistency, primary_bucket, bucket_counts
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'),
+                ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT (user_id, profile_type, identifier)
       DO UPDATE SET
         email_count = excluded.email_count,
@@ -86,7 +106,14 @@ export async function upsertSenderProfile(db: D1Database, profile: SenderProfile
         sender_type = excluded.sender_type,
         summary = excluded.summary,
         last_seen_at = excluded.last_seen_at,
-        modified_at = datetime('now')`,
+        modified_at = datetime('now'),
+        rating = excluded.rating,
+        rating_reasoning = excluded.rating_reasoning,
+        rating_manual = excluded.rating_manual,
+        rating_updated_at = excluded.rating_updated_at,
+        bucket_consistency = excluded.bucket_consistency,
+        primary_bucket = excluded.primary_bucket,
+        bucket_counts = excluded.bucket_counts`,
     )
     .bind(
       profile.userId,
@@ -102,6 +129,13 @@ export async function upsertSenderProfile(db: D1Database, profile: SenderProfile
       profile.summary,
       profile.firstSeenAt,
       profile.lastSeenAt,
+      profile.rating,
+      profile.ratingReasoning,
+      profile.ratingManual ? 1 : 0,
+      profile.ratingUpdatedAt,
+      profile.bucketConsistency,
+      profile.primaryBucket,
+      bucketCountsJSON,
     )
     .run();
 }
@@ -254,6 +288,13 @@ export function buildProfileFromEmails(
     lastSeenAt: now,
     modifiedAt: now,
     createdAt: now,
+    rating: null,
+    ratingReasoning: '',
+    ratingManual: false,
+    ratingUpdatedAt: null,
+    bucketConsistency: 'unknown',
+    primaryBucket: null,
+    bucketCounts: {},
   };
 
   for (const e of emails) {

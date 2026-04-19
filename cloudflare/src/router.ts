@@ -8,7 +8,13 @@ import { handleGetLabels, handleCreateLabel, handleUpdateLabel, handleDeleteLabe
 import { handleGetEmails, handleUpdateFeedback } from './api/emails';
 import { handleGetPrompts, handleUpdatePrompt, handleInitDefaults } from './api/prompts';
 import { handleGetMemories, handleGenerateMemory, handleGenerateAIPrompts } from './api/memories';
-import { handleGetSettings, handleUpdateProcessing, handleUpdatePushover, handleUpdateWebhook } from './api/settings';
+import {
+  handleGetSettings,
+  handleUpdatePipelineVersion,
+  handleUpdateProcessing,
+  handleUpdatePushover,
+  handleUpdateWebhook,
+} from './api/settings';
 import { handleGetNotifications } from './api/notifications';
 import { handleGetWrapups } from './api/wrapups';
 import { handleGetStatsSummary, handleGetStatsTimeseries } from './api/stats';
@@ -16,10 +22,12 @@ import {
   handleGetAllSenderProfiles,
   handleGetSenderProfiles,
   handleGenerateSenderProfile,
+  handleRateSenderNow,
   handleUpdateSenderProfile,
 } from './api/sender-profiles';
 import { handlePromptWizardStart, handlePromptWizardContinue } from './api/prompt-wizard';
 import { handleExport, handleImport } from './api/export-import';
+import { handleGenerateDigestNow, handleGetDigest, handleListDigests } from './api/digests';
 
 // Define custom variables type for auth context
 type AppEnv = { Bindings: Env; Variables: { userId: number; email: string } };
@@ -66,6 +74,7 @@ api.post('/memories/generate-ai-prompts', handleGenerateAIPrompts);
 // Settings
 api.get('/settings', handleGetSettings);
 api.put('/settings/processing', handleUpdateProcessing);
+api.put('/settings/pipeline-version', handleUpdatePipelineVersion);
 api.put('/settings/pushover', handleUpdatePushover);
 api.put('/settings/webhook', handleUpdateWebhook);
 
@@ -74,6 +83,11 @@ api.get('/notifications', handleGetNotifications);
 
 // Wrapups
 api.get('/wrapups', handleGetWrapups);
+
+// Daily digests (v2 pipeline)
+api.get('/digests', handleListDigests);
+api.get('/digests/:date', handleGetDigest);
+api.post('/digests/generate', handleGenerateDigestNow);
 
 // Stats
 api.get('/stats/summary', handleGetStatsSummary);
@@ -84,6 +98,7 @@ api.get('/sender-profiles/all', handleGetAllSenderProfiles);
 api.get('/sender-profiles', handleGetSenderProfiles);
 api.post('/sender-profiles/generate', handleGenerateSenderProfile);
 api.patch('/sender-profiles/:id', handleUpdateSenderProfile);
+api.post('/sender-profiles/:id/rate', handleRateSenderNow);
 
 // Prompt wizard
 api.post('/prompt-wizard/start', handlePromptWizardStart);
