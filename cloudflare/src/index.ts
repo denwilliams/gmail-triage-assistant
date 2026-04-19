@@ -12,6 +12,12 @@ import {
 import { processTimedLabels } from './jobs/timed-labels';
 import { processEmail } from './pipeline/processor';
 import { runTriage } from './pipeline/triage';
+import { processNewsletterMessage } from './pipeline/buckets/newsletter';
+import { processNotificationMessage } from './pipeline/buckets/notification';
+import { processHumanMessage } from './pipeline/buckets/human';
+import { processTransactionalMessage } from './pipeline/buckets/transactional';
+import { processSecurityMessage } from './pipeline/buckets/security';
+import { processCalendarMessage } from './pipeline/buckets/calendar';
 import { getAllActiveUsers } from './db/users';
 
 interface EmailMessage {
@@ -178,19 +184,35 @@ async function dispatchQueueMessage(
       await runTriage(env, m.userId, m.messageId);
       return;
     }
-    case 'gmail-assistant-bucket-newsletter':
-    case 'gmail-assistant-bucket-notification':
-    case 'gmail-assistant-bucket-human':
-    case 'gmail-assistant-bucket-transactional':
-    case 'gmail-assistant-bucket-security':
-    case 'gmail-assistant-bucket-calendar': {
-      // v2 stage 2 — handled in commit 4
+    case 'gmail-assistant-bucket-newsletter': {
       const m = body as BucketMessage;
-      console.warn(
-        `queue[${queueName}]: bucket processor not yet implemented — ` +
-        `holding email ${m.messageId} (bucket ${m.bucket})`,
-      );
-      throw new Error(`bucket processor for ${queueName} not implemented`);
+      await processNewsletterMessage(env, m.userId, m.messageId);
+      return;
+    }
+    case 'gmail-assistant-bucket-notification': {
+      const m = body as BucketMessage;
+      await processNotificationMessage(env, m.userId, m.messageId);
+      return;
+    }
+    case 'gmail-assistant-bucket-human': {
+      const m = body as BucketMessage;
+      await processHumanMessage(env, m.userId, m.messageId);
+      return;
+    }
+    case 'gmail-assistant-bucket-transactional': {
+      const m = body as BucketMessage;
+      await processTransactionalMessage(env, m.userId, m.messageId);
+      return;
+    }
+    case 'gmail-assistant-bucket-security': {
+      const m = body as BucketMessage;
+      await processSecurityMessage(env, m.userId, m.messageId);
+      return;
+    }
+    case 'gmail-assistant-bucket-calendar': {
+      const m = body as BucketMessage;
+      await processCalendarMessage(env, m.userId, m.messageId);
+      return;
     }
     case 'gmail-assistant-background-jobs': {
       const job = body as BackgroundJob;
