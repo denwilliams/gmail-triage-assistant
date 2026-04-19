@@ -1,0 +1,140 @@
+name = "gmail-assistant"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+workers_dev = false
+preview_urls = false
+
+[assets]
+directory = "../frontend/dist"
+html_handling = "drop-trailing-slash"
+not_found_handling = "single-page-application"
+binding = "ASSETS"
+
+[vars]
+GOOGLE_REDIRECT_URL = "https://gmail-assistant.denw.au/auth/callback"
+OPENAI_MODEL = "gpt-5-nano"
+OPENAI_BASE_URL = "https://api.openai.com/v1"
+SERVER_URL = "https://gmail-assistant.denw.au"
+TIMEZONE = "Australia/Sydney"
+
+# Per-stage model overrides (optional — fall back to OPENAI_MODEL).
+# OPENAI_MODEL_TRIAGE        = "gpt-5-nano"
+# OPENAI_MODEL_NEWSLETTER    = "gpt-5-nano"
+# OPENAI_MODEL_NOTIFICATION  = "gpt-5-nano"
+# OPENAI_MODEL_HUMAN         = "gpt-5-mini"
+# OPENAI_MODEL_TRANSACTIONAL = "gpt-5-nano"
+# OPENAI_MODEL_SECURITY      = "gpt-5-nano"
+# OPENAI_MODEL_CALENDAR      = "gpt-5-nano"
+# OPENAI_MODEL_SUMMARY       = "gpt-5-nano"
+# OPENAI_MODEL_SENDER_RATING = "gpt-5-nano"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "gmail-assistant"
+database_id = "b0b06d59-0fa8-4633-8e79-770c91ee3791"
+
+# ----------------------------------------------------------------------------
+# Queues — v1 (legacy single-stage processor)
+# ----------------------------------------------------------------------------
+[[queues.producers]]
+queue = "gmail-assistant-processing"
+binding = "EMAIL_QUEUE"
+
+[[queues.producers]]
+queue = "gmail-assistant-background-jobs"
+binding = "BACKGROUND_QUEUE"
+
+[[queues.consumers]]
+queue = "gmail-assistant-processing"
+max_batch_size = 5
+max_retries = 3
+
+[[queues.consumers]]
+queue = "gmail-assistant-background-jobs"
+max_batch_size = 1
+max_retries = 3
+
+# ----------------------------------------------------------------------------
+# Queues — v2 pipeline
+# ----------------------------------------------------------------------------
+[[queues.producers]]
+queue = "gmail-assistant-triage"
+binding = "TRIAGE_QUEUE"
+
+[[queues.producers]]
+queue = "gmail-assistant-bucket-newsletter"
+binding = "BUCKET_NEWSLETTER_QUEUE"
+
+[[queues.producers]]
+queue = "gmail-assistant-bucket-notification"
+binding = "BUCKET_NOTIFICATION_QUEUE"
+
+[[queues.producers]]
+queue = "gmail-assistant-bucket-human"
+binding = "BUCKET_HUMAN_QUEUE"
+
+[[queues.producers]]
+queue = "gmail-assistant-bucket-transactional"
+binding = "BUCKET_TRANSACTIONAL_QUEUE"
+
+[[queues.producers]]
+queue = "gmail-assistant-bucket-security"
+binding = "BUCKET_SECURITY_QUEUE"
+
+[[queues.producers]]
+queue = "gmail-assistant-bucket-calendar"
+binding = "BUCKET_CALENDAR_QUEUE"
+
+[[queues.consumers]]
+queue = "gmail-assistant-triage"
+max_batch_size = 10
+max_retries = 3
+
+[[queues.consumers]]
+queue = "gmail-assistant-bucket-newsletter"
+max_batch_size = 5
+max_retries = 3
+
+[[queues.consumers]]
+queue = "gmail-assistant-bucket-notification"
+max_batch_size = 5
+max_retries = 3
+
+[[queues.consumers]]
+queue = "gmail-assistant-bucket-human"
+max_batch_size = 3
+max_retries = 3
+
+[[queues.consumers]]
+queue = "gmail-assistant-bucket-transactional"
+max_batch_size = 5
+max_retries = 3
+
+[[queues.consumers]]
+queue = "gmail-assistant-bucket-security"
+max_batch_size = 5
+max_retries = 3
+
+[[queues.consumers]]
+queue = "gmail-assistant-bucket-calendar"
+max_batch_size = 5
+max_retries = 3
+
+# Cron triggers
+# ----------------------------------------------------------------------------
+# Only two crons — the hourly dispatcher reads TIMEZONE and fires
+# daily/weekly/monthly/yearly jobs at the right local hour.
+#
+# Scheduled local-time jobs (Australia/Sydney):
+#   - 03:00 AEST — sender rating sweep (v2)
+#   - 00/06/12/18 AEST — timed label sweep
+#   - 08:00 AEST — morning wrapup + daily digest (v2)
+#   - 17:00 AEST — evening wrapup + daily memory
+#   - 18:00 Sat AEST — weekly memory + AI prompt generation
+#   - 19:00 on 1st AEST — monthly memory
+#   - 20:00 on 1 Jan AEST — yearly memory
+[triggers]
+crons = [
+  "*/15 * * * *",
+  "0 * * * *",
+]
