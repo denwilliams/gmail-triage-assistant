@@ -77,11 +77,22 @@ export const api = {
     ),
   updateSenderProfile: (
     id: number,
-    body: { summary?: string; sender_type?: string; label_counts?: Record<string, number> }
+    body: {
+      summary?: string;
+      sender_type?: string;
+      label_counts?: Record<string, number>;
+      rating?: number | null;
+      rating_reasoning?: string;
+      rating_manual?: boolean;
+    }
   ) =>
     request<import("./types").SenderProfile>(`/sender-profiles/${id}`, {
       method: "PATCH",
       body: JSON.stringify(body),
+    }),
+  rateSenderNow: (id: number) =>
+    request<import("./types").SenderProfile>(`/sender-profiles/${id}/rate`, {
+      method: "POST",
     }),
   getAllSenderProfiles: (params: {
     type?: "sender" | "domain";
@@ -123,6 +134,18 @@ export const api = {
       method: "PUT",
       body: JSON.stringify({ enabled }),
     }),
+  updatePipelineVersion: (version: "v1" | "v2") =>
+    request<{ status: string; pipeline_version: string }>("/settings/pipeline-version", {
+      method: "PUT",
+      body: JSON.stringify({ version }),
+    }),
+
+  listDigests: (limit = 30) =>
+    request<{ digests: import("./types").DailyDigest[] }>(`/digests?limit=${limit}`),
+  getDigest: (date: string) =>
+    request<{ digest: import("./types").DailyDigest }>(`/digests/${date}`),
+  generateDigestNow: () =>
+    request<{ status: string }>("/digests/generate", { method: "POST" }),
   updatePushover: (user_key: string, app_token: string) =>
     request<{ status: string }>("/settings/pushover", {
       method: "PUT",

@@ -10,6 +10,8 @@ export interface GmailMessage {
   body: string;
   labelIds: string[];
   internalDate: number;
+  inReplyTo: string | null;       // RFC 2822 In-Reply-To header
+  messageIdHeader: string | null; // RFC 2822 Message-Id header
 }
 
 export interface GmailLabel {
@@ -32,9 +34,14 @@ function base64urlDecode(data: string): string {
   return atob(base64);
 }
 
-/** Encode a string to base64url (for sending messages). */
+/** Encode a string to base64url (UTF-8 safe; Gmail wants base64url for raw). */
 function base64urlEncode(data: string): string {
-  return btoa(data).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const bytes = new TextEncoder().encode(data);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
 /**
@@ -80,9 +87,13 @@ function parseGmailMessage(raw: any): GmailMessage {
   const headers: { name: string; value: string }[] = raw.payload?.headers ?? [];
   let subject = '';
   let from = '';
+  let inReplyTo: string | null = null;
+  let messageIdHeader: string | null = null;
   for (const h of headers) {
     if (h.name === 'Subject') subject = h.value;
-    if (h.name === 'From') from = parseAddress(h.value);
+    else if (h.name === 'From') from = parseAddress(h.value);
+    else if (h.name === 'In-Reply-To') inReplyTo = h.value.trim();
+    else if (h.name === 'Message-ID' || h.name === 'Message-Id') messageIdHeader = h.value.trim();
   }
 
   const bodyData = extractBody(raw.payload ?? {});
@@ -96,6 +107,8 @@ function parseGmailMessage(raw: any): GmailMessage {
     body,
     labelIds: raw.labelIds ?? [],
     internalDate: parseInt(raw.internalDate, 10),
+    inReplyTo,
+    messageIdHeader,
   };
 }
 
@@ -235,7 +248,7 @@ export async function createLabel(accessToken: string, labelName: string): Promi
   return (await res.json()) as GmailLabel;
 }
 
-/** Send an email via the Gmail API. */
+/** Send a plain-text email via the Gmail API. */
 export async function sendMessage(
   accessToken: string,
   to: string,
@@ -253,6 +266,55 @@ export async function sendMessage(
   if (!res.ok) {
     throw new Error(`Gmail send error: ${res.status} ${await res.text()}`);
   }
+}
+
+/**
+ * Send a multipart/alternative email (plain + HTML) via Gmail. Returns the
+ * Gmail message ID of the sent message.
+ */
+export async function sendHtmlMessage(
+  accessToken: string,
+  params: {
+    to: string;
+    subject: string;
+    textBody: string;
+    htmlBody: string;
+  },
+): Promise<{ id: string }> {
+  const boundary = `----=_Part_${Math.random().toString(36).slice(2)}_${Date.now()}`;
+  const raw = [
+    `To: ${params.to}`,
+    `Subject: ${params.subject}`,
+    'MIME-Version: 1.0',
+    `Content-Type: multipart/alternative; boundary="${boundary}"`,
+    '',
+    `--${boundary}`,
+    'Content-Type: text/plain; charset=UTF-8',
+    'Content-Transfer-Encoding: 7bit',
+    '',
+    params.textBody,
+    '',
+    `--${boundary}`,
+    'Content-Type: text/html; charset=UTF-8',
+    'Content-Transfer-Encoding: 7bit',
+    '',
+    params.htmlBody,
+    '',
+    `--${boundary}--`,
+    '',
+  ].join('\r\n');
+  const encoded = base64urlEncode(raw);
+
+  const res = await fetch(`${GMAIL_BASE}/messages/send`, {
+    method: 'POST',
+    headers: { ...authHeaders(accessToken), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ raw: encoded }),
+  });
+  if (!res.ok) {
+    throw new Error(`Gmail send error: ${res.status} ${await res.text()}`);
+  }
+  const data = (await res.json()) as { id: string };
+  return { id: data.id };
 }
 
 /** Trash a message (move to Gmail trash). */

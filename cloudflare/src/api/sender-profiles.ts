@@ -35,6 +35,13 @@ function profileToJSON(p: SenderProfile) {
     summary: p.summary,
     first_seen_at: p.firstSeenAt,
     last_seen_at: p.lastSeenAt,
+    rating: p.rating,
+    rating_reasoning: p.ratingReasoning,
+    rating_manual: p.ratingManual,
+    rating_updated_at: p.ratingUpdatedAt,
+    bucket_consistency: p.bucketConsistency,
+    primary_bucket: p.primaryBucket,
+    bucket_counts: p.bucketCounts,
   };
 }
 
@@ -199,7 +206,14 @@ export async function handleUpdateSenderProfile(c: AppContext) {
   }
 
   const body = await c.req
-    .json<{ summary?: string; sender_type?: string; label_counts?: Record<string, number> }>()
+    .json<{
+      summary?: string;
+      sender_type?: string;
+      label_counts?: Record<string, number>;
+      rating?: number | null;
+      rating_reasoning?: string;
+      rating_manual?: boolean;
+    }>()
     .catch(() => null);
   if (!body) {
     return c.json({ error: 'Invalid request body' }, 400);
@@ -221,10 +235,47 @@ export async function handleUpdateSenderProfile(c: AppContext) {
       profile.labelCounts = body.label_counts;
     }
 
+    // Rating override: setting rating=null reverts to auto-learn.
+    if (body.rating !== undefined) {
+      if (body.rating === null) {
+        profile.rating = null;
+        profile.ratingReasoning = '';
+        profile.ratingManual = false;
+      } else {
+        const v = Math.max(0, Math.min(100, Math.round(body.rating)));
+        profile.rating = v;
+        profile.ratingManual = body.rating_manual ?? true;
+        if (body.rating_reasoning !== undefined) {
+          profile.ratingReasoning = body.rating_reasoning;
+        }
+      }
+      profile.ratingUpdatedAt = new Date().toISOString();
+    }
+
     await upsertSenderProfile(c.env.DB, profile);
     return c.json(profileToJSON(profile));
   } catch (e) {
     console.error('Failed to update sender profile:', e);
     return c.json({ error: 'Failed to update profile' }, 500);
+  }
+}
+
+export async function handleRateSenderNow(c: AppContext) {
+  const userId = c.get('userId');
+  const idParam = c.req.param('id') ?? '';
+  const id = parseInt(idParam, 10);
+  if (isNaN(id)) {
+    return c.json({ error: 'Invalid profile ID' }, 400);
+  }
+
+  // Lazy import to avoid pulling ai.ts into the v1 code path.
+  const { rateOneSender } = await import('../jobs/sender-rating');
+  try {
+    const profile = await rateOneSender(c.env, userId, id);
+    if (!profile) return c.json({ error: 'Profile not found' }, 404);
+    return c.json(profileToJSON(profile));
+  } catch (e) {
+    console.error('Failed to rate sender:', e);
+    return c.json({ error: 'Failed to rate sender' }, 500);
   }
 }

@@ -16,6 +16,7 @@ export interface UserRow {
   webhook_url: string;
   webhook_header_key: string;
   webhook_header_value: string;
+  pipeline_version: string;
   created_at: string;
   updated_at: string;
 }
@@ -38,6 +39,18 @@ export interface EmailRow {
   draft_created: number;
   processed_at: string;
   created_at: string;
+  // Pipeline (v2) columns — nullable for legacy rows
+  bucket: string | null;
+  pipeline_stage: string;
+  triage_reasoning: string | null;
+  triage_via: string | null;
+  severity: string | null;
+  urgency: string | null;
+  interesting_score: number | null;
+  interesting_reasons: string; // JSON TEXT
+  in_reply_to: string | null;
+  thread_id: string | null;
+  included_in_digest: string | null;
 }
 
 export interface LabelRow {
@@ -98,6 +111,14 @@ export interface SenderProfileRow {
   last_seen_at: string;
   modified_at: string;
   created_at: string;
+  // v2 pipeline columns
+  rating: number | null;
+  rating_reasoning: string;
+  rating_manual: number;
+  rating_updated_at: string | null;
+  bucket_consistency: string;
+  primary_bucket: string | null;
+  bucket_counts: string;    // JSON TEXT
 }
 
 export interface WrapupReportRow {
@@ -125,6 +146,8 @@ export interface NotificationRow {
 // Application-level types (parsed JSON, real booleans)
 // ============================================================================
 
+export type PipelineVersion = 'v1' | 'v2';
+
 export interface User {
   id: number;
   email: string;
@@ -139,9 +162,37 @@ export interface User {
   webhookUrl: string;
   webhookHeaderKey: string;
   webhookHeaderValue: string;
+  pipelineVersion: PipelineVersion;
   createdAt: string;
   updatedAt: string;
 }
+
+// Six concrete buckets the pipeline classifies into.
+export type Bucket =
+  | 'newsletter'
+  | 'notification'
+  | 'human'
+  | 'transactional'
+  | 'security'
+  | 'calendar';
+
+export const BUCKETS: Bucket[] = [
+  'newsletter',
+  'notification',
+  'human',
+  'transactional',
+  'security',
+  'calendar',
+];
+
+// Pipeline stage — tracks how far through processing an email has progressed.
+export type PipelineStage = 'queued' | 'bucketed' | 'processed' | 'failed';
+
+// How the triage decision was reached.
+export type TriageVia = 'ai' | 'thread_reply' | 'consistent_sender';
+
+// Sender profile bucket consistency assessment.
+export type BucketConsistency = 'unknown' | 'consistent' | 'mixed';
 
 export interface Email {
   id: string;
@@ -161,6 +212,18 @@ export interface Email {
   draftCreated: boolean;
   processedAt: string;
   createdAt: string;
+  // v2 pipeline fields — nullable for legacy rows.
+  bucket: Bucket | null;
+  pipelineStage: PipelineStage;
+  triageReasoning: string | null;
+  triageVia: TriageVia | null;
+  severity: string | null;
+  urgency: string | null;
+  interestingScore: number | null;
+  interestingReasons: string[];
+  inReplyTo: string | null;
+  threadId: string | null;
+  includedInDigest: string | null;
 }
 
 export interface Label {
@@ -235,6 +298,84 @@ export interface SenderProfile {
   firstSeenAt: string;
   lastSeenAt: string;
   modifiedAt: string;
+  createdAt: string;
+  // v2 pipeline additions.
+  rating: number | null;
+  ratingReasoning: string;
+  ratingManual: boolean;
+  ratingUpdatedAt: string | null;
+  bucketConsistency: BucketConsistency;
+  primaryBucket: Bucket | null;
+  bucketCounts: Record<string, number>;
+}
+
+// ============================================================================
+// Daily digests (v2 pipeline)
+// ============================================================================
+
+export interface DailyDigestRow {
+  id: number;
+  user_id: number;
+  digest_date: string;
+  content_html: string;
+  content_text: string;
+  sections: string;        // JSON TEXT
+  item_counts: string;     // JSON TEXT
+  sent_at: string | null;
+  gmail_message_id: string | null;
+  created_at: string;
+}
+
+export interface DigestNewsletterItem {
+  emailId: string;
+  fromAddress: string;
+  subject: string;
+  interestingScore: number;
+  reasons: string[];
+  summary: string;
+}
+
+export interface DigestNotificationItem {
+  emailId: string;
+  fromAddress: string;
+  subject: string;
+  severity: string;
+  urgency: string;
+  summary: string;
+  reasoning: string;
+}
+
+export interface DigestQuietHumanItem {
+  emailId: string;
+  fromAddress: string;
+  subject: string;
+  rating: number;
+  ratingReasoning: string;
+  summary: string;
+}
+
+export interface DigestSections {
+  newsletters: DigestNewsletterItem[];
+  notifications: DigestNotificationItem[];
+  quietHumans: DigestQuietHumanItem[];
+}
+
+export interface DigestItemCounts {
+  newsletters: number;
+  notifications: number;
+  quietHumans: number;
+}
+
+export interface DailyDigest {
+  id: number;
+  userId: number;
+  digestDate: string;
+  contentHtml: string;
+  contentText: string;
+  sections: DigestSections;
+  itemCounts: DigestItemCounts;
+  sentAt: string | null;
+  gmailMessageId: string | null;
   createdAt: string;
 }
 

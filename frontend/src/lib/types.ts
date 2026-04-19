@@ -86,6 +86,7 @@ export interface PromptsResponse {
 
 export interface UserSettings {
   processing_enabled: boolean;
+  pipeline_version: "v1" | "v2";
   pushover_user_key: string;
   pushover_configured: boolean;
   webhook_url: string;
@@ -110,6 +111,16 @@ export interface AuthUser {
   user_id: number;
 }
 
+export type Bucket =
+  | "newsletter"
+  | "notification"
+  | "human"
+  | "transactional"
+  | "security"
+  | "calendar";
+
+export type BucketConsistency = "unknown" | "consistent" | "mixed";
+
 export interface SenderProfile {
   id: number;
   profile_type: "sender" | "domain";
@@ -124,6 +135,62 @@ export interface SenderProfile {
   summary: string;
   first_seen_at: string;
   last_seen_at: string;
+  rating: number | null;
+  rating_reasoning: string;
+  rating_manual: boolean;
+  rating_updated_at: string | null;
+  bucket_consistency: BucketConsistency;
+  primary_bucket: Bucket | null;
+  bucket_counts: Record<string, number>;
+}
+
+export interface DigestNewsletterItem {
+  emailId: string;
+  fromAddress: string;
+  subject: string;
+  interestingScore: number;
+  reasons: string[];
+  summary: string;
+}
+
+export interface DigestNotificationItem {
+  emailId: string;
+  fromAddress: string;
+  subject: string;
+  severity: string;
+  urgency: string;
+  summary: string;
+  reasoning: string;
+}
+
+export interface DigestQuietHumanItem {
+  emailId: string;
+  fromAddress: string;
+  subject: string;
+  rating: number;
+  ratingReasoning: string;
+  summary: string;
+}
+
+export interface DailyDigest {
+  id: number;
+  userId: number;
+  digestDate: string;
+  contentHtml: string;
+  contentText: string;
+  sections: {
+    newsletters: DigestNewsletterItem[];
+    notifications: DigestNotificationItem[];
+    quietHumans: DigestQuietHumanItem[];
+  };
+  itemCounts: {
+    newsletters: number;
+    notifications: number;
+    quietHumans: number;
+  };
+  sentAt: string | null;
+  gmailMessageId: string | null;
+  createdAt: string;
 }
 
 export interface SenderProfilesResponse {

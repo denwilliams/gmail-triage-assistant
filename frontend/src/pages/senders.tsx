@@ -99,6 +99,174 @@ function CountBar({
   );
 }
 
+function RatingPanel({
+  profile,
+  onProfileUpdated,
+}: {
+  profile: SenderProfile;
+  onProfileUpdated: (updated: SenderProfile) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState<string>(
+    profile.rating !== null ? String(profile.rating) : "",
+  );
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    setValue(profile.rating !== null ? String(profile.rating) : "");
+    setEditing(false);
+  }, [profile.id, profile.rating]);
+
+  const handleRateNow = async () => {
+    setBusy(true);
+    try {
+      const updated = await api.rateSenderNow(profile.id);
+      onProfileUpdated(updated);
+    } catch (err) {
+      alert("Rate failed: " + (err instanceof Error ? err.message : "Unknown error"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleSave = async () => {
+    const parsed = parseInt(value, 10);
+    if (isNaN(parsed) || parsed < 0 || parsed > 100) {
+      alert("Rating must be 0-100");
+      return;
+    }
+    setBusy(true);
+    try {
+      const updated = await api.updateSenderProfile(profile.id, {
+        rating: parsed,
+        rating_manual: true,
+      });
+      onProfileUpdated(updated);
+      setEditing(false);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleRevertToAuto = async () => {
+    setBusy(true);
+    try {
+      const updated = await api.updateSenderProfile(profile.id, { rating: null });
+      onProfileUpdated(updated);
+      setEditing(false);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const ratingLabel = profile.rating === null
+    ? "not rated"
+    : profile.rating < 20 ? "ignore"
+    : profile.rating < 40 ? "low priority"
+    : profile.rating < 60 ? "mixed"
+    : profile.rating < 80 ? "usually wanted"
+    : "high priority";
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <span className="text-xs font-medium text-muted-foreground">Rating</span>
+        {profile.rating_manual && (
+          <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-900 dark:text-amber-200">
+            manual
+          </span>
+        )}
+      </div>
+
+      {!editing ? (
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold">
+              {profile.rating !== null ? `${profile.rating}/100` : "—"}
+            </span>
+            <span className="text-xs text-muted-foreground">({ratingLabel})</span>
+          </div>
+          <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
+            Override
+          </Button>
+          <Button size="sm" variant="ghost" onClick={handleRateNow} disabled={busy}>
+            {busy ? "Rating..." : "Rate now"}
+          </Button>
+        </div>
+      ) : (
+        <div className="flex items-center gap-2">
+          <input
+            type="number"
+            min={0}
+            max={100}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            className="h-9 w-20 rounded-md border border-input bg-transparent px-3 py-1 text-sm"
+          />
+          <Button size="sm" onClick={handleSave} disabled={busy}>
+            Save
+          </Button>
+          <Button size="sm" variant="ghost" onClick={handleRevertToAuto} disabled={busy}>
+            Revert to auto
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setEditing(false)} disabled={busy}>
+            Cancel
+          </Button>
+        </div>
+      )}
+
+      {profile.rating_reasoning && (
+        <p className="text-xs italic text-muted-foreground">
+          {profile.rating_reasoning}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function BucketConsistencyPanel({ profile }: { profile: SenderProfile }) {
+  if (profile.bucket_consistency === "unknown" && Object.keys(profile.bucket_counts).length === 0) {
+    return null;
+  }
+
+  const entries = Object.entries(profile.bucket_counts).sort((a, b) => b[1] - a[1]);
+  const total = entries.reduce((sum, [, c]) => sum + c, 0);
+
+  const badgeColor = profile.bucket_consistency === "consistent"
+    ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+    : profile.bucket_consistency === "mixed"
+    ? "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200"
+    : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300";
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <span className="text-xs font-medium text-muted-foreground">Bucket consistency</span>
+        <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${badgeColor}`}>
+          {profile.bucket_consistency}
+        </span>
+        {profile.primary_bucket && (
+          <span className="text-xs text-muted-foreground">
+            → {profile.primary_bucket} (fast-path)
+          </span>
+        )}
+      </div>
+      {total > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {entries.map(([bucket, count]) => (
+            <span
+              key={bucket}
+              className="rounded bg-muted px-2 py-0.5 text-xs"
+            >
+              {bucket}: {count}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ProfileDetailDialog({
   profile,
   open,
@@ -256,6 +424,12 @@ function ProfileDetailDialog({
               </Button>
             )}
           </div>
+
+          {/* Rating (v2 pipeline) */}
+          <RatingPanel profile={profile} onProfileUpdated={onProfileUpdated} />
+
+          {/* Bucket consistency (v2 pipeline) */}
+          <BucketConsistencyPanel profile={profile} />
 
           {/* Regenerate */}
           <div className="flex items-center gap-2">
