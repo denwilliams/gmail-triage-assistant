@@ -39,8 +39,13 @@ export const api = {
   deleteLabel: (id: number) =>
     request<{ status: string }>(`/labels/${id}`, { method: "DELETE" }),
 
-  getEmails: (limit = 50, offset = 0) =>
-    request<import("./types").Email[]>(`/emails?limit=${limit}&offset=${offset}`),
+  getEmails: (limit = 50, offset = 0, bucket?: string) => {
+    const params = new URLSearchParams();
+    params.set("limit", String(limit));
+    params.set("offset", String(offset));
+    if (bucket) params.set("bucket", bucket);
+    return request<import("./types").Email[]>(`/emails?${params.toString()}`);
+  },
   updateFeedback: (id: string, feedback: string) =>
     request<{ status: string }>(`/emails/${id}/feedback`, {
       method: "PUT",

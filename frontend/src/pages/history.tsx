@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router";
-import type { Email, SenderProfile, SenderProfilesResponse } from "@/lib/types";
+import type { Email, SenderProfile, SenderProfilesResponse, Bucket } from "@/lib/types";
 import { api } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,25 @@ function timeAgo(dateStr: string): string {
   const days = Math.floor(hours / 24);
   if (days < 30) return `${days}d ago`;
   return new Date(dateStr).toLocaleDateString();
+}
+
+function getBucketColor(bucket: Bucket): string {
+  switch (bucket) {
+    case "newsletter":
+      return "bg-blue-100 text-blue-900 dark:bg-blue-950 dark:text-blue-200";
+    case "notification":
+      return "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200";
+    case "human":
+      return "bg-green-100 text-green-900 dark:bg-green-950 dark:text-green-200";
+    case "transactional":
+      return "bg-violet-100 text-violet-900 dark:bg-violet-950 dark:text-violet-200";
+    case "security":
+      return "bg-red-100 text-red-900 dark:bg-red-950 dark:text-red-200";
+    case "calendar":
+      return "bg-cyan-100 text-cyan-900 dark:bg-cyan-950 dark:text-cyan-200";
+    default:
+      return "bg-gray-100 text-gray-900 dark:bg-gray-950 dark:text-gray-200";
+  }
 }
 
 function topEntries(counts: Record<string, number>, n = 5): [string, number][] {
@@ -295,6 +314,38 @@ function EmailDetailDialog({
               <span>{email.summary}</span>
               <span className="font-medium text-muted-foreground">Processed</span>
               <span>{new Date(email.processed_at).toLocaleString()}</span>
+              {email.bucket && (
+                <>
+                  <span className="font-medium text-muted-foreground">Bucket</span>
+                  <span className="capitalize">{email.bucket}</span>
+                </>
+              )}
+              {email.triage_via && (
+                <>
+                  <span className="font-medium text-muted-foreground">Triage Via</span>
+                  <code className="text-xs">{email.triage_via}</code>
+                </>
+              )}
+              {email.severity && (
+                <>
+                  <span className="font-medium text-muted-foreground">Severity</span>
+                  <span className="capitalize">{email.severity}</span>
+                </>
+              )}
+              {email.urgency && (
+                <>
+                  <span className="font-medium text-muted-foreground">Urgency</span>
+                  <span className="capitalize">{email.urgency}</span>
+                </>
+              )}
+              {email.interesting_score !== undefined && email.interesting_score !== null && (
+                <>
+                  <span className="font-medium text-muted-foreground">
+                    Interesting Score
+                  </span>
+                  <span>{email.interesting_score}/10</span>
+                </>
+              )}
             </div>
 
             {email.keywords?.length > 0 && (
@@ -325,6 +376,32 @@ function EmailDetailDialog({
                     <Badge key={label} variant="outline">
                       {label}
                     </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {email.triage_reasoning && (
+              <div>
+                <span className="text-xs font-medium text-muted-foreground">
+                  Triage Reasoning
+                </span>
+                <p className="mt-1 text-sm italic text-muted-foreground">
+                  {email.triage_reasoning}
+                </p>
+              </div>
+            )}
+
+            {email.interesting_reasons && email.interesting_reasons.length > 0 && (
+              <div>
+                <span className="text-xs font-medium text-muted-foreground">
+                  Interesting Reasons
+                </span>
+                <div className="mt-1 flex flex-col gap-1">
+                  {email.interesting_reasons.map((reason, i) => (
+                    <p key={i} className="text-sm text-muted-foreground">
+                      • {reason}
+                    </p>
                   ))}
                 </div>
               </div>
@@ -445,43 +522,87 @@ function EmailRow({
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full items-start justify-between gap-3 rounded-lg border bg-card p-3 text-left transition-colors hover:bg-accent/50"
+      className="flex w-full flex-col gap-2 rounded-lg border bg-card p-3 text-left transition-colors hover:bg-accent/50"
     >
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          {email.feedback_dirty && (
-            <span
-              className="inline-block h-2 w-2 shrink-0 rounded-full bg-amber-500"
-              title="Feedback pending inclusion in next memory"
-            />
-          )}
-          <span className="truncate text-sm font-medium">{email.subject}</span>
-          {email.bypassed_inbox && (
-            <Badge variant="secondary" className="shrink-0 text-xs">
-              Archived
-            </Badge>
-          )}
-          {email.notification_sent && (
-            <Badge variant="secondary" className="shrink-0 text-xs">
-              Notified
-            </Badge>
-          )}
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            {email.feedback_dirty && (
+              <span
+                className="inline-block h-2 w-2 shrink-0 rounded-full bg-amber-500"
+                title="Feedback pending inclusion in next memory"
+              />
+            )}
+            <span className="truncate text-sm font-medium">{email.subject}</span>
+            {email.bypassed_inbox && (
+              <Badge variant="secondary" className="shrink-0 text-xs">
+                Archived
+              </Badge>
+            )}
+            {email.notification_sent && (
+              <Badge variant="secondary" className="shrink-0 text-xs">
+                Notified
+              </Badge>
+            )}
+          </div>
+          <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+            <span className="truncate">{email.from_address}</span>
+            <span>·</span>
+            <code>{email.slug}</code>
+            <span>·</span>
+            <span>{timeAgo(email.processed_at)}</span>
+          </div>
         </div>
-        <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-          <span className="truncate">{email.from_address}</span>
-          <span>·</span>
-          <code>{email.slug}</code>
-          <span>·</span>
-          <span>{timeAgo(email.processed_at)}</span>
-        </div>
+        {email.labels_applied?.length > 0 && (
+          <div className="flex shrink-0 flex-wrap justify-end gap-1">
+            {email.labels_applied.map((label) => (
+              <Badge key={label} variant="outline" className="text-xs">
+                {label}
+              </Badge>
+            ))}
+          </div>
+        )}
       </div>
-      {email.labels_applied?.length > 0 && (
-        <div className="flex shrink-0 flex-wrap justify-end gap-1">
-          {email.labels_applied.map((label) => (
-            <Badge key={label} variant="outline" className="text-xs">
-              {label}
+
+      {/* V2 pipeline chips */}
+      {(email.bucket ||
+        email.triage_via ||
+        email.severity ||
+        email.urgency ||
+        email.interesting_score !== undefined) && (
+        <div className="flex flex-wrap gap-1.5">
+          {email.bucket && (
+            <div
+              className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-medium ${getBucketColor(
+                email.bucket
+              )}`}
+              title={`Bucket: ${email.bucket}`}
+            >
+              {email.bucket}
+            </div>
+          )}
+          {email.triage_via && (
+            <Badge variant="outline" className="text-xs">
+              via {email.triage_via}
             </Badge>
-          ))}
+          )}
+          {email.severity && (
+            <Badge variant="outline" className="text-xs">
+              {email.severity}
+            </Badge>
+          )}
+          {email.urgency && (
+            <Badge variant="outline" className="text-xs">
+              {email.urgency}
+            </Badge>
+          )}
+          {email.interesting_score !== undefined && email.interesting_score !== null && (
+            <Badge variant="outline" className="text-xs" title={
+              email.interesting_reasons?.[0] ? `${email.interesting_reasons[0]}` : undefined
+            }>
+              score {email.interesting_score}/10
+            </Badge>
+          )}
         </div>
       )}
     </button>
@@ -489,6 +610,14 @@ function EmailRow({
 }
 
 const PAGE_SIZE = 50;
+const BUCKETS: Bucket[] = [
+  "newsletter",
+  "notification",
+  "human",
+  "transactional",
+  "security",
+  "calendar",
+];
 
 export default function HistoryPage() {
   const { emailId } = useParams();
@@ -497,10 +626,11 @@ export default function HistoryPage() {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
+  const [selectedBucket, setSelectedBucket] = useState<Bucket | null>(null);
 
-  const loadEmails = () => {
+  const loadEmails = (bucket: Bucket | null = null) => {
     api
-      .getEmails(PAGE_SIZE, 0)
+      .getEmails(PAGE_SIZE, 0, bucket ?? undefined)
       .then((data) => {
         const results = data ?? [];
         setEmails(results);
@@ -513,7 +643,7 @@ export default function HistoryPage() {
   const loadMore = () => {
     setLoadingMore(true);
     api
-      .getEmails(PAGE_SIZE, emails.length)
+      .getEmails(PAGE_SIZE, emails.length, selectedBucket ?? undefined)
       .then((data) => {
         const results = data ?? [];
         setEmails((prev) => [...prev, ...results]);
@@ -523,15 +653,52 @@ export default function HistoryPage() {
       .finally(() => setLoadingMore(false));
   };
 
-  useEffect(loadEmails, []);
+  const handleBucketChange = (bucket: Bucket | null) => {
+    setSelectedBucket(bucket);
+    setLoading(true);
+    loadEmails(bucket);
+  };
+
+  useEffect(() => {
+    loadEmails(selectedBucket);
+  }, []);
 
   const selected = emailId ? emails.find((e) => e.id === emailId) : null;
 
   if (loading) return <p className="text-muted-foreground">Loading...</p>;
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       <h1 className="text-2xl font-bold">Email History</h1>
+
+      {/* Bucket filter */}
+      <div className="space-y-2">
+        <span className="text-xs font-medium text-muted-foreground">Filter by bucket</span>
+        <div className="flex flex-wrap gap-1.5">
+          <Button
+            variant={selectedBucket === null ? "default" : "outline"}
+            size="sm"
+            onClick={() => handleBucketChange(null)}
+            className="text-xs"
+          >
+            All
+          </Button>
+          {BUCKETS.map((bucket) => (
+            <Button
+              key={bucket}
+              variant={selectedBucket === bucket ? "default" : "outline"}
+              size="sm"
+              onClick={() => handleBucketChange(bucket)}
+              className={`text-xs ${
+                selectedBucket === bucket ? "" : getBucketColor(bucket)
+              }`}
+            >
+              {bucket}
+            </Button>
+          ))}
+        </div>
+      </div>
+
       {emails.length === 0 ? (
         <p className="text-muted-foreground">No processed emails yet.</p>
       ) : (
@@ -565,7 +732,7 @@ export default function HistoryPage() {
           onOpenChange={(open) => {
             if (!open) navigate("/history");
           }}
-          onFeedbackSaved={loadEmails}
+          onFeedbackSaved={() => loadEmails(selectedBucket)}
         />
       )}
     </div>

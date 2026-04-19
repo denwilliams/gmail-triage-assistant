@@ -230,6 +230,26 @@ export async function getRecentEmails(
   return results.map(mapEmail);
 }
 
+export async function getRecentEmailsByBucket(
+  db: D1Database,
+  userId: number,
+  bucket: Bucket,
+  limit: number,
+  offset: number,
+): Promise<Email[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT ${EMAIL_COLUMNS}
+       FROM emails
+       WHERE user_id = ? AND bucket = ?
+       ORDER BY processed_at DESC
+       LIMIT ? OFFSET ?`,
+    )
+    .bind(userId, bucket, limit, offset)
+    .all<EmailRow>();
+  return results.map(mapEmail);
+}
+
 export async function updateEmailFeedback(
   db: D1Database,
   userId: number,

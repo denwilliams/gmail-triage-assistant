@@ -1,7 +1,7 @@
 import type { Context } from 'hono';
 import type { Env } from '../types/env';
-import { getRecentEmails, updateEmailFeedback } from '../db/emails';
-import type { Email } from '../types/models';
+import { getRecentEmails, getRecentEmailsByBucket, updateEmailFeedback } from '../db/emails';
+import type { Email, Bucket } from '../types/models';
 
 type AppContext = Context<{ Bindings: Env; Variables: { userId: number; email: string } }>;
 
@@ -23,6 +23,18 @@ function emailToJSON(e: Email) {
     feedback_dirty: e.feedbackDirty,
     processed_at: e.processedAt,
     created_at: e.createdAt,
+    // v2 pipeline fields
+    bucket: e.bucket,
+    pipeline_stage: e.pipelineStage,
+    triage_reasoning: e.triageReasoning,
+    triage_via: e.triageVia,
+    severity: e.severity,
+    urgency: e.urgency,
+    interesting_score: e.interestingScore,
+    interesting_reasons: e.interestingReasons,
+    in_reply_to: e.inReplyTo,
+    thread_id: e.threadId,
+    included_in_digest: e.includedInDigest,
   };
 }
 
@@ -30,6 +42,8 @@ export async function handleGetEmails(c: AppContext) {
   const userId = c.get('userId');
   let limit = 50;
   let offset = 0;
+  let bucket: Bucket | null = null;
+
   const lParam = c.req.query('limit');
   if (lParam) {
     const parsed = parseInt(lParam, 10);
@@ -40,9 +54,15 @@ export async function handleGetEmails(c: AppContext) {
     const parsed = parseInt(oParam, 10);
     if (!isNaN(parsed) && parsed >= 0) offset = parsed;
   }
+  const bParam = c.req.query('bucket');
+  if (bParam && bParam.length > 0) {
+    bucket = bParam as Bucket;
+  }
 
   try {
-    const emails = await getRecentEmails(c.env.DB, userId, limit, offset);
+    const emails = bucket
+      ? await getRecentEmailsByBucket(c.env.DB, userId, bucket, limit, offset)
+      : await getRecentEmails(c.env.DB, userId, limit, offset);
     return c.json(emails.map(emailToJSON));
   } catch (e) {
     console.error('Failed to load emails:', e);

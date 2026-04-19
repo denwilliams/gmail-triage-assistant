@@ -24,6 +24,18 @@ export interface Email {
   feedback_dirty: boolean;
   processed_at: string;
   created_at: string;
+  // v2 pipeline fields — nullable for legacy rows
+  bucket?: Bucket | null;
+  pipeline_stage?: string;
+  triage_reasoning?: string | null;
+  triage_via?: 'ai' | 'thread_reply' | 'consistent_sender' | null;
+  severity?: string | null;
+  urgency?: string | null;
+  interesting_score?: number | null;
+  interesting_reasons?: string[];
+  in_reply_to?: string | null;
+  thread_id?: string | null;
+  included_in_digest?: string | null;
 }
 
 export interface SystemPrompt {
