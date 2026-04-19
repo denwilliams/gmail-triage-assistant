@@ -1,7 +1,8 @@
 import type { Context } from 'hono';
 import type { Env } from '../types/env';
 import { getRecentEmails, updateEmailFeedback } from '../db/emails';
-import type { Email } from '../types/models';
+import type { Bucket, Email } from '../types/models';
+import { BUCKETS } from '../types/models';
 
 type AppContext = Context<{ Bindings: Env; Variables: { userId: number; email: string } }>;
 
@@ -23,6 +24,17 @@ function emailToJSON(e: Email) {
     feedback_dirty: e.feedbackDirty,
     processed_at: e.processedAt,
     created_at: e.createdAt,
+    bucket: e.bucket,
+    pipeline_stage: e.pipelineStage,
+    triage_via: e.triageVia,
+    triage_reasoning: e.triageReasoning,
+    severity: e.severity,
+    urgency: e.urgency,
+    interesting_score: e.interestingScore,
+    interesting_reasons: e.interestingReasons,
+    in_reply_to: e.inReplyTo,
+    thread_id: e.threadId,
+    included_in_digest: e.includedInDigest,
   };
 }
 
@@ -41,8 +53,17 @@ export async function handleGetEmails(c: AppContext) {
     if (!isNaN(parsed) && parsed >= 0) offset = parsed;
   }
 
+  let bucket: Bucket | undefined;
+  const bParam = c.req.query('bucket');
+  if (bParam) {
+    if (!BUCKETS.includes(bParam as Bucket)) {
+      return c.json({ error: 'Invalid bucket' }, 400);
+    }
+    bucket = bParam as Bucket;
+  }
+
   try {
-    const emails = await getRecentEmails(c.env.DB, userId, limit, offset);
+    const emails = await getRecentEmails(c.env.DB, userId, limit, offset, bucket);
     return c.json(emails.map(emailToJSON));
   } catch (e) {
     console.error('Failed to load emails:', e);

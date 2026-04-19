@@ -1,10 +1,17 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router";
-import type { Email, SenderProfile, SenderProfilesResponse } from "@/lib/types";
+import type {
+  Bucket,
+  Email,
+  SenderProfile,
+  SenderProfilesResponse,
+  TriageVia,
+} from "@/lib/types";
 import { api } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -31,6 +38,125 @@ function topEntries(counts: Record<string, number>, n = 5): [string, number][] {
   return Object.entries(counts)
     .sort((a, b) => b[1] - a[1])
     .slice(0, n);
+}
+
+const BUCKET_OPTIONS: Bucket[] = [
+  "newsletter",
+  "notification",
+  "human",
+  "transactional",
+  "security",
+  "calendar",
+];
+
+// Tailwind classes per bucket — tuned for readable contrast in light + dark.
+const BUCKET_STYLES: Record<Bucket, string> = {
+  newsletter:
+    "bg-blue-100 text-blue-800 dark:bg-blue-500/20 dark:text-blue-200",
+  notification:
+    "bg-amber-100 text-amber-900 dark:bg-amber-500/20 dark:text-amber-100",
+  human:
+    "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-200",
+  transactional:
+    "bg-violet-100 text-violet-800 dark:bg-violet-500/20 dark:text-violet-200",
+  security:
+    "bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-200",
+  calendar:
+    "bg-cyan-100 text-cyan-800 dark:bg-cyan-500/20 dark:text-cyan-200",
+};
+
+function BucketBadge({ bucket }: { bucket: Bucket }) {
+  return (
+    <Badge
+      variant="outline"
+      className={cn("border-transparent capitalize", BUCKET_STYLES[bucket])}
+    >
+      {bucket}
+    </Badge>
+  );
+}
+
+const TRIAGE_VIA_LABELS: Record<TriageVia, string> = {
+  ai: "AI",
+  thread_reply: "Thread",
+  consistent_sender: "Known sender",
+};
+
+const TRIAGE_VIA_TITLES: Record<TriageVia, string> = {
+  ai: "Triaged by AI",
+  thread_reply: "Inherited from an earlier thread reply",
+  consistent_sender: "Fast-pathed via a consistent sender profile",
+};
+
+function TriageViaChip({ via }: { via: TriageVia }) {
+  return (
+    <Badge variant="outline" className="text-xs" title={TRIAGE_VIA_TITLES[via]}>
+      {TRIAGE_VIA_LABELS[via]}
+    </Badge>
+  );
+}
+
+const SEVERITY_STYLES: Record<string, string> = {
+  critical:
+    "bg-red-100 text-red-800 dark:bg-red-500/25 dark:text-red-200",
+  high:
+    "bg-orange-100 text-orange-800 dark:bg-orange-500/25 dark:text-orange-200",
+  medium:
+    "bg-amber-100 text-amber-900 dark:bg-amber-500/20 dark:text-amber-100",
+  low:
+    "bg-slate-100 text-slate-700 dark:bg-slate-500/25 dark:text-slate-200",
+};
+
+function SeverityUrgencyChips({
+  severity,
+  urgency,
+}: {
+  severity?: string | null;
+  urgency?: string | null;
+}) {
+  return (
+    <>
+      {severity && (
+        <Badge
+          variant="outline"
+          className={cn(
+            "text-xs capitalize border-transparent",
+            SEVERITY_STYLES[severity] ?? SEVERITY_STYLES.low
+          )}
+          title={`Severity: ${severity}`}
+        >
+          sev: {severity}
+        </Badge>
+      )}
+      {urgency && (
+        <Badge
+          variant="outline"
+          className={cn(
+            "text-xs capitalize border-transparent",
+            SEVERITY_STYLES[urgency] ?? SEVERITY_STYLES.low
+          )}
+          title={`Urgency: ${urgency}`}
+        >
+          urg: {urgency}
+        </Badge>
+      )}
+    </>
+  );
+}
+
+function InterestingScoreChip({
+  score,
+  reasons,
+}: {
+  score: number;
+  reasons?: string[];
+}) {
+  const tooltip = reasons && reasons.length > 0 ? reasons[0] : `Interesting score ${score}/10`;
+  return (
+    <Badge variant="outline" className="text-xs" title={tooltip}>
+      score {score}/10
+    </Badge>
+  );
 }
 
 function GenerateProfileButton({
@@ -283,6 +409,25 @@ function EmailDetailDialog({
           <DialogDescription className="text-left">
             {email.from_address}
           </DialogDescription>
+          {email.bucket && (
+            <div className="flex flex-wrap items-center gap-1.5 pt-1">
+              <BucketBadge bucket={email.bucket} />
+              {email.triage_via && <TriageViaChip via={email.triage_via} />}
+              {email.bucket === "notification" && (
+                <SeverityUrgencyChips
+                  severity={email.severity}
+                  urgency={email.urgency}
+                />
+              )}
+              {email.bucket === "newsletter" &&
+                typeof email.interesting_score === "number" && (
+                  <InterestingScoreChip
+                    score={email.interesting_score}
+                    reasons={email.interesting_reasons}
+                  />
+                )}
+            </div>
+          )}
         </DialogHeader>
 
         <div className="space-y-4">
@@ -329,6 +474,32 @@ function EmailDetailDialog({
                 </div>
               </div>
             )}
+
+            {email.triage_reasoning && (
+              <div>
+                <span className="text-xs font-medium text-muted-foreground">
+                  Triage reasoning
+                </span>
+                <p className="mt-1 text-sm italic text-muted-foreground">
+                  {email.triage_reasoning}
+                </p>
+              </div>
+            )}
+
+            {email.bucket === "newsletter" &&
+              email.interesting_reasons &&
+              email.interesting_reasons.length > 0 && (
+                <div>
+                  <span className="text-xs font-medium text-muted-foreground">
+                    Why it&rsquo;s interesting
+                  </span>
+                  <ul className="mt-1 list-disc space-y-0.5 pl-5 text-sm text-muted-foreground">
+                    {email.interesting_reasons.map((r, i) => (
+                      <li key={i}>{r}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
 
             {email.reasoning && (
               <div>
@@ -448,13 +619,14 @@ function EmailRow({
       className="flex w-full items-start justify-between gap-3 rounded-lg border bg-card p-3 text-left transition-colors hover:bg-accent/50"
     >
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {email.feedback_dirty && (
             <span
               className="inline-block h-2 w-2 shrink-0 rounded-full bg-amber-500"
               title="Feedback pending inclusion in next memory"
             />
           )}
+          {email.bucket && <BucketBadge bucket={email.bucket} />}
           <span className="truncate text-sm font-medium">{email.subject}</span>
           {email.bypassed_inbox && (
             <Badge variant="secondary" className="shrink-0 text-xs">
@@ -467,12 +639,26 @@ function EmailRow({
             </Badge>
           )}
         </div>
-        <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+        <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
           <span className="truncate">{email.from_address}</span>
           <span>·</span>
           <code>{email.slug}</code>
           <span>·</span>
           <span>{timeAgo(email.processed_at)}</span>
+          {email.triage_via && <TriageViaChip via={email.triage_via} />}
+          {email.bucket === "notification" && (
+            <SeverityUrgencyChips
+              severity={email.severity}
+              urgency={email.urgency}
+            />
+          )}
+          {email.bucket === "newsletter" &&
+            typeof email.interesting_score === "number" && (
+              <InterestingScoreChip
+                score={email.interesting_score}
+                reasons={email.interesting_reasons}
+              />
+            )}
         </div>
       </div>
       {email.labels_applied?.length > 0 && (
@@ -497,10 +683,12 @@ export default function HistoryPage() {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
+  const [bucketFilter, setBucketFilter] = useState<Bucket | null>(null);
 
-  const loadEmails = () => {
+  const loadEmails = (bucket: Bucket | null) => {
+    setLoading(true);
     api
-      .getEmails(PAGE_SIZE, 0)
+      .getEmails(PAGE_SIZE, 0, bucket ?? undefined)
       .then((data) => {
         const results = data ?? [];
         setEmails(results);
@@ -513,7 +701,7 @@ export default function HistoryPage() {
   const loadMore = () => {
     setLoadingMore(true);
     api
-      .getEmails(PAGE_SIZE, emails.length)
+      .getEmails(PAGE_SIZE, emails.length, bucketFilter ?? undefined)
       .then((data) => {
         const results = data ?? [];
         setEmails((prev) => [...prev, ...results]);
@@ -523,17 +711,54 @@ export default function HistoryPage() {
       .finally(() => setLoadingMore(false));
   };
 
-  useEffect(loadEmails, []);
+  useEffect(() => {
+    loadEmails(bucketFilter);
+  }, [bucketFilter]);
 
   const selected = emailId ? emails.find((e) => e.id === emailId) : null;
 
-  if (loading) return <p className="text-muted-foreground">Loading...</p>;
-
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       <h1 className="text-2xl font-bold">Email History</h1>
-      {emails.length === 0 ? (
-        <p className="text-muted-foreground">No processed emails yet.</p>
+
+      <div className="flex flex-wrap items-center gap-1.5">
+        <button
+          type="button"
+          onClick={() => setBucketFilter(null)}
+          className={cn(
+            "rounded-full border px-3 py-1 text-xs transition-colors",
+            bucketFilter === null
+              ? "border-primary bg-primary text-primary-foreground"
+              : "border-border text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+          )}
+        >
+          All
+        </button>
+        {BUCKET_OPTIONS.map((b) => (
+          <button
+            key={b}
+            type="button"
+            onClick={() => setBucketFilter(b)}
+            className={cn(
+              "rounded-full border px-3 py-1 text-xs capitalize transition-colors",
+              bucketFilter === b
+                ? cn("border-transparent", BUCKET_STYLES[b])
+                : "border-border text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+            )}
+          >
+            {b}
+          </button>
+        ))}
+      </div>
+
+      {loading ? (
+        <p className="text-muted-foreground">Loading...</p>
+      ) : emails.length === 0 ? (
+        <p className="text-muted-foreground">
+          {bucketFilter
+            ? `No ${bucketFilter} emails yet.`
+            : "No processed emails yet."}
+        </p>
       ) : (
         <div className="space-y-1">
           {emails.map((email) => (
@@ -546,7 +771,7 @@ export default function HistoryPage() {
         </div>
       )}
 
-      {hasMore && emails.length > 0 && (
+      {!loading && hasMore && emails.length > 0 && (
         <div className="flex justify-center pt-2">
           <Button
             variant="outline"
@@ -565,7 +790,7 @@ export default function HistoryPage() {
           onOpenChange={(open) => {
             if (!open) navigate("/history");
           }}
-          onFeedbackSaved={loadEmails}
+          onFeedbackSaved={() => loadEmails(bucketFilter)}
         />
       )}
     </div>
