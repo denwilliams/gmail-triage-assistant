@@ -21,6 +21,22 @@ import { processTransactionalMessage } from './pipeline/buckets/transactional';
 import { processSecurityMessage } from './pipeline/buckets/security';
 import { processCalendarMessage } from './pipeline/buckets/calendar';
 import { getAllActiveUsers } from './db/users';
+import { markEmailFailed } from './db/emails';
+
+// See wrangler.toml — all v2 consumers use max_retries = 3. When attempts
+// reaches this value on a failure, the message is about to be dropped; mark
+// the email row as failed so the ops UI can surface it.
+const MAX_RETRIES = 3;
+
+const V2_QUEUES = new Set([
+  'gmail-assistant-triage',
+  'gmail-assistant-bucket-newsletter',
+  'gmail-assistant-bucket-notification',
+  'gmail-assistant-bucket-human',
+  'gmail-assistant-bucket-transactional',
+  'gmail-assistant-bucket-security',
+  'gmail-assistant-bucket-calendar',
+]);
 
 interface EmailMessage {
   userId: number;
@@ -68,6 +84,20 @@ export default {
         msg.ack();
       } catch (e) {
         console.error(`queue[${queueName}]: message processing failed:`, e);
+        // If this is the last retry on a v2 queue, mark the email failed so
+        // it shows up in the ops UI. attempts is 1-based: 1 on first delivery.
+        const attempts = (msg as unknown as { attempts?: number }).attempts ?? 1;
+        if (V2_QUEUES.has(queueName) && attempts >= MAX_RETRIES) {
+          const body = msg.body as { messageId?: string } | undefined;
+          if (body?.messageId) {
+            const errorMsg = e instanceof Error ? e.message : String(e);
+            try {
+              await markEmailFailed(env.DB, body.messageId, errorMsg);
+            } catch (markErr) {
+              console.error(`queue[${queueName}]: failed to mark email failed:`, markErr);
+            }
+          }
+        }
         msg.retry();
       }
     }

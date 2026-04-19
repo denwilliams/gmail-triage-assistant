@@ -18,6 +18,7 @@ import V2DashboardPage from "@/pages/v2/dashboard";
 import V2EmailsPage from "@/pages/v2/emails";
 import V2SendersPage from "@/pages/v2/senders";
 import V2BucketDispatch from "@/pages/v2/buckets/index";
+import V2PipelinePage from "@/pages/v2/pipeline";
 
 export default function App() {
   return (
@@ -43,6 +44,7 @@ export default function App() {
               <Route path="emails" element={<V2EmailsPage />} />
               <Route path="senders" element={<V2SendersPage />} />
               <Route path="buckets/:bucket" element={<V2BucketDispatch />} />
+              <Route path="pipeline" element={<V2PipelinePage />} />
             </Route>
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Route>

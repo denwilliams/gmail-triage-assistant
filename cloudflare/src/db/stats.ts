@@ -1258,3 +1258,120 @@ export async function getBucketStats(
       return getCalendarStats(db, userId);
   }
 }
+
+// ============================================================================
+// Pipeline ops — stuck + failed emails, throughput timeseries
+// ============================================================================
+
+export interface StuckEmail {
+  id: string;
+  fromAddress: string;
+  subject: string;
+  bucket: Bucket | null;
+  pipelineStage: PipelineStage;
+  triageVia: string | null;
+  processedAt: string;
+  createdAt: string;
+  reasoning: string;
+}
+
+export interface DailyStageCount {
+  date: string;
+  processed: number;
+  failed: number;
+}
+
+export interface PipelineOps {
+  stuck: StuckEmail[];
+  failed: StuckEmail[];
+  dailyThroughput: DailyStageCount[];
+}
+
+/** Cut-off for considering a non-terminal email stuck: older than this in a
+ *  non-processed stage is a red flag. Processing should take seconds under
+ *  normal conditions. */
+const STUCK_THRESHOLD_MS = 60 * 60 * 1000; // 1 hour
+
+interface OpsEmailRow {
+  id: string;
+  from_address: string;
+  subject: string;
+  bucket: string | null;
+  pipeline_stage: string;
+  triage_via: string | null;
+  processed_at: string;
+  created_at: string;
+  reasoning: string;
+}
+
+function mapOpsRow(r: OpsEmailRow): StuckEmail {
+  return {
+    id: r.id,
+    fromAddress: r.from_address,
+    subject: r.subject,
+    bucket: (r.bucket as Bucket | null) ?? null,
+    pipelineStage: r.pipeline_stage as PipelineStage,
+    triageVia: r.triage_via,
+    processedAt: r.processed_at,
+    createdAt: r.created_at,
+    reasoning: r.reasoning ?? '',
+  };
+}
+
+export async function getPipelineOps(
+  db: D1Database,
+  userId: number,
+): Promise<PipelineOps> {
+  const stuckCutoff = new Date(Date.now() - STUCK_THRESHOLD_MS).toISOString();
+  const throughputStart = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
+
+  const { results: stuckRows } = await db
+    .prepare(
+      `SELECT id, from_address, subject, bucket, pipeline_stage, triage_via,
+              processed_at, created_at, reasoning
+       FROM emails
+       WHERE user_id = ?
+         AND bucket IS NOT NULL
+         AND pipeline_stage IN ('queued', 'bucketed')
+         AND created_at < ?
+       ORDER BY created_at ASC
+       LIMIT 25`,
+    )
+    .bind(userId, stuckCutoff)
+    .all<OpsEmailRow>();
+
+  const { results: failedRows } = await db
+    .prepare(
+      `SELECT id, from_address, subject, bucket, pipeline_stage, triage_via,
+              processed_at, created_at, reasoning
+       FROM emails
+       WHERE user_id = ? AND pipeline_stage = 'failed'
+       ORDER BY processed_at DESC
+       LIMIT 25`,
+    )
+    .bind(userId)
+    .all<OpsEmailRow>();
+
+  const { results: tpRows } = await db
+    .prepare(
+      `SELECT date(processed_at) as day,
+              SUM(CASE WHEN pipeline_stage = 'processed' THEN 1 ELSE 0 END) as processed,
+              SUM(CASE WHEN pipeline_stage = 'failed' THEN 1 ELSE 0 END) as failed
+       FROM emails
+       WHERE user_id = ? AND bucket IS NOT NULL AND processed_at >= ?
+       GROUP BY day
+       ORDER BY day`,
+    )
+    .bind(userId, throughputStart)
+    .all<{ day: string; processed: number; failed: number }>();
+
+  return {
+    stuck: stuckRows.map(mapOpsRow),
+    failed: failedRows.map(mapOpsRow),
+    dailyThroughput: tpRows.map((r) => ({
+      date: r.day,
+      processed: r.processed ?? 0,
+      failed: r.failed ?? 0,
+    })),
+  };
+}

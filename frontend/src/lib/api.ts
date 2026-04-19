@@ -149,6 +149,14 @@ export const api = {
     request<import("./types").V2PipelineStats>("/stats/v2-pipeline"),
   getBucketStats: (bucket: import("./types").Bucket) =>
     request<import("./types").BucketStats>(`/stats/bucket/${bucket}`),
+  getPipelineConfig: () =>
+    request<import("./types").PipelineConfig>("/pipeline/config"),
+  getPipelineOps: () =>
+    request<import("./types").PipelineOps>("/pipeline/ops"),
+  retryPipelineEmail: (id: string) =>
+    request<{ status: string; bucket: string }>(`/pipeline/retry/${encodeURIComponent(id)}`, {
+      method: "POST",
+    }),
 
   startPromptWizard: () =>
     request<import("./types").WizardStartResponse>("/prompt-wizard/start", {

@@ -33,6 +33,11 @@ import {
 import { handlePromptWizardStart, handlePromptWizardContinue } from './api/prompt-wizard';
 import { handleExport, handleImport } from './api/export-import';
 import { handleGenerateDigestNow, handleGetDigest, handleListDigests } from './api/digests';
+import {
+  handleGetPipelineConfig,
+  handleGetPipelineOps,
+  handlePipelineRetry,
+} from './api/pipeline';
 
 // Define custom variables type for auth context
 type AppEnv = { Bindings: Env; Variables: { userId: number; email: string } };
@@ -99,6 +104,11 @@ api.get('/stats/summary', handleGetStatsSummary);
 api.get('/stats/timeseries', handleGetStatsTimeseries);
 api.get('/stats/v2-pipeline', handleGetV2PipelineStats);
 api.get('/stats/bucket/:bucket', handleGetBucketStats);
+
+// Pipeline ops
+api.get('/pipeline/config', handleGetPipelineConfig);
+api.get('/pipeline/ops', handleGetPipelineOps);
+api.post('/pipeline/retry/:id', handlePipelineRetry);
 
 // Sender profiles
 api.get('/sender-profiles/all', handleGetAllSenderProfiles);

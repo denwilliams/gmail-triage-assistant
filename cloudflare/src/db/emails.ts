@@ -250,6 +250,38 @@ export async function markIncludedInDigest(
     .run();
 }
 
+export async function markEmailFailed(
+  db: D1Database,
+  emailId: string,
+  errorMessage: string,
+): Promise<void> {
+  // Append the error to reasoning so ops UI can show what went wrong.
+  // Keep existing reasoning — useful context for debugging.
+  await db
+    .prepare(
+      `UPDATE emails SET
+        pipeline_stage = 'failed',
+        reasoning = CASE
+          WHEN reasoning IS NULL OR reasoning = '' THEN ?
+          ELSE reasoning || char(10) || char(10) || '[pipeline error] ' || ?
+        END
+       WHERE id = ?`,
+    )
+    .bind(errorMessage, errorMessage, emailId)
+    .run();
+}
+
+export async function resetEmailForRetry(
+  db: D1Database,
+  emailId: string,
+  stage: PipelineStage,
+): Promise<void> {
+  await db
+    .prepare(`UPDATE emails SET pipeline_stage = ? WHERE id = ?`)
+    .bind(stage, emailId)
+    .run();
+}
+
 export interface RecentEmailFilters {
   bucket?: Bucket;
   pipelineStage?: PipelineStage;
