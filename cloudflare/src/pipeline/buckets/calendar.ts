@@ -2,8 +2,6 @@ import type { Env } from '../../types/env';
 import { processCalendar } from '../../services/ai';
 import { runBucketProcessor, type BucketProcessor } from './shared';
 
-const IMMINENT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
-
 const processor: BucketProcessor = async (ctx) => {
   const result = await processCalendar(ctx.env, {
     from: ctx.gmailMsg.from,
@@ -15,13 +13,15 @@ const processor: BucketProcessor = async (ctx) => {
 
   const labels = ['calendar'];
 
-  // Notify only when the event is imminent. The AI may have set its own
-  // notification_message — honour it in that case too, since a
+  // Notify only when the event is imminent. Window is per-user
+  // (v2_calendar_imminent_minutes, default 60). The AI may have set its
+  // own notification_message — honour it in that case too, since a
   // cancellation of an imminent event is still worth surfacing.
+  const imminentWindowMs = ctx.user.v2CalendarImminentMinutes * 60 * 1000;
   let notificationMessage = result.notification_message;
   if (!notificationMessage && result.starts_at) {
     const startsMs = Date.parse(result.starts_at);
-    if (!Number.isNaN(startsMs) && startsMs - Date.now() <= IMMINENT_WINDOW_MS && startsMs > Date.now()) {
+    if (!Number.isNaN(startsMs) && startsMs - Date.now() <= imminentWindowMs && startsMs > Date.now()) {
       notificationMessage = `Starting soon: ${result.event_title}`;
     }
   }

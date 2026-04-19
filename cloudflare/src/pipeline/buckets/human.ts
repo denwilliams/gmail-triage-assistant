@@ -4,7 +4,8 @@ import { aiConfig, processHuman } from '../../services/ai';
 import { getUserLabelsWithDetails } from '../../db/labels';
 import { runBucketProcessor, type BucketProcessor } from './shared';
 
-const HUMAN_RATING_THRESHOLD = 40;
+// Per-user threshold lives on the user row (v2_human_rating_threshold,
+// default 40). Read via ctx.user.v2HumanRatingThreshold.
 
 // Timed labels the AI can apply to keep archived emails from accumulating.
 const TIMED_LABELS = [
@@ -38,7 +39,8 @@ const processor: BucketProcessor = async (ctx) => {
   const labelsFormatted = labelLines.join('\n') + TIMED_LABELS_HELP;
 
   const rating = ctx.senderProfile?.rating ?? null;
-  const belowThreshold = rating !== null && rating < HUMAN_RATING_THRESHOLD;
+  const threshold = ctx.user.v2HumanRatingThreshold;
+  const belowThreshold = rating !== null && rating < threshold;
 
   const result = await processHuman(ctx.env, {
     from: ctx.gmailMsg.from,

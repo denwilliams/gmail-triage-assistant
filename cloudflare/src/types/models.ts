@@ -17,6 +17,11 @@ export interface UserRow {
   webhook_header_key: string;
   webhook_header_value: string;
   pipeline_version: string;
+  // v2 settings (migration 0005)
+  v2_newsletter_threshold: number;
+  v2_human_rating_threshold: number;
+  v2_calendar_imminent_minutes: number;
+  v2_notify_buckets: string; // JSON map of bucket → boolean
   created_at: string;
   updated_at: string;
 }
@@ -175,6 +180,11 @@ export interface User {
   webhookHeaderKey: string;
   webhookHeaderValue: string;
   pipelineVersion: PipelineVersion;
+  // v2 settings (migration 0005) — all have defaults matching prior hardcoded values.
+  v2NewsletterThreshold: number;       // 0..10, default 6
+  v2HumanRatingThreshold: number;      // 0..100, default 40
+  v2CalendarImminentMinutes: number;   // minutes, default 60
+  v2NotifyBuckets: Partial<Record<Bucket, boolean>>;  // missing = allowed
   createdAt: string;
   updatedAt: string;
 }

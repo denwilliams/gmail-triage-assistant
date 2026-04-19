@@ -1,4 +1,16 @@
-import type { PipelineVersion, User, UserRow } from '../types/models';
+import type { Bucket, PipelineVersion, User, UserRow } from '../types/models';
+
+function safeParseNotifyBuckets(text: string): Partial<Record<Bucket, boolean>> {
+  try {
+    const parsed = JSON.parse(text) as unknown;
+    if (parsed && typeof parsed === 'object') {
+      return parsed as Partial<Record<Bucket, boolean>>;
+    }
+  } catch {
+    // fall through
+  }
+  return {};
+}
 
 function mapUser(row: UserRow): User {
   return {
@@ -16,6 +28,10 @@ function mapUser(row: UserRow): User {
     webhookHeaderKey: row.webhook_header_key,
     webhookHeaderValue: row.webhook_header_value,
     pipelineVersion: (row.pipeline_version as PipelineVersion) ?? 'v1',
+    v2NewsletterThreshold: row.v2_newsletter_threshold ?? 6,
+    v2HumanRatingThreshold: row.v2_human_rating_threshold ?? 40,
+    v2CalendarImminentMinutes: row.v2_calendar_imminent_minutes ?? 60,
+    v2NotifyBuckets: safeParseNotifyBuckets(row.v2_notify_buckets ?? '{}'),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -151,5 +167,45 @@ export async function updateWebhookConfig(
       'UPDATE users SET webhook_url = ?, webhook_header_key = ?, webhook_header_value = ?, updated_at = ? WHERE id = ?',
     )
     .bind(url, headerKey, headerValue, now, userId)
+    .run();
+}
+
+export interface V2SettingsUpdate {
+  newsletterThreshold?: number;
+  humanRatingThreshold?: number;
+  calendarImminentMinutes?: number;
+  notifyBuckets?: Partial<Record<Bucket, boolean>>;
+}
+
+export async function updateV2Settings(
+  db: D1Database,
+  userId: number,
+  update: V2SettingsUpdate,
+): Promise<void> {
+  const sets: string[] = [];
+  const args: unknown[] = [];
+  if (update.newsletterThreshold !== undefined) {
+    sets.push('v2_newsletter_threshold = ?');
+    args.push(update.newsletterThreshold);
+  }
+  if (update.humanRatingThreshold !== undefined) {
+    sets.push('v2_human_rating_threshold = ?');
+    args.push(update.humanRatingThreshold);
+  }
+  if (update.calendarImminentMinutes !== undefined) {
+    sets.push('v2_calendar_imminent_minutes = ?');
+    args.push(update.calendarImminentMinutes);
+  }
+  if (update.notifyBuckets !== undefined) {
+    sets.push('v2_notify_buckets = ?');
+    args.push(JSON.stringify(update.notifyBuckets));
+  }
+  if (sets.length === 0) return;
+  sets.push('updated_at = ?');
+  args.push(new Date().toISOString());
+  args.push(userId);
+  await db
+    .prepare(`UPDATE users SET ${sets.join(', ')} WHERE id = ?`)
+    .bind(...args)
     .run();
 }

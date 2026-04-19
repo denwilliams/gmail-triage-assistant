@@ -1,12 +1,13 @@
 import { NavLink, Outlet } from "react-router";
 import { cn } from "@/lib/utils";
-import { Activity, LayoutDashboard, Mail, Users } from "lucide-react";
+import { Activity, LayoutDashboard, Mail, Settings as SettingsIcon, Users } from "lucide-react";
 
 const v2NavItems = [
   { to: "/v2", end: true, label: "Dashboard", icon: LayoutDashboard },
   { to: "/v2/emails", end: false, label: "Emails", icon: Mail },
   { to: "/v2/senders", end: false, label: "Senders", icon: Users },
   { to: "/v2/pipeline", end: false, label: "Pipeline", icon: Activity },
+  { to: "/v2/settings", end: false, label: "Settings", icon: SettingsIcon },
 ];
 
 export default function V2Layout() {
