@@ -82,9 +82,13 @@ export default function SecurityBucketPage() {
             <CardTitle className="text-xl">What we see</CardTitle>
           </CardHeader>
           <CardContent>
-            {actionTotal === 0 ? (
+            {stats.totals.week === 0 ? (
               <p className="text-sm text-muted-foreground">
                 No security emails yet.
+              </p>
+            ) : actionTotal === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                {stats.totals.all_time.toLocaleString()} email{stats.totals.all_time !== 1 ? "s" : ""} received, but no action types classified yet.
               </p>
             ) : (
               <div className="space-y-2">
