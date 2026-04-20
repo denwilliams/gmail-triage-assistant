@@ -22,6 +22,16 @@ interface DraftSettings {
   notifyBuckets: NotifyMap;
 }
 
+interface ThresholdDistribution {
+  score: number;
+  count: number;
+}
+
+interface HumanRatingDistribution {
+  rating_bucket: string;
+  count: number;
+}
+
 function fromSettings(s: UserSettings): DraftSettings {
   return {
     newsletter: s.v2_newsletter_threshold,
@@ -57,6 +67,7 @@ function SliderRow({
   unit,
   onChange,
   colourClass,
+  distribution,
 }: {
   label: string;
   description: string;
@@ -67,9 +78,12 @@ function SliderRow({
   unit?: string;
   onChange: (v: number) => void;
   colourClass: string;
+  distribution?: Array<{ score?: number; count: number }>;
 }) {
+  const maxCount = distribution ? Math.max(...distribution.map((d) => d.count), 1) : 1;
+
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       <div className="flex items-baseline justify-between">
         <div>
           <div className="text-sm font-medium">{label}</div>
@@ -96,6 +110,23 @@ function SliderRow({
         onChange={(e) => onChange(Number(e.target.value))}
         className="w-full cursor-pointer accent-primary"
       />
+      {distribution && (
+        <div className="flex h-12 items-end gap-0.5 rounded border border-border bg-muted/30 p-1">
+          {distribution.map((d, i) => (
+            <div
+              key={i}
+              className={cn(
+                "flex-1 rounded-sm transition-colors",
+                i < value ? "bg-amber-400/60" : "bg-emerald-400/50"
+              )}
+              style={{
+                height: `${Math.max(d.count > 0 ? 16 : 0, (d.count / maxCount) * 100)}%`,
+              }}
+              title={`${d.count} email${d.count !== 1 ? "s" : ""}`}
+            />
+          ))}
+        </div>
+      )}
       <div className="flex justify-between text-[10px] text-muted-foreground">
         <span>
           {min}
@@ -149,14 +180,21 @@ export default function V2SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<number | null>(null);
+  const [newsletterDistribution, setNewsletterDistribution] = useState<ThresholdDistribution[]>([]);
+  const [humanRatingDistribution, setHumanRatingDistribution] = useState<HumanRatingDistribution[]>([]);
 
   const load = () => {
     setLoading(true);
-    api
-      .getSettings()
-      .then((s) => {
+    Promise.all([
+      api.getSettings(),
+      api.getNewsletterThresholdDistribution(),
+      api.getHumanRatingThresholdDistribution(),
+    ])
+      .then(([s, nlDist, hrDist]) => {
         setSettings(s);
         setDraft(fromSettings(s));
+        setNewsletterDistribution(nlDist.distribution);
+        setHumanRatingDistribution(hrDist.distribution);
         setError(null);
       })
       .catch((e: unknown) => {
@@ -256,6 +294,7 @@ export default function V2SettingsPage() {
             value={draft.newsletter}
             onChange={(v) => setDraft({ ...draft, newsletter: v })}
             colourClass={newsletterColour}
+            distribution={newsletterDistribution}
           />
           <SliderRow
             label="Human rating threshold"
@@ -266,6 +305,7 @@ export default function V2SettingsPage() {
             value={draft.human}
             onChange={(v) => setDraft({ ...draft, human: v })}
             colourClass={humanColour}
+            distribution={humanRatingDistribution}
           />
         </CardContent>
       </Card>

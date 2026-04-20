@@ -21,6 +21,8 @@ import {
   getDashboardSummary,
   getDashboardTimeseries,
   getV2PipelineStats,
+  getNewsletterThresholdDistribution,
+  getHumanRatingThresholdDistribution,
 } from '../db/stats';
 
 type AppContext = Context<{ Bindings: Env; Variables: { userId: number; email: string } }>;
@@ -293,5 +295,33 @@ export async function handleGetBucketStats(c: AppContext) {
   } catch (e) {
     console.error(`Failed to load bucket stats for ${bucketParam}:`, e);
     return c.json({ error: 'Failed to load bucket stats' }, 500);
+  }
+}
+
+export async function handleGetNewsletterThresholdDistribution(c: AppContext) {
+  const userId = c.get('userId');
+
+  try {
+    const distribution = await getNewsletterThresholdDistribution(c.env.DB, userId);
+    return c.json({
+      distribution: distribution.map((d) => ({ score: d.score, count: d.count })),
+    });
+  } catch (e) {
+    console.error('Failed to load newsletter threshold distribution:', e);
+    return c.json({ error: 'Failed to load newsletter threshold distribution' }, 500);
+  }
+}
+
+export async function handleGetHumanRatingThresholdDistribution(c: AppContext) {
+  const userId = c.get('userId');
+
+  try {
+    const distribution = await getHumanRatingThresholdDistribution(c.env.DB, userId);
+    return c.json({
+      distribution: distribution.map((d) => ({ rating_bucket: d.ratingBucket, count: d.count })),
+    });
+  } catch (e) {
+    console.error('Failed to load human rating threshold distribution:', e);
+    return c.json({ error: 'Failed to load human rating threshold distribution' }, 500);
   }
 }

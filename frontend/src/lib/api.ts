@@ -149,6 +149,14 @@ export const api = {
     request<import("./types").V2PipelineStats>("/stats/v2-pipeline"),
   getBucketStats: (bucket: import("./types").Bucket) =>
     request<import("./types").BucketStats>(`/stats/bucket/${bucket}`),
+  getNewsletterThresholdDistribution: () =>
+    request<{ distribution: { score: number; count: number }[] }>(
+      "/stats/threshold/newsletter"
+    ),
+  getHumanRatingThresholdDistribution: () =>
+    request<{ distribution: { rating_bucket: string; count: number }[] }>(
+      "/stats/threshold/human-rating"
+    ),
   getPipelineConfig: () =>
     request<import("./types").PipelineConfig>("/pipeline/config"),
   getPipelineOps: () =>

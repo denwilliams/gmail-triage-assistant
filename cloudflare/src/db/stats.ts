@@ -1375,3 +1375,77 @@ export async function getPipelineOps(
     })),
   };
 }
+
+// ============================================================================
+// Threshold visualization — email distributions for last 7 days
+// ============================================================================
+
+export interface ThresholdDistribution {
+  score: number;
+  count: number;
+}
+
+export async function getNewsletterThresholdDistribution(
+  db: D1Database,
+  userId: number,
+): Promise<ThresholdDistribution[]> {
+  const weekStart = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+  const { results: rows } = await db
+    .prepare(
+      `SELECT interesting_score as score, COUNT(*) as cnt
+       FROM emails
+       WHERE user_id = ? AND bucket = 'newsletter' AND interesting_score IS NOT NULL
+         AND processed_at >= ?
+       GROUP BY interesting_score`,
+    )
+    .bind(userId, weekStart)
+    .all<{ score: number; cnt: number }>();
+
+  return Array.from({ length: 11 }, (_, i) => ({
+    score: i,
+    count: rows.find((r) => r.score === i)?.cnt ?? 0,
+  }));
+}
+
+export interface HumanRatingDistribution {
+  ratingBucket: string;
+  count: number;
+}
+
+export async function getHumanRatingThresholdDistribution(
+  db: D1Database,
+  userId: number,
+): Promise<HumanRatingDistribution[]> {
+  const weekStart = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+  const { results: rows } = await db
+    .prepare(
+      `SELECT rating FROM sender_profiles
+       WHERE user_id = ? AND profile_type = 'sender'
+         AND json_extract(bucket_counts, '$.human') > 0
+         AND rating IS NOT NULL`,
+    )
+    .bind(userId)
+    .all<{ rating: number }>();
+
+  const histogram: Record<string, number> = {};
+  for (let i = 0; i < 10; i++) {
+    const lo = i * 10;
+    histogram[`${lo}-${lo + 9}`] = 0;
+  }
+  histogram['100'] = 0;
+
+  for (const r of rows) {
+    if (r.rating === 100) histogram['100'] += 1;
+    else {
+      const lo = Math.floor(r.rating / 10) * 10;
+      histogram[`${lo}-${lo + 9}`] = (histogram[`${lo}-${lo + 9}`] ?? 0) + 1;
+    }
+  }
+
+  return Object.entries(histogram).map(([bucket, count]) => ({
+    ratingBucket: bucket,
+    count,
+  }));
+}
