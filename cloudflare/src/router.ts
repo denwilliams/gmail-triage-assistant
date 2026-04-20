@@ -23,6 +23,8 @@ import {
   handleGetStatsSummary,
   handleGetStatsTimeseries,
   handleGetV2PipelineStats,
+  handleGetNewsletterThresholdDistribution,
+  handleGetHumanRatingThresholdDistribution,
 } from './api/stats';
 import {
   handleGetAllSenderProfiles,
@@ -106,6 +108,8 @@ api.get('/stats/summary', handleGetStatsSummary);
 api.get('/stats/timeseries', handleGetStatsTimeseries);
 api.get('/stats/v2-pipeline', handleGetV2PipelineStats);
 api.get('/stats/bucket/:bucket', handleGetBucketStats);
+api.get('/stats/threshold/newsletter', handleGetNewsletterThresholdDistribution);
+api.get('/stats/threshold/human-rating', handleGetHumanRatingThresholdDistribution);
 
 // Pipeline ops
 api.get('/pipeline/config', handleGetPipelineConfig);
