@@ -94,7 +94,7 @@ function ThroughputChart({
             title={`${d.date}: ${d.processed} processed, ${d.failed} failed`}
           >
             <div className="flex w-full flex-1 items-end">
-              <div className="flex w-full flex-col-reverse">
+              <div className="flex w-full h-full flex-col-reverse">
                 <div
                   className="w-full bg-emerald-500/80 rounded-b-sm"
                   style={{ height: `${procH}%` }}
