@@ -62,8 +62,8 @@ function RatingCell({
 
   const handleSave = async () => {
     const parsed = parseInt(value, 10);
-    if (isNaN(parsed) || parsed < 0 || parsed > 100) {
-      alert("Rating must be 0-100");
+    if (isNaN(parsed) || parsed < 0 || parsed > 99) {
+      alert("Rating must be 0-99");
       return;
     }
     setBusy(true);
@@ -407,7 +407,7 @@ export default function V2SendersPage() {
                 <TableHead>Sender</TableHead>
                 <TableHead>Consistency</TableHead>
                 <TableHead>Buckets seen</TableHead>
-                <TableHead className="w-56">Rating (0-100)</TableHead>
+                <TableHead className="w-56">Rating (0-99)</TableHead>
                 <TableHead>Volume</TableHead>
                 <TableHead>Last seen</TableHead>
               </TableRow>

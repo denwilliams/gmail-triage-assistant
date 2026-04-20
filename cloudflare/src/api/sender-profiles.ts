@@ -288,7 +288,7 @@ export async function handleUpdateSenderProfile(c: AppContext) {
         profile.ratingReasoning = '';
         profile.ratingManual = false;
       } else {
-        const v = Math.max(0, Math.min(100, Math.round(body.rating)));
+        const v = Math.max(0, Math.min(99, Math.round(body.rating)));
         profile.rating = v;
         profile.ratingManual = body.rating_manual ?? true;
         if (body.rating_reasoning !== undefined) {

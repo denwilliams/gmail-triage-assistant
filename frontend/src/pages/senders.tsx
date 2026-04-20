@@ -131,8 +131,8 @@ function RatingPanel({
 
   const handleSave = async () => {
     const parsed = parseInt(value, 10);
-    if (isNaN(parsed) || parsed < 0 || parsed > 100) {
-      alert("Rating must be 0-100");
+    if (isNaN(parsed) || parsed < 0 || parsed > 99) {
+      alert("Rating must be 0-99");
       return;
     }
     setBusy(true);
