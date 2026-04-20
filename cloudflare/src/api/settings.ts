@@ -130,8 +130,8 @@ export async function handleUpdateV2Settings(c: AppContext) {
 
   if (body.human_rating_threshold !== undefined) {
     const v = Math.round(Number(body.human_rating_threshold));
-    if (!Number.isInteger(v) || v < 0 || v > 100) {
-      return c.json({ error: 'human_rating_threshold must be 0..100' }, 400);
+    if (!Number.isInteger(v) || v < 0 || v > 99) {
+      return c.json({ error: 'human_rating_threshold must be 0..99' }, 400);
     }
     update.humanRatingThreshold = v;
   }

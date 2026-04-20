@@ -92,7 +92,7 @@ bucket → `consistent`; else `mixed`).
   for the daily digest, archive with a timed delete label.
 - **Notification** — severity/urgency assessment; high → inbox + push,
   low → archive + digest.
-- **Human** — gated by the sender's auto-learned rating (0–100); below
+- **Human** — gated by the sender's auto-learned rating (0–99); below
   threshold → archive + digest, above → inbox (and optional draft
   reply).
 - **Transactional** — extract vendor/amount/date, label

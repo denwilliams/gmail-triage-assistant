@@ -2,7 +2,7 @@
 // Sender rating sweep
 // ----------------------------------------------------------------------------
 // Nightly: for each active user, find sender_profiles that need a (re-)rating
-// and call the sender_rating AI stage to produce a 0-100 rating + short
+// and call the sender_rating AI stage to produce a 0-99 rating + short
 // reasoning. Auto-learned ratings don't overwrite manual overrides.
 // ============================================================================
 
@@ -78,7 +78,7 @@ export async function rateOneSender(
     aggregatedSignals: buildSignals(profile),
   });
 
-  const clamped = Math.max(0, Math.min(100, Math.round(result.rating)));
+  const clamped = Math.max(0, Math.min(99, Math.round(result.rating)));
   profile.rating = clamped;
   profile.ratingReasoning = result.reasoning;
   profile.ratingUpdatedAt = new Date().toISOString();

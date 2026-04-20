@@ -917,13 +917,9 @@ async function getHumanStats(db: D1Database, userId: number): Promise<HumanStats
     const hi = lo + 9;
     histogram[`${lo}-${hi}`] = 0;
   }
-  histogram['100'] = 0;
   for (const r of ratingRows) {
-    if (r.rating === 100) histogram['100'] += 1;
-    else {
-      const lo = Math.floor(r.rating / 10) * 10;
-      histogram[`${lo}-${lo + 9}`] = (histogram[`${lo}-${lo + 9}`] ?? 0) + 1;
-    }
+    const lo = Math.floor(r.rating / 10) * 10;
+    histogram[`${lo}-${lo + 9}`] = (histogram[`${lo}-${lo + 9}`] ?? 0) + 1;
   }
   const ratingHistogram = Object.entries(histogram).map(([bucket, count]) => ({
     bucket,
@@ -1434,14 +1430,10 @@ export async function getHumanRatingThresholdDistribution(
     const lo = i * 10;
     histogram[`${lo}-${lo + 9}`] = 0;
   }
-  histogram['100'] = 0;
 
   for (const r of rows) {
-    if (r.rating === 100) histogram['100'] += 1;
-    else {
-      const lo = Math.floor(r.rating / 10) * 10;
-      histogram[`${lo}-${lo + 9}`] = (histogram[`${lo}-${lo + 9}`] ?? 0) + 1;
-    }
+    const lo = Math.floor(r.rating / 10) * 10;
+    histogram[`${lo}-${lo + 9}`] = (histogram[`${lo}-${lo + 9}`] ?? 0) + 1;
   }
 
   return Object.entries(histogram).map(([bucket, count]) => ({

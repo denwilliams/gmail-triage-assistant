@@ -214,7 +214,7 @@ Extend `sender_profiles`:
 
 ```sql
 -- Rating (for human bucket gating)
-ALTER TABLE sender_profiles ADD COLUMN rating INTEGER;            -- 0..100
+ALTER TABLE sender_profiles ADD COLUMN rating INTEGER;            -- 0..99
 ALTER TABLE sender_profiles ADD COLUMN rating_reasoning TEXT;
 ALTER TABLE sender_profiles ADD COLUMN rating_manual INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE sender_profiles ADD COLUMN rating_updated_at TEXT;
@@ -362,7 +362,7 @@ document the Workers / D1 / Queues reality and the new pipeline.
 ## 14. Decisions
 
 1. **Digest thresholds** — fixed. Newsletter interesting `>= 6/10`, human
-   rating `>= 40/100`. Not user-tunable in v1.
+   rating `>= 40/99`. Not user-tunable in v1.
 2. **Security bucket** — no DKIM/SPF sanity check. Trust Gmail's own spam
    handling.
 3. **Historical backfill** — none. Legacy emails stay with `bucket = null`;

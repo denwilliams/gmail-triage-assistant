@@ -135,7 +135,7 @@ export interface CalendarResult {
 }
 
 export interface SenderRatingResult {
-  rating: number;               // 0..100
+  rating: number;               // 0..99
   reasoning: string;
 }
 
@@ -620,14 +620,14 @@ export async function rateSender(
   },
 ): Promise<SenderRatingResult> {
   const systemPrompt = `You rate how likely the user is to want emails from
-this sender to reach their inbox, on a 0-100 scale.
+this sender to reach their inbox, on a 0-99 scale.
 
 Scale:
-- 0-20: almost always archive. Pure cold-outreach/sales/spam-adjacent.
-- 21-40: low priority. Usually archived.
-- 41-60: mixed. Some emails matter.
-- 61-80: usually wanted in inbox.
-- 81-100: high priority. Personal/critical — always surface.
+- 0-19: almost always archive. Pure cold-outreach/sales/spam-adjacent.
+- 20-39: low priority. Usually archived.
+- 40-59: mixed. Some emails matter.
+- 60-79: usually wanted in inbox.
+- 80-99: high priority. Personal/critical — always surface.
 
 Base the rating on the aggregated behaviour signals provided. If there's
 almost no data, default to 50. Return {rating, reasoning (1-2 sentences)}.`;

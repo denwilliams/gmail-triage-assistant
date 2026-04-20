@@ -182,7 +182,7 @@ export interface User {
   pipelineVersion: PipelineVersion;
   // v2 settings (migration 0005) — all have defaults matching prior hardcoded values.
   v2NewsletterThreshold: number;       // 0..10, default 6
-  v2HumanRatingThreshold: number;      // 0..100, default 40
+  v2HumanRatingThreshold: number;      // 0..99, default 40
   v2CalendarImminentMinutes: number;   // minutes, default 60
   v2NotifyBuckets: Partial<Record<Bucket, boolean>>;  // missing = allowed
   createdAt: string;
