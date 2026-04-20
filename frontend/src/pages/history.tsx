@@ -639,7 +639,7 @@ export default function HistoryPage() {
             <EmailRow
               key={email.id}
               email={email}
-              onClick={() => navigate(`/history/${email.id}`)}
+              onClick={() => navigate(`/legacy-v1/history/${email.id}`)}
             />
           ))}
         </div>
@@ -662,7 +662,7 @@ export default function HistoryPage() {
           email={selected}
           open={!!selected}
           onOpenChange={(open) => {
-            if (!open) navigate("/history");
+            if (!open) navigate("/legacy-v1/history");
           }}
           onFeedbackSaved={() => loadEmails(bucketFilter)}
         />

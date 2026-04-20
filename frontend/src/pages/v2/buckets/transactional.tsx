@@ -187,7 +187,7 @@ export default function TransactionalBucketPage() {
                     </TableCell>
                     <TableCell className="max-w-xs truncate" title={r.subject}>
                       <Link
-                        to={`/v2/emails?id=${r.id}`}
+                        to={`/emails?id=${r.id}`}
                         className="text-sm hover:underline"
                       >
                         {r.subject}

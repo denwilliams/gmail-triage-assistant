@@ -211,7 +211,7 @@ export default function NotificationBucketPage() {
               {stats.recent_high.map((e) => (
                 <li key={e.id} className="py-2 first:pt-0 last:pb-0">
                   <Link
-                    to={`/v2/emails?id=${e.id}`}
+                    to={`/emails?id=${e.id}`}
                     className="block hover:underline"
                   >
                     <div className="flex flex-wrap items-center gap-1.5">

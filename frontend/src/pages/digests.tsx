@@ -65,8 +65,12 @@ export default function DigestsPage() {
       {digests.length === 0 ? (
         <p className="text-muted-foreground">
           No digests yet. Digests are composed at 8 AM for v2 pipeline users when
-          there's at least one item to include. Flip your account to v2 in
-          Settings, then use "Generate now" to create one on demand.
+          there's at least one item to include. If your account is still on v1,
+          flip it in{" "}
+          <a href="/legacy-v1/settings" className="underline">
+            legacy settings
+          </a>
+          , then use "Generate now" to create one on demand.
         </p>
       ) : (
         <div className="grid gap-4 lg:grid-cols-[260px,1fr]">

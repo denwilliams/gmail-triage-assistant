@@ -146,7 +146,7 @@ function StuckRow({
           <StageBadge stage={email.pipeline_stage} />
           {email.bucket && <BucketBadge bucket={email.bucket} />}
           <Link
-            to={`/v2/emails?id=${email.id}`}
+            to={`/emails?id=${email.id}`}
             className="truncate text-sm font-medium hover:underline"
           >
             {email.subject}

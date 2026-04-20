@@ -153,7 +153,7 @@ export default function SecurityBucketPage() {
                 <li key={e.id} className="mb-4 ml-2 last:mb-0">
                   <span className="absolute -left-1.5 flex h-3 w-3 items-center justify-center rounded-full border border-background bg-red-500" />
                   <Link
-                    to={`/v2/emails?id=${e.id}`}
+                    to={`/emails?id=${e.id}`}
                     className="block hover:underline"
                   >
                     <div className="flex flex-wrap items-center gap-1.5">

@@ -62,7 +62,7 @@ function BucketDistribution({
             return (
               <Link
                 key={bucket}
-                to={`/v2/buckets/${bucket}`}
+                to={`/buckets/${bucket}`}
                 className="-mx-2 flex items-center gap-3 rounded-md px-2 py-1.5 transition-colors hover:bg-accent/60"
               >
                 <div className="w-24 shrink-0">
@@ -177,7 +177,7 @@ function RecentFailuresCard({
             {failures.map((f) => (
               <li key={f.id} className="py-2 first:pt-0 last:pb-0">
                 <Link
-                  to={`/v2/emails?id=${f.id}`}
+                  to={`/emails?id=${f.id}`}
                   className="block text-sm hover:underline"
                 >
                   <div className="flex items-center gap-2">
@@ -207,7 +207,7 @@ function RecentEmailsCard({ emails }: { emails: Email[] }) {
           <CardTitle className="text-xl">Recent emails</CardTitle>
         </div>
         <Button asChild size="sm" variant="outline">
-          <Link to="/v2/emails">View all</Link>
+          <Link to="/emails">View all</Link>
         </Button>
       </CardHeader>
       <CardContent>

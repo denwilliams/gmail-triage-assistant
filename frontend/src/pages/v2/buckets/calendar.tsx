@@ -70,7 +70,7 @@ function EventRow({ event, isPast }: { event: CalendarEventRef; isPast?: boolean
       </div>
       <div className="min-w-0 flex-1">
         <Link
-          to={`/v2/emails?id=${event.id}`}
+          to={`/emails?id=${event.id}`}
           className="block hover:underline"
         >
           <div className="truncate text-sm font-medium">
