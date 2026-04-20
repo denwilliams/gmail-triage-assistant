@@ -1,5 +1,6 @@
 import { Link, Outlet, useLocation, Navigate } from "react-router";
 import { useAuth } from "@/hooks/use-auth";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
@@ -84,6 +85,7 @@ export function AppLayout() {
             <span className="hidden md:block text-muted-foreground max-w-[180px] truncate">
               {user.email}
             </span>
+            <ThemeToggle />
             <a
               href="/auth/logout"
               className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors"

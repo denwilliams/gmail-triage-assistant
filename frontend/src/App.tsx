@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router";
 import { AuthProvider } from "@/hooks/use-auth";
+import { ThemeProvider } from "@/hooks/use-theme";
 import { AppLayout } from "@/components/app-layout";
 import { LegacyLayout } from "@/components/legacy-layout";
 import LoginPage from "@/pages/login";
@@ -23,9 +24,10 @@ import V2SettingsPage from "@/pages/v2/settings";
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <AuthProvider>
-        <Routes>
+    <ThemeProvider>
+      <BrowserRouter>
+        <AuthProvider>
+          <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route element={<AppLayout />}>
             <Route path="/dashboard" element={<V2DashboardPage />} />
@@ -54,7 +56,8 @@ export default function App() {
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Route>
         </Routes>
-      </AuthProvider>
-    </BrowserRouter>
+        </AuthProvider>
+      </BrowserRouter>
+    </ThemeProvider>
   );
 }
