@@ -112,19 +112,25 @@ function SliderRow({
       />
       {distribution && (
         <div className="flex h-12 items-end gap-0.5 rounded border border-border bg-muted/30 p-1">
-          {distribution.map((d, i) => (
-            <div
-              key={i}
-              className={cn(
-                "flex-1 rounded-sm transition-colors",
-                i < value ? "bg-amber-400/60" : "bg-emerald-400/50"
-              )}
-              style={{
-                height: `${Math.max(d.count > 0 ? 16 : 0, (d.count / maxCount) * 100)}%`,
-              }}
-              title={`${d.count} email${d.count !== 1 ? "s" : ""}`}
-            />
-          ))}
+          {distribution.map((d, i) => {
+            let bucketEnd = i * 10 + 9;
+            if (i === distribution.length - 1) bucketEnd = 100;
+            const isBelowThreshold = bucketEnd < value;
+
+            return (
+              <div
+                key={i}
+                className={cn(
+                  "flex-1 rounded-sm transition-colors",
+                  isBelowThreshold ? "bg-amber-400/60" : "bg-emerald-400/50"
+                )}
+                style={{
+                  height: `${Math.max(d.count > 0 ? 16 : 0, (d.count / maxCount) * 100)}%`,
+                }}
+                title={`${d.count} email${d.count !== 1 ? "s" : ""}`}
+              />
+            );
+          })}
         </div>
       )}
       <div className="flex justify-between text-[10px] text-muted-foreground">
