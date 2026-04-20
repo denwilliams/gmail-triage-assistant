@@ -21,9 +21,9 @@ function RatingHistogram({
 }) {
   const max = Math.max(1, ...data.map((d) => d.count));
   return (
-    <div className="flex items-end gap-1 h-32">
+    <div className="flex gap-1 h-32">
       {data.map((d) => {
-        const h = (d.count / max) * 100;
+        const h = d.count === 0 ? 0 : Math.max(2, (d.count / max) * 100);
         const loBound = parseInt(d.bucket.split("-")[0], 10);
         const aboveThreshold = loBound >= 40;
         return (
