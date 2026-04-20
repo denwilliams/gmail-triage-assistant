@@ -11,7 +11,7 @@ import CalendarBucketPage from "./calendar";
 export default function BucketDispatch() {
   const { bucket } = useParams();
   if (!bucket || !BUCKET_OPTIONS.includes(bucket as Bucket)) {
-    return <Navigate to="/v2" replace />;
+    return <Navigate to="/dashboard" replace />;
   }
   switch (bucket as Bucket) {
     case "newsletter":

@@ -62,8 +62,8 @@ export async function createUser(
     .prepare(
       `INSERT INTO users (email, google_id, access_token, refresh_token, token_expiry, is_active,
         pushover_user_key, pushover_app_token, webhook_url, webhook_header_key, webhook_header_value,
-        created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, 0, '', '', '', '', '', ?, ?)
+        pipeline_version, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, 0, '', '', '', '', '', 'v2', ?, ?)
        RETURNING *`,
     )
     .bind(email, googleId, accessToken, refreshToken, tokenExpiry, now, now)

@@ -1,19 +1,19 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router";
 import { AuthProvider } from "@/hooks/use-auth";
 import { AppLayout } from "@/components/app-layout";
+import { LegacyLayout } from "@/components/legacy-layout";
 import LoginPage from "@/pages/login";
-import DashboardPage from "@/pages/dashboard";
-import LabelsPage from "@/pages/labels";
-import HistoryPage from "@/pages/history";
-import PromptsPage from "@/pages/prompts";
-import MemoriesPage from "@/pages/memories";
-import WrapupsPage from "@/pages/wrapups";
-import NotificationsPage from "@/pages/notifications";
-import SendersPage from "@/pages/senders";
-import SettingsPage from "@/pages/settings";
-import PromptWizardPage from "@/pages/prompt-wizard";
+import LegacyDashboardPage from "@/pages/dashboard";
+import LegacyLabelsPage from "@/pages/labels";
+import LegacyHistoryPage from "@/pages/history";
+import LegacyPromptsPage from "@/pages/prompts";
+import LegacyMemoriesPage from "@/pages/memories";
+import LegacyWrapupsPage from "@/pages/wrapups";
+import LegacyNotificationsPage from "@/pages/notifications";
+import LegacySendersPage from "@/pages/senders";
+import LegacySettingsPage from "@/pages/settings";
+import LegacyPromptWizardPage from "@/pages/prompt-wizard";
 import DigestsPage from "@/pages/digests";
-import V2Layout from "@/pages/v2/layout";
 import V2DashboardPage from "@/pages/v2/dashboard";
 import V2EmailsPage from "@/pages/v2/emails";
 import V2SendersPage from "@/pages/v2/senders";
@@ -28,26 +28,29 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route element={<AppLayout />}>
-            <Route path="/dashboard" element={<DashboardPage />} />
-            <Route path="/labels" element={<LabelsPage />} />
-            <Route path="/senders" element={<SendersPage />} />
-            <Route path="/history" element={<HistoryPage />} />
-            <Route path="/history/:emailId" element={<HistoryPage />} />
-            <Route path="/prompts" element={<PromptsPage />} />
-            <Route path="/prompt-wizard" element={<PromptWizardPage />} />
-            <Route path="/memories" element={<MemoriesPage />} />
-            <Route path="/wrapups" element={<WrapupsPage />} />
+            <Route path="/dashboard" element={<V2DashboardPage />} />
+            <Route path="/emails" element={<V2EmailsPage />} />
+            <Route path="/senders" element={<V2SendersPage />} />
+            <Route path="/buckets/:bucket" element={<V2BucketDispatch />} />
+            <Route path="/pipeline" element={<V2PipelinePage />} />
             <Route path="/digests" element={<DigestsPage />} />
-            <Route path="/notifications" element={<NotificationsPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
-            <Route path="/v2" element={<V2Layout />}>
-              <Route index element={<V2DashboardPage />} />
-              <Route path="emails" element={<V2EmailsPage />} />
-              <Route path="senders" element={<V2SendersPage />} />
-              <Route path="buckets/:bucket" element={<V2BucketDispatch />} />
-              <Route path="pipeline" element={<V2PipelinePage />} />
-              <Route path="settings" element={<V2SettingsPage />} />
-            </Route>
+            <Route path="/settings" element={<V2SettingsPage />} />
+          </Route>
+          <Route path="/legacy-v1" element={<LegacyLayout />}>
+            <Route index element={<Navigate to="/legacy-v1/dashboard" replace />} />
+            <Route path="dashboard" element={<LegacyDashboardPage />} />
+            <Route path="labels" element={<LegacyLabelsPage />} />
+            <Route path="senders" element={<LegacySendersPage />} />
+            <Route path="history" element={<LegacyHistoryPage />} />
+            <Route path="history/:emailId" element={<LegacyHistoryPage />} />
+            <Route path="prompts" element={<LegacyPromptsPage />} />
+            <Route path="prompt-wizard" element={<LegacyPromptWizardPage />} />
+            <Route path="memories" element={<LegacyMemoriesPage />} />
+            <Route path="wrapups" element={<LegacyWrapupsPage />} />
+            <Route path="notifications" element={<LegacyNotificationsPage />} />
+            <Route path="settings" element={<LegacySettingsPage />} />
+          </Route>
+          <Route element={<AppLayout />}>
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Route>
         </Routes>

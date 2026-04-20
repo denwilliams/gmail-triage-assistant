@@ -143,7 +143,7 @@ export default function PromptWizardPage() {
         <Card>
           <CardContent className="pt-6">
             <p className="text-destructive">{error}</p>
-            <Button className="mt-4" onClick={() => navigate("/prompts")}>
+            <Button className="mt-4" onClick={() => navigate("/legacy-v1/prompts")}>
               Back to Prompts
             </Button>
           </CardContent>
@@ -165,7 +165,7 @@ export default function PromptWizardPage() {
               Your AI email assistant is now configured with personalized
               prompts.
             </p>
-            <Button onClick={() => navigate("/prompts")}>
+            <Button onClick={() => navigate("/legacy-v1/prompts")}>
               View Prompts
             </Button>
           </CardContent>
@@ -222,7 +222,7 @@ export default function PromptWizardPage() {
           <Button onClick={handleSave} disabled={saving}>
             {saving ? "Saving..." : "Save Prompts"}
           </Button>
-          <Button variant="outline" onClick={() => navigate("/prompts")}>
+          <Button variant="outline" onClick={() => navigate("/legacy-v1/prompts")}>
             Cancel
           </Button>
         </div>
@@ -312,7 +312,7 @@ export default function PromptWizardPage() {
         <Button onClick={handleNext} disabled={!allAnswered || submitting}>
           {submitting ? "Processing..." : "Next"}
         </Button>
-        <Button variant="outline" onClick={() => navigate("/prompts")}>
+        <Button variant="outline" onClick={() => navigate("/legacy-v1/prompts")}>
           Cancel
         </Button>
       </div>

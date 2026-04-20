@@ -100,7 +100,7 @@ export default function PromptsPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">System Prompts</h1>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => navigate("/prompt-wizard")}>
+          <Button variant="outline" onClick={() => navigate("/legacy-v1/prompt-wizard")}>
             Setup Wizard
           </Button>
           {prompts.length === 0 && (

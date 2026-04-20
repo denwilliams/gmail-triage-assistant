@@ -136,7 +136,7 @@ activity. Additive to the daily digest.
   `OPENAI_MODEL` when unset.
 - Per-user `pipeline_version` flag (`v1` = legacy single-stage
   processor, `v2` = new multi-stage pipeline). New users default to
-  `v1` until manually flipped during rollout.
+  `v2`; existing v1 users stay on v1 unless manually flipped.
 
 ## Database schema
 

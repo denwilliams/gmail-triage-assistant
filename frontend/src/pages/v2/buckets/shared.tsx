@@ -30,11 +30,11 @@ export function BucketPageHeader({
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-        <Link to="/v2" className="hover:underline">
+        <Link to="/dashboard" className="hover:underline">
           Dashboard
         </Link>
         <span>/</span>
-        <Link to="/v2/emails" className="hover:underline">
+        <Link to="/emails" className="hover:underline">
           Buckets
         </Link>
         <span>/</span>
