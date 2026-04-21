@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router";
 import type { SystemPrompt, AIPrompt } from "@/lib/types";
 import { api } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
@@ -98,7 +97,6 @@ function DefaultPromptDisplay({ type, content }: { type: string; content: string
 }
 
 export default function PromptsPage() {
-  const navigate = useNavigate();
   const [prompts, setPrompts] = useState<SystemPrompt[]>([]);
   const [aiAnalyze, setAIAnalyze] = useState<AIPrompt | null>(null);
   const [aiActions, setAIActions] = useState<AIPrompt | null>(null);
@@ -129,15 +127,16 @@ export default function PromptsPage() {
 
   if (loading) return <p className="text-muted-foreground">Loading...</p>;
 
+  // Filter to show only bucket prompts in v2 UI
+  const bucketPrompts = prompts.filter((p) => p.type.startsWith('bucket_'));
+  const bucketDefaults = defaults.filter((d) => d.type.startsWith('bucket_'));
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">System Prompts</h1>
+        <h1 className="text-2xl font-bold">Pipeline Prompts</h1>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => navigate("/legacy-v1/prompt-wizard")}>
-            Setup Wizard
-          </Button>
-          {prompts.length === 0 && (
+          {bucketPrompts.length === 0 && (
             <Button onClick={handleInitDefaults}>Initialize Defaults</Button>
           )}
         </div>
@@ -150,13 +149,13 @@ export default function PromptsPage() {
         </TabsList>
 
         <TabsContent value="current" className="space-y-4">
-          {prompts.length === 0 ? (
+          {bucketPrompts.length === 0 ? (
             <p className="text-muted-foreground text-sm">
-              No custom prompts. Click "Initialize Defaults" above or set them one by one below.
+              No custom bucket prompts yet. Click "Initialize Defaults" to create them, then customize below.
             </p>
           ) : (
-            prompts.map((prompt) => {
-              const defaultForType = defaults.find((d) => d.type === prompt.type);
+            bucketPrompts.map((prompt) => {
+              const defaultForType = bucketDefaults.find((d) => d.type === prompt.type);
               return (
                 <PromptEditor
                   key={prompt.id}
@@ -186,11 +185,10 @@ export default function PromptsPage() {
 
         <TabsContent value="defaults" className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            These are the built-in default prompts. Click "Initialize Defaults" to copy them to your
-            custom prompts, then edit them in the "Your Prompts" tab.
+            These are the built-in default prompts for each pipeline stage. Click "Initialize Defaults" to copy them to your custom prompts, then edit them above.
           </p>
           <div className="space-y-4">
-            {defaults.map((item) => (
+            {bucketDefaults.map((item) => (
               <DefaultPromptDisplay key={item.type} type={item.type} content={item.content} />
             ))}
           </div>
