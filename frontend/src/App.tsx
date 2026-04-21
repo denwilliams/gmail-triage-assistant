@@ -14,6 +14,7 @@ import LegacyNotificationsPage from "@/pages/notifications";
 import LegacySendersPage from "@/pages/senders";
 import LegacySettingsPage from "@/pages/settings";
 import LegacyPromptWizardPage from "@/pages/prompt-wizard";
+import PromptsPage from "@/pages/prompts";
 import DigestsPage from "@/pages/digests";
 import V2DashboardPage from "@/pages/v2/dashboard";
 import V2EmailsPage from "@/pages/v2/emails";
@@ -36,6 +37,7 @@ export default function App() {
             <Route path="/buckets/:bucket" element={<V2BucketDispatch />} />
             <Route path="/pipeline" element={<V2PipelinePage />} />
             <Route path="/digests" element={<DigestsPage />} />
+            <Route path="/prompts" element={<PromptsPage />} />
             <Route path="/settings" element={<V2SettingsPage />} />
           </Route>
           <Route path="/legacy-v1" element={<LegacyLayout />}>
