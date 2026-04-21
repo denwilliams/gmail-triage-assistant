@@ -364,12 +364,14 @@ emails to the user.`) + ratingContext + `
 Available labels:
 ${params.labelsFormatted}
 
+IMPORTANT: Only apply labels that exist in the list above. Do not invent new labels.
+
 Produce:
 - slug: snake_case (e.g. "work_colleague", "family_update", "sales_outreach")
 - summary: one line (<=120 chars)
 - keywords: 3-5
-- labels: array of exact label names from the list above, only if they
-  clearly match
+- labels: array of exact label names from the list above. Only include labels
+  that are clearly applicable. Do NOT invent new labels not in the list.
 - notification_message: '' unless this is time-sensitive and from a
   high-priority sender; when set, a short friendly message
 - draft_reply: true only when the sender expects a response and the
@@ -437,11 +439,14 @@ Produce:
 - summary: one line (<=120 chars)
 - keywords: 3-5
 - vendor: short vendor name (e.g. "Amazon", "Stripe"). '' if unknown.
+  Will be converted to a label like "transactional/vendor-name".
 - document_type: receipt | invoice | shipping | order | booking | refund | other
 - amount: '$123.45' or 'AU$12.00' or '' if no amount
-- labels: suggested labels to apply (e.g. "transactional/amazon").
-  Include one timed label: "🗑️/1m" for receipts/shipping; "📥/1y" for
-  invoices or anything tax-relevant.
+- labels: suggested timed labels only (do not include vendor labels, those are
+  auto-generated from the vendor field). Use one of: "🗑️/1m" for
+  receipts/shipping; "📥/1y" for invoices or anything tax-relevant.
+  Only use timed labels from: 📥/1d, 📥/1w, 📥/1m, 📥/1y, 📥/read, 🗑️/1d,
+  🗑️/1w, 🗑️/1m, 🗑️/1y. Do NOT invent other labels.
 - reasoning: 1 sentence`;
 
   const userPrompt = `From: ${params.from}
