@@ -97,7 +97,6 @@ function DefaultPromptDisplay({ type, content }: { type: string; content: string
 }
 
 export default function PromptsPage() {
-  const navigate = useNavigate();
   const [prompts, setPrompts] = useState<SystemPrompt[]>([]);
   const [aiAnalyze, setAIAnalyze] = useState<AIPrompt | null>(null);
   const [aiActions, setAIActions] = useState<AIPrompt | null>(null);
