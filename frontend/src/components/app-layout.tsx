@@ -11,6 +11,7 @@ import {
   Settings,
   LogOut,
   Archive,
+  MessageSquare,
 } from "lucide-react";
 
 const navItems = [
@@ -19,6 +20,7 @@ const navItems = [
   { to: "/senders", label: "Senders", icon: Users },
   { to: "/pipeline", label: "Pipeline", icon: Activity },
   { to: "/digests", label: "Digests", icon: Inbox },
+  { to: "/prompts", label: "Prompts", icon: MessageSquare },
   { to: "/settings", label: "Settings", icon: Settings },
 ];
 
