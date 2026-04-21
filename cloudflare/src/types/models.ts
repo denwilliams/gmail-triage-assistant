@@ -276,13 +276,20 @@ export type PromptType =
   | 'weekly_summary'
   | 'monthly_summary'
   | 'yearly_summary'
-  | 'wrapup_report';
+  | 'wrapup_report'
+  | 'bucket_triage'
+  | 'bucket_newsletter'
+  | 'bucket_notification'
+  | 'bucket_human'
+  | 'bucket_transactional'
+  | 'bucket_security'
+  | 'bucket_calendar';
 
 export interface SystemPrompt {
   id: number;
   userId: number;
   type: PromptType;
-  content: string;
+  content: string | null;
   isActive: boolean;
   description: string;
   createdAt: string;

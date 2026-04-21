@@ -7,15 +7,19 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 function PromptEditor({
   prompt,
+  defaultContent,
   onSaved,
 }: {
   prompt: SystemPrompt;
+  defaultContent?: string;
   onSaved: () => void;
 }) {
-  const [content, setContent] = useState(prompt.content);
+  const [content, setContent] = useState(prompt.content || '');
+  const isEmpty = !prompt.content || prompt.content.trim() === '';
 
   const handleSave = async () => {
     await api.updatePrompt(prompt.type, content);
@@ -33,6 +37,7 @@ function PromptEditor({
         <Textarea
           value={content}
           onChange={(e) => setContent(e.target.value)}
+          placeholder={isEmpty && defaultContent ? `Default:\n\n${defaultContent}` : ''}
           rows={6}
           className="font-mono text-sm"
         />
@@ -67,21 +72,50 @@ function AIPromptDisplay({ prompt, label }: { prompt: AIPrompt; label: string })
   );
 }
 
+function DefaultPromptDisplay({ type, content }: { type: string; content: string }) {
+  const isEmpty = !content || content.trim() === '';
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base">
+          <code>{type}</code>
+        </CardTitle>
+        {isEmpty && (
+          <p className="text-xs text-muted-foreground mt-1">
+            (Uses built-in AI prompt; customize in the editor above)
+          </p>
+        )}
+      </CardHeader>
+      {!isEmpty && (
+        <CardContent className="pt-0">
+          <pre className="whitespace-pre-wrap rounded-md bg-muted p-3 text-sm">
+            {content}
+          </pre>
+        </CardContent>
+      )}
+    </Card>
+  );
+}
+
 export default function PromptsPage() {
   const navigate = useNavigate();
   const [prompts, setPrompts] = useState<SystemPrompt[]>([]);
   const [aiAnalyze, setAIAnalyze] = useState<AIPrompt | null>(null);
   const [aiActions, setAIActions] = useState<AIPrompt | null>(null);
+  const [defaults, setDefaults] = useState<Array<{ type: string; content: string }>>([]);
   const [loading, setLoading] = useState(true);
 
   const loadPrompts = () => {
-    api
-      .getPrompts()
-      .then((data) => {
+    Promise.all([
+      api.getPrompts().then((data) => {
         setPrompts(data.prompts ?? []);
         setAIAnalyze(data.ai_analyze);
         setAIActions(data.ai_actions);
-      })
+      }),
+      api.getDefaultPrompts().then((data) => {
+        setDefaults(data.defaults ?? []);
+      }),
+    ])
       .catch(console.error)
       .finally(() => setLoading(false));
   };
@@ -109,26 +143,59 @@ export default function PromptsPage() {
         </div>
       </div>
 
-      <div className="space-y-4">
-        {prompts.map((prompt) => (
-          <PromptEditor key={prompt.id} prompt={prompt} onSaved={loadPrompts} />
-        ))}
-      </div>
+      <Tabs defaultValue="current" className="w-full">
+        <TabsList>
+          <TabsTrigger value="current">Your Prompts</TabsTrigger>
+          <TabsTrigger value="defaults">Built-in Defaults</TabsTrigger>
+        </TabsList>
 
-      {(aiAnalyze || aiActions) && (
-        <>
-          <Separator />
-          <h2 className="text-xl font-semibold">AI-Generated Prompts</h2>
+        <TabsContent value="current" className="space-y-4">
+          {prompts.length === 0 ? (
+            <p className="text-muted-foreground text-sm">
+              No custom prompts. Click "Initialize Defaults" above or set them one by one below.
+            </p>
+          ) : (
+            prompts.map((prompt) => {
+              const defaultForType = defaults.find((d) => d.type === prompt.type);
+              return (
+                <PromptEditor
+                  key={prompt.id}
+                  prompt={prompt}
+                  defaultContent={defaultForType?.content}
+                  onSaved={loadPrompts}
+                />
+              );
+            })
+          )}
+
+          {(aiAnalyze || aiActions) && (
+            <>
+              <Separator className="my-6" />
+              <h3 className="text-lg font-semibold">AI-Generated Prompts</h3>
+              <div className="space-y-4">
+                {aiAnalyze && (
+                  <AIPromptDisplay prompt={aiAnalyze} label="email_analyze" />
+                )}
+                {aiActions && (
+                  <AIPromptDisplay prompt={aiActions} label="email_actions" />
+                )}
+              </div>
+            </>
+          )}
+        </TabsContent>
+
+        <TabsContent value="defaults" className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            These are the built-in default prompts. Click "Initialize Defaults" to copy them to your
+            custom prompts, then edit them in the "Your Prompts" tab.
+          </p>
           <div className="space-y-4">
-            {aiAnalyze && (
-              <AIPromptDisplay prompt={aiAnalyze} label="email_analyze" />
-            )}
-            {aiActions && (
-              <AIPromptDisplay prompt={aiActions} label="email_actions" />
-            )}
+            {defaults.map((item) => (
+              <DefaultPromptDisplay key={item.type} type={item.type} content={item.content} />
+            ))}
           </div>
-        </>
-      )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

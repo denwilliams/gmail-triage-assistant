@@ -96,28 +96,32 @@ function truncateForProcessor(body: string, maxChars = 3000): string {
 
 /**
  * Build the combined system prompt for a bucket stage. Layers user-defined
- * prompt + AI-evolved prompt on top of each other, identical to the v1
- * convention. The human bucket reuses the existing 'email_actions' slot;
- * other buckets default to empty so the built-in prompts in services/ai.ts
- * apply. Bucket-specific user prompt slots can be added later without
- * changing the v2 wiring.
+ * prompt (bucket-specific) on top of each other. Each bucket can have a custom
+ * prompt defined via 'bucket_<name>' type in system_prompts table.
+ * Returns null if no custom prompt is set (uses built-in default).
  */
 async function loadUserSystemPrompt(
   env: Env,
   userId: number,
   bucket: Bucket,
-): Promise<string> {
-  if (bucket !== 'human') return '';
+): Promise<string | null> {
+  // Map bucket names to their prompt types
+  const bucketPromptType: Record<Bucket, import('../../types/models').PromptType> = {
+    triage: 'bucket_triage',
+    newsletter: 'bucket_newsletter',
+    notification: 'bucket_notification',
+    human: 'bucket_human',
+    transactional: 'bucket_transactional',
+    security: 'bucket_security',
+    calendar: 'bucket_calendar',
+  };
 
-  let prompt = '';
-  const userPrompt = await getSystemPrompt(env.DB, userId, 'email_actions');
-  if (userPrompt) prompt = userPrompt.content;
-
-  const aiPrompt = await getLatestAIPrompt(env.DB, userId, 'email_actions');
-  if (aiPrompt) {
-    prompt = prompt ? prompt + '\n\n' + aiPrompt.content : aiPrompt.content;
+  const userPrompt = await getSystemPrompt(env.DB, userId, bucketPromptType[bucket]);
+  if (userPrompt && userPrompt.isActive && userPrompt.content) {
+    return userPrompt.content;
   }
-  return prompt;
+
+  return null;
 }
 
 async function loadMemoryContext(env: Env, userId: number): Promise<string> {

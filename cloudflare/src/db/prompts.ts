@@ -53,7 +53,24 @@ Be consistent with slugs - reuse existing slugs when appropriate.`,
 3. Brief reasoning for your decision
 
 Only apply labels that accurately match the email content.`,
+
+  // Per-bucket v2 pipeline prompts — empty by default (uses built-in AI prompts)
+  bucket_triage: '',
+  bucket_newsletter: '',
+  bucket_notification: '',
+  bucket_human: '',
+  bucket_transactional: '',
+  bucket_security: '',
+  bucket_calendar: '',
 };
+
+// ============================================================================
+// Helper to expose defaults
+// ============================================================================
+
+export function getDefaultPrompts(): Partial<Record<PromptType, string>> {
+  return DEFAULT_PROMPTS;
+}
 
 // ============================================================================
 // System Prompts

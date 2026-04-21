@@ -68,6 +68,8 @@ export const api = {
     }),
 
   getPrompts: () => request<import("./types").PromptsResponse>("/prompts"),
+  getDefaultPrompts: () =>
+    request<import("./types").DefaultPromptsResponse>("/prompts/defaults"),
   updatePrompt: (type: string, content: string) =>
     request<{ status: string }>("/prompts", {
       method: "PUT",

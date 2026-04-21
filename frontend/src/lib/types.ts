@@ -295,6 +295,10 @@ export interface PromptsResponse {
   ai_actions: AIPrompt | null;
 }
 
+export interface DefaultPromptsResponse {
+  defaults: Array<{ type: string; content: string }>;
+}
+
 export interface UserSettings {
   processing_enabled: boolean;
   pipeline_version: "v1" | "v2";

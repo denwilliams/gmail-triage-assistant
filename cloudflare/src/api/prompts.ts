@@ -6,6 +6,7 @@ import {
   getLatestAIPrompt,
   upsertSystemPrompt,
   initializeDefaultPrompts,
+  getDefaultPrompts,
 } from '../db/prompts';
 
 type AppContext = Context<{ Bindings: Env; Variables: { userId: number; email: string } }>;
@@ -79,5 +80,20 @@ export async function handleInitDefaults(c: AppContext) {
   } catch (e) {
     console.error('Failed to initialize defaults:', e);
     return c.json({ error: 'Failed to initialize defaults' }, 500);
+  }
+}
+
+export function handleGetDefaultPrompts(c: AppContext) {
+  try {
+    const defaults = getDefaultPrompts();
+    return c.json({
+      defaults: Object.entries(defaults).map(([type, content]) => ({
+        type,
+        content,
+      })),
+    });
+  } catch (e) {
+    console.error('Failed to get default prompts:', e);
+    return c.json({ error: 'Failed to get default prompts' }, 500);
   }
 }
