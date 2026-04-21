@@ -5,7 +5,7 @@ import {
   getAllSystemPrompts,
   getLatestAIPrompt,
   upsertSystemPrompt,
-  initializeDefaultPrompts,
+  initializeV2DefaultPrompts,
   getDefaultPrompts,
 } from '../db/prompts';
 
@@ -75,7 +75,7 @@ export async function handleInitDefaults(c: AppContext) {
   const userId = c.get('userId');
 
   try {
-    await initializeDefaultPrompts(c.env.DB, userId);
+    await initializeV2DefaultPrompts(c.env.DB, userId);
     return c.json({ status: 'initialized' });
   } catch (e) {
     console.error('Failed to initialize defaults:', e);

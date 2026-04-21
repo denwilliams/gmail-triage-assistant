@@ -64,6 +64,16 @@ Only apply labels that accurately match the email content.`,
   bucket_calendar: '',
 };
 
+const V2_DEFAULT_PROMPTS: Partial<Record<PromptType, string>> = {
+  bucket_triage: '',
+  bucket_newsletter: '',
+  bucket_notification: '',
+  bucket_human: '',
+  bucket_transactional: '',
+  bucket_security: '',
+  bucket_calendar: '',
+};
+
 // ============================================================================
 // Helper to expose defaults
 // ============================================================================
@@ -129,6 +139,12 @@ export async function upsertSystemPrompt(
 
 export async function initializeDefaultPrompts(db: D1Database, userId: number): Promise<void> {
   for (const [type, content] of Object.entries(DEFAULT_PROMPTS)) {
+    await upsertSystemPrompt(db, userId, type as PromptType, content, true);
+  }
+}
+
+export async function initializeV2DefaultPrompts(db: D1Database, userId: number): Promise<void> {
+  for (const [type, content] of Object.entries(V2_DEFAULT_PROMPTS)) {
     await upsertSystemPrompt(db, userId, type as PromptType, content, true);
   }
 }
