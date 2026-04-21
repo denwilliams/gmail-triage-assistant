@@ -98,12 +98,13 @@ function truncateForProcessor(body: string, maxChars = 3000): string {
  * Build the combined system prompt for a bucket stage. Layers user-defined
  * prompt (bucket-specific) on top of each other. Each bucket can have a custom
  * prompt defined via 'bucket_<name>' type in system_prompts table.
+ * Returns null if no custom prompt is set (uses built-in default).
  */
 async function loadUserSystemPrompt(
   env: Env,
   userId: number,
   bucket: Bucket,
-): Promise<string> {
+): Promise<string | null> {
   // Map bucket names to their prompt types
   const bucketPromptType: Record<Bucket, import('../../types/models').PromptType> = {
     triage: 'bucket_triage',
@@ -115,13 +116,12 @@ async function loadUserSystemPrompt(
     calendar: 'bucket_calendar',
   };
 
-  let prompt = '';
   const userPrompt = await getSystemPrompt(env.DB, userId, bucketPromptType[bucket]);
-  if (userPrompt && userPrompt.isActive) {
-    prompt = userPrompt.content;
+  if (userPrompt && userPrompt.isActive && userPrompt.content) {
+    return userPrompt.content;
   }
 
-  return prompt;
+  return null;
 }
 
 async function loadMemoryContext(env: Env, userId: number): Promise<string> {

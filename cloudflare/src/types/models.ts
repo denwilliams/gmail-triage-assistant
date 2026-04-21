@@ -289,7 +289,7 @@ export interface SystemPrompt {
   id: number;
   userId: number;
   type: PromptType;
-  content: string;
+  content: string | null;
   isActive: boolean;
   description: string;
   createdAt: string;

@@ -11,12 +11,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 function PromptEditor({
   prompt,
+  defaultContent,
   onSaved,
 }: {
   prompt: SystemPrompt;
+  defaultContent?: string;
   onSaved: () => void;
 }) {
-  const [content, setContent] = useState(prompt.content);
+  const [content, setContent] = useState(prompt.content || '');
+  const isEmpty = !prompt.content || prompt.content.trim() === '';
 
   const handleSave = async () => {
     await api.updatePrompt(prompt.type, content);
@@ -34,6 +37,7 @@ function PromptEditor({
         <Textarea
           value={content}
           onChange={(e) => setContent(e.target.value)}
+          placeholder={isEmpty && defaultContent ? `Default:\n\n${defaultContent}` : ''}
           rows={6}
           className="font-mono text-sm"
         />
@@ -151,9 +155,17 @@ export default function PromptsPage() {
               No custom prompts. Click "Initialize Defaults" above or set them one by one below.
             </p>
           ) : (
-            prompts.map((prompt) => (
-              <PromptEditor key={prompt.id} prompt={prompt} onSaved={loadPrompts} />
-            ))
+            prompts.map((prompt) => {
+              const defaultForType = defaults.find((d) => d.type === prompt.type);
+              return (
+                <PromptEditor
+                  key={prompt.id}
+                  prompt={prompt}
+                  defaultContent={defaultForType?.content}
+                  onSaved={loadPrompts}
+                />
+              );
+            })
           )}
 
           {(aiAnalyze || aiActions) && (
