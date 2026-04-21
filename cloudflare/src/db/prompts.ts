@@ -65,6 +65,14 @@ Only apply labels that accurately match the email content.`,
 };
 
 // ============================================================================
+// Helper to expose defaults
+// ============================================================================
+
+export function getDefaultPrompts(): Partial<Record<PromptType, string>> {
+  return DEFAULT_PROMPTS;
+}
+
+// ============================================================================
 // System Prompts
 // ============================================================================
 

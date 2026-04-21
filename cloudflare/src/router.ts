@@ -6,7 +6,7 @@ import { handleLogin, handleCallback, handleLogout } from './auth/oauth';
 // API handlers
 import { handleGetLabels, handleCreateLabel, handleUpdateLabel, handleDeleteLabel } from './api/labels';
 import { handleGetEmails, handleUpdateFeedback } from './api/emails';
-import { handleGetPrompts, handleUpdatePrompt, handleInitDefaults } from './api/prompts';
+import { handleGetPrompts, handleUpdatePrompt, handleInitDefaults, handleGetDefaultPrompts } from './api/prompts';
 import { handleGetMemories, handleGenerateMemory, handleGenerateAIPrompts } from './api/memories';
 import {
   handleGetSettings,
@@ -76,6 +76,7 @@ api.put('/emails/:id/feedback', handleUpdateFeedback);
 
 // Prompts
 api.get('/prompts', handleGetPrompts);
+api.get('/prompts/defaults', handleGetDefaultPrompts);
 api.put('/prompts', handleUpdatePrompt);
 api.post('/prompts/defaults', handleInitDefaults);
 
