@@ -348,9 +348,11 @@ export type Bucket =
 
 export type BucketConsistency = "unknown" | "consistent" | "mixed";
 
+export type ProfileType = "sender" | "domain";
+
 export interface SenderProfile {
   id: number;
-  profile_type: "sender" | "domain";
+  profile_type: ProfileType;
   identifier: string;
   email_count: number;
   emails_archived: number;

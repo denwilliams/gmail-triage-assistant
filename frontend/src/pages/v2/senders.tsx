@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router";
 import type {
   Bucket,
   BucketConsistency,
+  ProfileType,
   SenderProfile,
   SenderProfileSort,
 } from "@/lib/types";
@@ -10,6 +10,14 @@ import { api } from "@/lib/api";
 import { cn, timeAgo } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -42,6 +50,52 @@ const CONSISTENCY_OPTIONS: BucketConsistency[] = [
   "unknown",
 ];
 
+const SENDER_TYPES: { value: string; label: string }[] = [
+  { value: "", label: "Unknown" },
+  { value: "human", label: "Human" },
+  { value: "newsletter", label: "Newsletter" },
+  { value: "automated", label: "Automated" },
+  { value: "marketing", label: "Marketing" },
+  { value: "notification", label: "Notification" },
+  { value: "mixed", label: "Mixed" },
+];
+
+function topEntries(
+  counts: Record<string, number> | undefined | null,
+  n = 5,
+): [string, number][] {
+  if (!counts) return [];
+  return Object.entries(counts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, n);
+}
+
+function CountBar({
+  label,
+  count,
+  max,
+}: {
+  label: string;
+  count: number;
+  max: number;
+}) {
+  const pct = max > 0 ? (count / max) * 100 : 0;
+  return (
+    <div className="flex items-center gap-2 text-sm">
+      <code className="min-w-0 flex-1 truncate text-xs">{label}</code>
+      <div className="h-2 w-24 rounded-full bg-muted">
+        <div
+          className="h-2 rounded-full bg-foreground/30"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <span className="w-8 text-right text-xs text-muted-foreground">
+        {count}
+      </span>
+    </div>
+  );
+}
+
 function RatingCell({
   profile,
   onUpdated,
@@ -60,7 +114,10 @@ function RatingCell({
     setEditing(false);
   }, [profile.id, profile.rating]);
 
-  const handleSave = async () => {
+  const stop = (e: React.MouseEvent) => e.stopPropagation();
+
+  const handleSave = async (e: React.MouseEvent) => {
+    e.stopPropagation();
     const parsed = parseInt(value, 10);
     if (isNaN(parsed) || parsed < 0 || parsed > 99) {
       alert("Rating must be 0-99");
@@ -79,7 +136,8 @@ function RatingCell({
     }
   };
 
-  const handleRateNow = async () => {
+  const handleRateNow = async (e: React.MouseEvent) => {
+    e.stopPropagation();
     setBusy(true);
     try {
       const updated = await api.rateSenderNow(profile.id);
@@ -94,7 +152,8 @@ function RatingCell({
     }
   };
 
-  const handleRevert = async () => {
+  const handleRevert = async (e: React.MouseEvent) => {
+    e.stopPropagation();
     setBusy(true);
     try {
       const updated = await api.updateSenderProfile(profile.id, {
@@ -109,7 +168,7 @@ function RatingCell({
 
   if (editing) {
     return (
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1" onClick={stop}>
         <input
           type="number"
           min={0}
@@ -124,7 +183,10 @@ function RatingCell({
         <Button
           size="sm"
           variant="ghost"
-          onClick={() => setEditing(false)}
+          onClick={(e) => {
+            e.stopPropagation();
+            setEditing(false);
+          }}
           disabled={busy}
           className="h-7"
         >
@@ -150,7 +212,7 @@ function RatingCell({
     );
 
   return (
-    <div className="flex items-center gap-1.5">
+    <div className="flex items-center gap-1.5" onClick={stop}>
       {ratingDisplay}
       {profile.rating_manual && profile.rating !== null && (
         <span
@@ -164,7 +226,10 @@ function RatingCell({
         <Button
           size="sm"
           variant="ghost"
-          onClick={() => setEditing(true)}
+          onClick={(e) => {
+            e.stopPropagation();
+            setEditing(true);
+          }}
           disabled={busy}
           className="h-6 px-2 text-xs"
         >
@@ -235,7 +300,280 @@ function BucketCountsCell({
   );
 }
 
+function ProfileDetailDialog({
+  profile,
+  open,
+  onOpenChange,
+  onUpdated,
+}: {
+  profile: SenderProfile;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onUpdated: (updated: SenderProfile) => void;
+}) {
+  const [editSummary, setEditSummary] = useState(profile.summary || "");
+  const [editSenderType, setEditSenderType] = useState(profile.sender_type || "");
+  const [saving, setSaving] = useState(false);
+  const [confirmRegen, setConfirmRegen] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
+
+  useEffect(() => {
+    setEditSummary(profile.summary || "");
+    setEditSenderType(profile.sender_type || "");
+    setConfirmRegen(false);
+  }, [profile.id, profile.summary, profile.sender_type]);
+
+  const summaryChanged = editSummary !== (profile.summary || "");
+  const typeChanged = editSenderType !== (profile.sender_type || "");
+  const hasChanges = summaryChanged || typeChanged;
+
+  const archiveRate =
+    profile.email_count > 0
+      ? Math.round((profile.emails_archived / profile.email_count) * 100)
+      : 0;
+  const notifyRate =
+    profile.email_count > 0
+      ? Math.round((profile.emails_notified / profile.email_count) * 100)
+      : 0;
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const body: { summary?: string; sender_type?: string } = {};
+      if (summaryChanged) body.summary = editSummary;
+      if (typeChanged) body.sender_type = editSenderType;
+      const updated = await api.updateSenderProfile(profile.id, body);
+      onUpdated(updated);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleRegenerate = async () => {
+    setRegenerating(true);
+    try {
+      const res = await api.generateSenderProfile(
+        profile.profile_type,
+        profile.identifier,
+      );
+      if (res.ai_error) alert(`AI error: ${res.ai_error}`);
+      onUpdated(res.profile);
+      setConfirmRegen(false);
+    } finally {
+      setRegenerating(false);
+    }
+  };
+
+  const slugEntries = topEntries(profile.slug_counts);
+  const labelEntries = topEntries(profile.label_counts);
+  const keywordEntries = topEntries(profile.keyword_counts);
+  const maxSlug = slugEntries.length > 0 ? slugEntries[0][1] : 1;
+  const maxLabel = labelEntries.length > 0 ? labelEntries[0][1] : 1;
+  const maxKeyword = keywordEntries.length > 0 ? keywordEntries[0][1] : 1;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-base">
+            <span className="flex-1 truncate">{profile.identifier}</span>
+          </DialogTitle>
+          <DialogDescription className="text-left">
+            {profile.profile_type === "sender" ? "Sender" : "Domain"} profile
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="flex flex-wrap gap-4 text-sm">
+            <div>
+              <span className="text-muted-foreground">Emails</span>
+              <p className="font-medium">{profile.email_count}</p>
+            </div>
+            <div>
+              <span className="text-muted-foreground">Archived</span>
+              <p className="font-medium">
+                {profile.emails_archived} ({archiveRate}%)
+              </p>
+            </div>
+            <div>
+              <span className="text-muted-foreground">Notified</span>
+              <p className="font-medium">
+                {profile.emails_notified} ({notifyRate}%)
+              </p>
+            </div>
+            <div>
+              <span className="text-muted-foreground">First seen</span>
+              <p className="font-medium">
+                {profile.first_seen_at
+                  ? new Date(profile.first_seen_at).toLocaleDateString()
+                  : "N/A"}
+              </p>
+            </div>
+            <div>
+              <span className="text-muted-foreground">Last seen</span>
+              <p className="font-medium">
+                {profile.last_seen_at
+                  ? new Date(profile.last_seen_at).toLocaleDateString()
+                  : "N/A"}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <ConsistencyBadge value={profile.bucket_consistency} />
+            {profile.primary_bucket && (
+              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                → <BucketBadge bucket={profile.primary_bucket} />
+                <span>(fast-path)</span>
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-muted-foreground">
+              Sender Type
+            </label>
+            <select
+              value={editSenderType}
+              onChange={(e) => setEditSenderType(e.target.value)}
+              className="flex h-9 w-full max-w-xs rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            >
+              {SENDER_TYPES.map((t) => (
+                <option key={t.value} value={t.value}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-muted-foreground">
+              Summary
+            </label>
+            <p className="text-[11px] text-muted-foreground">
+              Fed to the AI during triage and bucket processing as sender
+              context.
+            </p>
+            <Textarea
+              value={editSummary}
+              onChange={(e) => setEditSummary(e.target.value)}
+              rows={4}
+              className="text-sm"
+              placeholder="Describe this sender/domain so the AI can triage their emails better..."
+            />
+            {hasChanges && (
+              <Button size="sm" onClick={handleSave} disabled={saving}>
+                {saving ? "Saving..." : "Save"}
+              </Button>
+            )}
+          </div>
+
+          {profile.rating_reasoning && (
+            <div className="space-y-1">
+              <span className="text-xs font-medium text-muted-foreground">
+                Rating reasoning
+              </span>
+              <p className="text-xs italic text-muted-foreground">
+                {profile.rating_reasoning}
+              </p>
+            </div>
+          )}
+
+          <div className="flex items-center gap-2">
+            {!confirmRegen ? (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setConfirmRegen(true)}
+              >
+                Regenerate profile
+              </Button>
+            ) : (
+              <>
+                <span className="text-xs text-muted-foreground">
+                  Overwrite profile?
+                </span>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={handleRegenerate}
+                  disabled={regenerating}
+                >
+                  {regenerating ? "Regenerating..." : "Confirm"}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setConfirmRegen(false)}
+                  disabled={regenerating}
+                >
+                  Cancel
+                </Button>
+              </>
+            )}
+          </div>
+
+          {slugEntries.length > 0 && (
+            <div className="space-y-1">
+              <span className="text-xs font-medium text-muted-foreground">
+                Top slugs
+              </span>
+              <div className="space-y-1">
+                {slugEntries.map(([slug, count]) => (
+                  <CountBar
+                    key={slug}
+                    label={slug}
+                    count={count}
+                    max={maxSlug}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {labelEntries.length > 0 && (
+            <div className="space-y-1">
+              <span className="text-xs font-medium text-muted-foreground">
+                Top labels
+              </span>
+              <div className="space-y-1">
+                {labelEntries.map(([label, count]) => (
+                  <CountBar
+                    key={label}
+                    label={label}
+                    count={count}
+                    max={maxLabel}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {keywordEntries.length > 0 && (
+            <div className="space-y-1">
+              <span className="text-xs font-medium text-muted-foreground">
+                Top keywords
+              </span>
+              <div className="space-y-1">
+                {keywordEntries.map(([keyword, count]) => (
+                  <CountBar
+                    key={keyword}
+                    label={keyword}
+                    count={count}
+                    max={maxKeyword}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function V2SendersPage() {
+  const [profileType, setProfileType] = useState<ProfileType>("sender");
   const [profiles, setProfiles] = useState<SenderProfile[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -248,10 +586,13 @@ export default function V2SendersPage() {
   const [bucket, setBucket] = useState<Bucket | null>(null);
   const [ratingFilter, setRatingFilter] = useState<RatingFilter>("all");
   const [page, setPage] = useState(0);
+  const [selectedProfile, setSelectedProfile] = useState<SenderProfile | null>(
+    null,
+  );
 
   const queryArgs = useMemo(
     () => ({
-      type: "sender" as const,
+      type: profileType,
       search: search || undefined,
       sort,
       consistency: consistency ?? undefined,
@@ -263,7 +604,7 @@ export default function V2SendersPage() {
       limit: PAGE_SIZE,
       offset: page * PAGE_SIZE,
     }),
-    [search, sort, consistency, bucket, ratingFilter, page],
+    [profileType, search, sort, consistency, bucket, ratingFilter, page],
   );
 
   const load = () => {
@@ -284,6 +625,9 @@ export default function V2SendersPage() {
     setProfiles((prev) =>
       prev.map((p) => (p.id === updated.id ? updated : p)),
     );
+    setSelectedProfile((prev) =>
+      prev && prev.id === updated.id ? updated : prev,
+    );
   };
 
   const submitSearch = (e: React.FormEvent) => {
@@ -297,12 +641,38 @@ export default function V2SendersPage() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div className="text-sm text-muted-foreground">
-          {total.toLocaleString()} sender profile{total === 1 ? "" : "s"}
+        <div className="flex items-center gap-2">
+          <Button
+            variant={profileType === "sender" ? "default" : "outline"}
+            size="sm"
+            onClick={() => {
+              setProfileType("sender");
+              setPage(0);
+            }}
+          >
+            Senders
+          </Button>
+          <Button
+            variant={profileType === "domain" ? "default" : "outline"}
+            size="sm"
+            onClick={() => {
+              setProfileType("domain");
+              setPage(0);
+            }}
+          >
+            Domains
+          </Button>
+          <span className="ml-2 text-sm text-muted-foreground">
+            {total.toLocaleString()} profile{total === 1 ? "" : "s"}
+          </span>
         </div>
         <form onSubmit={submitSearch} className="flex items-center gap-2">
           <Input
-            placeholder="Search by email..."
+            placeholder={
+              profileType === "sender"
+                ? "Search by email..."
+                : "Search by domain..."
+            }
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             className="h-9 w-56"
@@ -397,14 +767,16 @@ export default function V2SendersPage() {
         <p className="text-muted-foreground">Loading...</p>
       ) : profiles.length === 0 ? (
         <p className="text-muted-foreground">
-          No sender profiles match these filters.
+          No {profileType} profiles match these filters.
         </p>
       ) : (
         <div className="overflow-x-auto rounded-lg border">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Sender</TableHead>
+                <TableHead>
+                  {profileType === "sender" ? "Sender" : "Domain"}
+                </TableHead>
                 <TableHead>Consistency</TableHead>
                 <TableHead>Buckets seen</TableHead>
                 <TableHead className="w-56">Rating (0-99)</TableHead>
@@ -414,18 +786,26 @@ export default function V2SendersPage() {
             </TableHeader>
             <TableBody>
               {profiles.map((p) => (
-                <TableRow key={p.id}>
+                <TableRow
+                  key={p.id}
+                  className="cursor-pointer hover:bg-accent/50"
+                  onClick={() => setSelectedProfile(p)}
+                >
                   <TableCell className="max-w-xs">
-                    <Link
-                      to={`/senders?identifier=${encodeURIComponent(p.identifier)}&type=sender`}
-                      className="truncate text-sm hover:underline"
-                      title={p.identifier}
-                    >
+                    <div className="truncate text-sm" title={p.identifier}>
                       {p.identifier}
-                    </Link>
+                    </div>
                     {p.sender_type && (
                       <div className="text-[11px] text-muted-foreground">
                         {p.sender_type}
+                      </div>
+                    )}
+                    {p.summary && (
+                      <div
+                        className="mt-0.5 truncate text-[11px] text-muted-foreground"
+                        title={p.summary}
+                      >
+                        {p.summary}
                       </div>
                     )}
                   </TableCell>
@@ -485,6 +865,17 @@ export default function V2SendersPage() {
             </Button>
           </div>
         </div>
+      )}
+
+      {selectedProfile && (
+        <ProfileDetailDialog
+          profile={selectedProfile}
+          open={!!selectedProfile}
+          onOpenChange={(open) => {
+            if (!open) setSelectedProfile(null);
+          }}
+          onUpdated={updateProfile}
+        />
       )}
     </div>
   );
