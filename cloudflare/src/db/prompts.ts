@@ -64,6 +64,22 @@ Only apply labels that accurately match the email content.`,
   bucket_calendar: '',
 };
 
+const V2_DEFAULT_PROMPTS: Partial<Record<PromptType, string>> = {
+  bucket_triage: `You classify emails into one of six buckets so the right automation can process them. Be decisive; pick the single best bucket. If an email could fit two buckets, pick the one that determines how the user should act on it (security > calendar > human > transactional > notification > newsletter).`,
+
+  bucket_newsletter: `You process newsletter emails. Score each for how likely it is to be worth the user's time.`,
+
+  bucket_notification: `You assess automated notifications for severity and urgency.`,
+
+  bucket_human: `You process human emails to the user.`,
+
+  bucket_transactional: `You process transactional emails — receipts, invoices, order/shipping confirmations, bookings.`,
+
+  bucket_security: `You process security-related emails — MFA codes, password resets, login alerts, account recovery.`,
+
+  bucket_calendar: `You process calendar emails — meeting invites, updates, cancellations.`,
+};
+
 // ============================================================================
 // Helper to expose defaults
 // ============================================================================
@@ -129,6 +145,12 @@ export async function upsertSystemPrompt(
 
 export async function initializeDefaultPrompts(db: D1Database, userId: number): Promise<void> {
   for (const [type, content] of Object.entries(DEFAULT_PROMPTS)) {
+    await upsertSystemPrompt(db, userId, type as PromptType, content, true);
+  }
+}
+
+export async function initializeV2DefaultPrompts(db: D1Database, userId: number): Promise<void> {
+  for (const [type, content] of Object.entries(V2_DEFAULT_PROMPTS)) {
     await upsertSystemPrompt(db, userId, type as PromptType, content, true);
   }
 }
