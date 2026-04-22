@@ -52,11 +52,12 @@ const CONSISTENCY_OPTIONS: BucketConsistency[] = [
 
 const SENDER_TYPES: { value: string; label: string }[] = [
   { value: "", label: "Unknown" },
-  { value: "human", label: "Human" },
   { value: "newsletter", label: "Newsletter" },
-  { value: "automated", label: "Automated" },
-  { value: "marketing", label: "Marketing" },
   { value: "notification", label: "Notification" },
+  { value: "human", label: "Human" },
+  { value: "transactional", label: "Transactional" },
+  { value: "security", label: "Security" },
+  { value: "calendar", label: "Calendar" },
   { value: "mixed", label: "Mixed" },
 ];
 

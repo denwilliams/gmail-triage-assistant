@@ -379,17 +379,18 @@ export async function bootstrapSenderProfile(
 
 Given the email history below, produce a JSON response:
 {
-  "sender_type": "human|newsletter|automated|marketing|notification|mixed",
+  "sender_type": "newsletter|notification|human|transactional|security|calendar|mixed",
   "summary": "2-3 sentence description of who this sender is, what they typically send, and how their emails should be handled"
 }
 
 Classify sender_type as:
+- newsletter: regular informational content, digests, promotional or marketing content
+- notification: alerts about external activity or events (social media mentions, PR comments, monitoring alerts, flight delays)
 - human: personal or professional correspondence from an individual
-- newsletter: regular informational content or digests
-- automated: transactional messages triggered by the user's actions (order confirmations, receipts, password resets, 2FA codes, booking confirmations)
-- marketing: promotional content, sales, offers
-- notification: alerts about external activity or events (social media mentions, PR comments, calendar reminders, flight delays, monitoring alerts)
-- mixed: sends multiple types of emails (e.g., a domain that sends both marketing and transactional)`;
+- transactional: messages triggered by the user's actions (order confirmations, receipts, booking confirmations, invoices)
+- security: security-sensitive messages (2FA/OTP codes, password resets, login alerts, account security notices)
+- calendar: meeting invites, event reminders, calendar updates
+- mixed: sends multiple distinct types (e.g., a domain that sends both newsletters and transactional emails)`;
 
   const userPrompt = `Sender/Domain: ${identifier}
 
@@ -407,7 +408,7 @@ ${emailSummaries}`;
       properties: {
         sender_type: {
           type: 'string',
-          description: 'Classification: human, newsletter, automated, marketing, notification, or mixed',
+          description: 'Classification: newsletter, notification, human, transactional, security, calendar, or mixed',
         },
         summary: {
           type: 'string',
@@ -436,7 +437,7 @@ export async function evolveProfileSummary(
 
 Given the current profile summary and a new email outcome, produce an updated JSON response:
 {
-  "sender_type": "human|newsletter|automated|marketing|notification|mixed",
+  "sender_type": "newsletter|notification|human|transactional|security|calendar|mixed",
   "summary": "updated 2-3 sentence summary"
 }
 
@@ -463,7 +464,7 @@ ${updateContext}`;
       properties: {
         sender_type: {
           type: 'string',
-          description: 'Classification: human, newsletter, automated, marketing, notification, or mixed',
+          description: 'Classification: newsletter, notification, human, transactional, security, calendar, or mixed',
         },
         summary: {
           type: 'string',
