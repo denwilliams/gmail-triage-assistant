@@ -44,6 +44,18 @@ function base64urlEncode(data: string): string {
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
+/** Encode a string using RFC 2047 format for email headers with non-ASCII characters. */
+function encodeRfc2047(text: string): string {
+  // ASCII-safe text doesn't need encoding
+  if (/^[\x00-\x7F]*$/.test(text)) return text;
+  const bytes = new TextEncoder().encode(text);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return `=?UTF-8?B?${btoa(binary)}?=`;
+}
+
 /**
  * Parse "Name <email@example.com>" -> "email@example.com"
  * Returns lowercased email address; falls back to raw value.
@@ -255,7 +267,7 @@ export async function sendMessage(
   subject: string,
   body: string,
 ): Promise<void> {
-  const raw = `To: ${to}\r\nSubject: ${subject}\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n${body}`;
+  const raw = `To: ${to}\r\nSubject: ${encodeRfc2047(subject)}\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n${body}`;
   const encoded = base64urlEncode(raw);
 
   const res = await fetch(`${GMAIL_BASE}/messages/send`, {
@@ -284,7 +296,7 @@ export async function sendHtmlMessage(
   const boundary = `----=_Part_${Math.random().toString(36).slice(2)}_${Date.now()}`;
   const raw = [
     `To: ${params.to}`,
-    `Subject: ${params.subject}`,
+    `Subject: ${encodeRfc2047(params.subject)}`,
     'MIME-Version: 1.0',
     `Content-Type: multipart/alternative; boundary="${boundary}"`,
     '',
@@ -386,7 +398,7 @@ export async function createDraft(
   body: string,
 ): Promise<void> {
   // Build RFC 2822 message
-  const raw = `To: ${to}\r\nSubject: Re: ${subject}\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n${body}`;
+  const raw = `To: ${to}\r\nSubject: ${encodeRfc2047(`Re: ${subject}`)}\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n${body}`;
 
   // Base64url encode
   const encoded = base64urlEncode(raw);
