@@ -485,12 +485,15 @@ Summary: ${analysis.summary}`;
   try {
     const result = await evolveProfileSummary(
       openaiConfig,
+      profile.identifier,
       profile.summary,
       profile.senderType,
       updateContext,
     );
-    profile.senderType = result.sender_type;
-    profile.summary = result.summary;
+    if (result.summary_changed) {
+      profile.senderType = result.sender_type;
+      profile.summary = result.summary;
+    }
   } catch (err) {
     console.log(`Error evolving ${profile.profileType} profile summary for ${profile.identifier}: ${err}`);
   }
