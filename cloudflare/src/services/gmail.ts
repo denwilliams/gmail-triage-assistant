@@ -7,6 +7,10 @@ export interface GmailMessage {
   threadId: string;
   subject: string;
   from: string;
+  /** Raw To: header (display names preserved, multiple addresses comma-separated). */
+  to: string;
+  /** Raw Cc: header (display names preserved). Empty when absent. */
+  cc: string;
   body: string;
   labelIds: string[];
   internalDate: number;
@@ -87,11 +91,15 @@ function parseGmailMessage(raw: any): GmailMessage {
   const headers: { name: string; value: string }[] = raw.payload?.headers ?? [];
   let subject = '';
   let from = '';
+  let to = '';
+  let cc = '';
   let inReplyTo: string | null = null;
   let messageIdHeader: string | null = null;
   for (const h of headers) {
     if (h.name === 'Subject') subject = h.value;
     else if (h.name === 'From') from = parseAddress(h.value);
+    else if (h.name === 'To') to = h.value;
+    else if (h.name === 'Cc' || h.name === 'CC') cc = h.value;
     else if (h.name === 'In-Reply-To') inReplyTo = h.value.trim();
     else if (h.name === 'Message-ID' || h.name === 'Message-Id') messageIdHeader = h.value.trim();
   }
@@ -104,6 +112,8 @@ function parseGmailMessage(raw: any): GmailMessage {
     threadId: raw.threadId,
     subject,
     from,
+    to,
+    cc,
     body,
     labelIds: raw.labelIds ?? [],
     internalDate: parseInt(raw.internalDate, 10),

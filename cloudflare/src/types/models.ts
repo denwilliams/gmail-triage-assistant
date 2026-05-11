@@ -22,6 +22,11 @@ export interface UserRow {
   v2_human_rating_threshold: number;
   v2_calendar_imminent_minutes: number;
   v2_notify_buckets: string; // JSON map of bucket → boolean
+  // Free-form text describing the user's name(s), aliases, and email
+  // addresses they appear under (migration 0007). Fed into the human
+  // bucket prompt so the model can tell when the user is the sender or
+  // merely CC'd. Empty string when unset.
+  user_identity: string;
   created_at: string;
   updated_at: string;
 }
@@ -185,6 +190,7 @@ export interface User {
   v2HumanRatingThreshold: number;      // 0..99, default 40
   v2CalendarImminentMinutes: number;   // minutes, default 60
   v2NotifyBuckets: Partial<Record<Bucket, boolean>>;  // missing = allowed
+  userIdentity: string;                // free-form, empty when unset
   createdAt: string;
   updatedAt: string;
 }

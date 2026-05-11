@@ -11,7 +11,10 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { BUCKET_OPTIONS, BucketBadge } from "@/components/v2/badges";
+
+const USER_IDENTITY_MAX_LEN = 4000;
 
 type NotifyMap = Partial<Record<Bucket, boolean>>;
 
@@ -20,6 +23,7 @@ interface DraftSettings {
   human: number;
   calendar: number;
   notifyBuckets: NotifyMap;
+  identity: string;
 }
 
 interface ThresholdDistribution {
@@ -38,6 +42,7 @@ function fromSettings(s: UserSettings): DraftSettings {
     human: s.v2_human_rating_threshold,
     calendar: s.v2_calendar_imminent_minutes,
     notifyBuckets: { ...s.v2_notify_buckets },
+    identity: s.user_identity ?? "",
   };
 }
 
@@ -45,7 +50,8 @@ function settingsEqual(a: DraftSettings, b: DraftSettings): boolean {
   if (
     a.newsletter !== b.newsletter ||
     a.human !== b.human ||
-    a.calendar !== b.calendar
+    a.calendar !== b.calendar ||
+    a.identity !== b.identity
   ) {
     return false;
   }
@@ -226,6 +232,7 @@ export default function V2SettingsPage() {
       if (draft.newsletter !== orig.newsletter) body.newsletter_threshold = draft.newsletter;
       if (draft.human !== orig.human) body.human_rating_threshold = draft.human;
       if (draft.calendar !== orig.calendar) body.calendar_imminent_minutes = draft.calendar;
+      if (draft.identity !== orig.identity) body.user_identity = draft.identity;
 
       // Always send notify_buckets if any changed — send the full map for
       // clarity so the server state matches the UI exactly.
@@ -284,6 +291,37 @@ export default function V2SettingsPage() {
           apply if you don't change anything.
         </p>
       </div>
+
+      <Card>
+        <CardHeader className="pb-3">
+          <CardDescription>
+            Helps the AI recognise you in From / To / Cc headers and email
+            bodies — so it doesn't draft replies on your own outbound mail
+            or treat group emails as if every question were aimed at you.
+          </CardDescription>
+          <CardTitle className="text-xl">Your identity</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <Textarea
+            value={draft.identity}
+            onChange={(e) =>
+              setDraft({ ...draft, identity: e.target.value.slice(0, USER_IDENTITY_MAX_LEN) })
+            }
+            placeholder={`Free-form. For example:\n\nMy name is Dennis. Also goes by Den, Denlie.\nEmail aliases: dennis@oldjob.com, dennis.smith@personal.com\nI work as a software engineer at Acme.`}
+            rows={6}
+            className="font-mono text-xs"
+          />
+          <div className="flex justify-between text-[10px] text-muted-foreground">
+            <span>
+              Your primary Gmail address is passed to the AI automatically —
+              only add names, aliases, and other addresses here.
+            </span>
+            <span>
+              {draft.identity.length} / {USER_IDENTITY_MAX_LEN}
+            </span>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader className="pb-3">
