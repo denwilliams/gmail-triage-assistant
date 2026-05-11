@@ -201,6 +201,9 @@ export const api = {
       body: JSON.stringify(body),
     }),
 
+  getDay: (date: string) =>
+    request<import("./types").DayView>(`/days/${date}`),
+
   listDigests: (limit = 30) =>
     request<{ digests: import("./types").DailyDigest[] }>(`/digests?limit=${limit}`),
   getDigest: (date: string) =>

@@ -36,6 +36,7 @@ import {
 import { handlePromptWizardStart, handlePromptWizardContinue } from './api/prompt-wizard';
 import { handleExport, handleImport } from './api/export-import';
 import { handleGenerateDigestNow, handleGetDigest, handleListDigests } from './api/digests';
+import { handleGetDay } from './api/day';
 import {
   handleGetPipelineConfig,
   handleGetPipelineOps,
@@ -103,6 +104,9 @@ api.get('/wrapups', handleGetWrapups);
 api.get('/digests', handleListDigests);
 api.get('/digests/:date', handleGetDigest);
 api.post('/digests/generate', handleGenerateDigestNow);
+
+// On-the-fly per-day email view (separate from digests)
+api.get('/days/:date', handleGetDay);
 
 // Stats
 api.get('/stats/summary', handleGetStatsSummary);

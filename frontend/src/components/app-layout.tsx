@@ -12,10 +12,12 @@ import {
   LogOut,
   Archive,
   MessageSquare,
+  CalendarDays,
 } from "lucide-react";
 
 const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/day", label: "Day", icon: CalendarDays },
   { to: "/emails", label: "Emails", icon: Mail },
   { to: "/senders", label: "Senders", icon: Users },
   { to: "/pipeline", label: "Pipeline", icon: Activity },
