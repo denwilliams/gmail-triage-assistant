@@ -32,6 +32,7 @@ function mapUser(row: UserRow): User {
     v2HumanRatingThreshold: row.v2_human_rating_threshold ?? 40,
     v2CalendarImminentMinutes: row.v2_calendar_imminent_minutes ?? 60,
     v2NotifyBuckets: safeParseNotifyBuckets(row.v2_notify_buckets ?? '{}'),
+    userIdentity: row.user_identity ?? '',
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -175,6 +176,7 @@ export interface V2SettingsUpdate {
   humanRatingThreshold?: number;
   calendarImminentMinutes?: number;
   notifyBuckets?: Partial<Record<Bucket, boolean>>;
+  userIdentity?: string;
 }
 
 export async function updateV2Settings(
@@ -199,6 +201,10 @@ export async function updateV2Settings(
   if (update.notifyBuckets !== undefined) {
     sets.push('v2_notify_buckets = ?');
     args.push(JSON.stringify(update.notifyBuckets));
+  }
+  if (update.userIdentity !== undefined) {
+    sets.push('user_identity = ?');
+    args.push(update.userIdentity);
   }
   if (sets.length === 0) return;
   sets.push('updated_at = ?');

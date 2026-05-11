@@ -282,31 +282,44 @@ ${senderContext}${memoryContext}What actions should be taken for this email?`;
  */
 export async function generateDraftReply(
   config: OpenAIConfig,
-  from: string,
-  subject: string,
-  body: string,
-  senderContext: string,
-  customPrompt: string,
+  params: {
+    from: string;
+    to: string;
+    cc: string;
+    subject: string;
+    body: string;
+    senderContext: string;
+    customPrompt: string;
+    userEmail: string;
+    userIdentity: string;
+  },
 ): Promise<string> {
   let systemPrompt = `You are drafting a reply to an email on behalf of the user. Write a natural, professional response that:
-- Addresses the key points in the original email
+- Addresses the key points in the original email that are actually directed
+  at the user (see identity block below). Skip questions aimed at other
+  recipients in a group thread.
 - Is concise and to the point
 - Matches a professional but friendly tone
 - Does NOT include a subject line — only the body text
 - Does NOT include greetings like "Dear..." unless the original email used them
 - Ends with a simple sign-off if appropriate
 
-The user will review and edit this draft before sending, so aim for a good starting point rather than a perfect response.`;
+The user will review and edit this draft before sending, so aim for a good starting point rather than a perfect response.
 
-  if (customPrompt) {
-    systemPrompt += `\n\nAdditional context about user preferences:\n${customPrompt}`;
+--- About the user (who you're writing AS) ---
+Primary email: ${params.userEmail}
+${params.userIdentity ? `Identity hints:\n${params.userIdentity}` : 'No additional identity hints provided.'}`;
+
+  if (params.customPrompt) {
+    systemPrompt += `\n\nAdditional context about user preferences:\n${params.customPrompt}`;
   }
 
-  if (senderContext) {
-    systemPrompt += `\n\nSender context:\n${senderContext}`;
+  if (params.senderContext) {
+    systemPrompt += `\n\nSender context:\n${params.senderContext}`;
   }
 
-  const userPrompt = `From: ${from}\nSubject: ${subject}\n\n${body}`;
+  const ccLine = params.cc ? `\nCc: ${params.cc}` : '';
+  const userPrompt = `From: ${params.from}\nTo: ${params.to}${ccLine}\nSubject: ${params.subject}\n\n${params.body}`;
 
   return generateText(config, systemPrompt, userPrompt);
 }

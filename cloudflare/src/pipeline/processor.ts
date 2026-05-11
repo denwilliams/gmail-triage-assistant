@@ -272,14 +272,17 @@ You may apply ONE timed label per email alongside regular labels. Use these inst
   let draftCreated = false;
   if (actions.draft_reply) {
     try {
-      const draftBody = await generateDraftReply(
-        openaiConfig,
-        message.from,
-        message.subject,
+      const draftBody = await generateDraftReply(openaiConfig, {
+        from: message.from,
+        to: message.to,
+        cc: message.cc,
+        subject: message.subject,
         body,
         senderContext,
-        actionsPrompt,
-      );
+        customPrompt: actionsPrompt,
+        userEmail: user.email,
+        userIdentity: user.userIdentity,
+      });
       if (draftBody) {
         await createDraft(accessToken, message.threadId, message.from, message.subject, draftBody);
         draftCreated = true;

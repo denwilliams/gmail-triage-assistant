@@ -46,6 +46,7 @@ export async function handleGetSettings(c: AppContext) {
       v2_human_rating_threshold: user.v2HumanRatingThreshold,
       v2_calendar_imminent_minutes: user.v2CalendarImminentMinutes,
       v2_notify_buckets: user.v2NotifyBuckets,
+      user_identity: user.userIdentity,
     });
   } catch (e) {
     console.error('Failed to load settings:', e);
@@ -109,7 +110,10 @@ interface V2SettingsBody {
   human_rating_threshold?: number;
   calendar_imminent_minutes?: number;
   notify_buckets?: Record<string, boolean>;
+  user_identity?: string;
 }
+
+const USER_IDENTITY_MAX_LEN = 4000;
 
 export async function handleUpdateV2Settings(c: AppContext) {
   const userId = c.get('userId');
@@ -161,6 +165,16 @@ export async function handleUpdateV2Settings(c: AppContext) {
     update.notifyBuckets = cleaned;
   }
 
+  if (body.user_identity !== undefined) {
+    if (typeof body.user_identity !== 'string') {
+      return c.json({ error: 'user_identity must be a string' }, 400);
+    }
+    if (body.user_identity.length > USER_IDENTITY_MAX_LEN) {
+      return c.json({ error: `user_identity must be <= ${USER_IDENTITY_MAX_LEN} characters` }, 400);
+    }
+    update.userIdentity = body.user_identity;
+  }
+
   try {
     await updateV2Settings(c.env.DB, userId, update);
     const user = await getUserByID(c.env.DB, userId);
@@ -171,6 +185,7 @@ export async function handleUpdateV2Settings(c: AppContext) {
       v2_human_rating_threshold: user.v2HumanRatingThreshold,
       v2_calendar_imminent_minutes: user.v2CalendarImminentMinutes,
       v2_notify_buckets: user.v2NotifyBuckets,
+      user_identity: user.userIdentity,
     });
   } catch (e) {
     console.error('Failed to update v2 settings:', e);

@@ -44,6 +44,8 @@ const processor: BucketProcessor = async (ctx) => {
 
   const result = await processHuman(ctx.env, {
     from: ctx.gmailMsg.from,
+    to: ctx.gmailMsg.to,
+    cc: ctx.gmailMsg.cc,
     subject: ctx.gmailMsg.subject,
     body: ctx.gmailMsg.body,
     labelsFormatted,
@@ -52,6 +54,8 @@ const processor: BucketProcessor = async (ctx) => {
     memoryContext: ctx.memoryContext,
     senderRating: rating,
     userSystemPrompt: ctx.userSystemPrompt,
+    userEmail: ctx.user.email,
+    userIdentity: ctx.user.userIdentity,
   });
 
   // Rating gate: if we have a confident low rating, archive regardless of
@@ -67,14 +71,17 @@ const processor: BucketProcessor = async (ctx) => {
   let draftBody = '';
   if (result.draft_reply && !belowThreshold) {
     try {
-      draftBody = await generateDraftReply(
-        aiConfig(ctx.env, 'human'),
-        ctx.gmailMsg.from,
-        ctx.gmailMsg.subject,
-        ctx.gmailMsg.body,
-        ctx.senderContext,
-        ctx.userSystemPrompt,
-      );
+      draftBody = await generateDraftReply(aiConfig(ctx.env, 'human'), {
+        from: ctx.gmailMsg.from,
+        to: ctx.gmailMsg.to,
+        cc: ctx.gmailMsg.cc,
+        subject: ctx.gmailMsg.subject,
+        body: ctx.gmailMsg.body,
+        senderContext: ctx.senderContext,
+        customPrompt: ctx.userSystemPrompt,
+        userEmail: ctx.user.email,
+        userIdentity: ctx.user.userIdentity,
+      });
     } catch (err) {
       console.error(`human bucket: draft generation failed:`, err);
     }

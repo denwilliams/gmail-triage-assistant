@@ -343,6 +343,8 @@ export async function processHuman(
   env: Env,
   params: {
     from: string;
+    to: string;
+    cc: string;
     subject: string;
     body: string;
     labelsFormatted: string;
@@ -351,6 +353,8 @@ export async function processHuman(
     memoryContext: string;
     senderRating: number | null;
     userSystemPrompt: string;
+    userEmail: string;
+    userIdentity: string;
   },
 ): Promise<HumanResult> {
   const ratingContext = params.senderRating !== null
@@ -358,8 +362,18 @@ export async function processHuman(
 treat as archivable unless content overrides that.`
     : '\nSender has no rating yet — default to keeping in inbox.';
 
+  const identityBlock = `
+
+--- About the user (the person receiving this email) ---
+Primary email: ${params.userEmail}
+${params.userIdentity ? `Additional identity hints from the user:\n${params.userIdentity}\n` : 'No additional identity hints provided.\n'}
+Use this to decide whether the user is the sender, the direct recipient,
+or merely CC'd as an FYI. Match aliases / nicknames / alternative email
+addresses you see in From/To/Cc headers or in the body against this
+identity block before drafting a reply.`;
+
   const systemPrompt = (params.userSystemPrompt || `You process human
-emails to the user.`) + ratingContext + `
+emails to the user.`) + ratingContext + identityBlock + `
 
 Available labels:
 ${params.labelsFormatted}
@@ -374,11 +388,23 @@ Produce:
   that are clearly applicable. Do NOT invent new labels not in the list.
 - notification_message: '' unless this is time-sensitive and from a
   high-priority sender; when set, a short friendly message
-- draft_reply: true only when the sender expects a response and the
-  content gives you enough to draft one
+- draft_reply: ONLY set true when ALL of the following are true:
+    1. The user is NOT the sender of this email (check From against the
+       identity block — if From matches the user's primary email or any
+       alias, set false).
+    2. There is a clear question or request that is directed at the user
+       specifically, not at the group or at someone else named in the body
+       or To: line. Group emails where the question is aimed at another
+       recipient ("Dave, can you call the customer?") do NOT warrant a
+       draft from the user.
+    3. The body gives you enough information to write a useful draft.
+   If any of these fail, set draft_reply=false and briefly explain in
+   reasoning ("user is the sender", "question directed at Dave", etc.).
 - reasoning: 1 sentence`;
 
+  const ccLine = params.cc ? `\nCc: ${params.cc}` : '';
   const userPrompt = `From: ${params.from}
+To: ${params.to}${ccLine}
 Subject: ${params.subject}
 
 ${params.senderContext}${params.memoryContext}Body:

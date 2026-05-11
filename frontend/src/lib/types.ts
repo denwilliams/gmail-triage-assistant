@@ -313,6 +313,7 @@ export interface UserSettings {
   v2_human_rating_threshold: number;
   v2_calendar_imminent_minutes: number;
   v2_notify_buckets: Partial<Record<Bucket, boolean>>;
+  user_identity: string;
 }
 
 export interface V2SettingsUpdate {
@@ -320,6 +321,7 @@ export interface V2SettingsUpdate {
   human_rating_threshold?: number;
   calendar_imminent_minutes?: number;
   notify_buckets?: Partial<Record<Bucket, boolean>>;
+  user_identity?: string;
 }
 
 export interface ImportResult {
