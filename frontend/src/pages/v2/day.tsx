@@ -128,25 +128,31 @@ function SectionShell({
   return (
     // mb-4 + break-inside-avoid let the parent's multi-column layout flow
     // sections cleanly without splitting a card across columns.
-    <Card className="mb-4 break-inside-avoid">
-      <CardHeader className="pb-3">
-        <div className="flex items-center gap-3">
+    // py-3 + gap-2 tighten the card so the header doesn't dominate.
+    <Card className="mb-4 break-inside-avoid py-3 gap-2">
+      <CardHeader className="pb-1 gap-0.5">
+        <div className="flex items-center gap-2">
           <span
             className={cn(
-              "flex h-9 w-9 shrink-0 items-center justify-center rounded-md",
+              "flex h-7 w-7 shrink-0 items-center justify-center rounded-md",
               BUCKET_STYLES[bucket],
             )}
           >
-            <Icon className="h-4 w-4" />
+            <Icon className="h-3.5 w-3.5" />
           </span>
           <div className="flex-1 min-w-0">
-            <CardDescription>{description}</CardDescription>
-            <CardTitle className="flex items-baseline gap-2 text-lg capitalize">
+            <CardTitle className="flex items-baseline gap-2 text-base">
               <span>{title}</span>
-              <span className="text-sm font-normal text-muted-foreground tabular-nums">
+              <span className="text-xs font-normal text-muted-foreground tabular-nums">
                 {count}
               </span>
             </CardTitle>
+            <CardDescription
+              className="truncate text-xs"
+              title={description}
+            >
+              {description}
+            </CardDescription>
           </div>
         </div>
       </CardHeader>
@@ -478,7 +484,7 @@ export default function DayPage() {
                     key={bucket}
                     bucket="human"
                     title="Humans"
-                    description="Personal correspondence — grouped by sender"
+                    description="Grouped by sender"
                     count={count}
                     icon={UserRound}
                   >
@@ -491,7 +497,7 @@ export default function DayPage() {
                     key={bucket}
                     bucket="newsletter"
                     title="Newsletters"
-                    description="Ordered by interestingness score"
+                    description="Ordered by interestingness"
                     count={count}
                     icon={Sparkles}
                   >
@@ -504,7 +510,7 @@ export default function DayPage() {
                     key={bucket}
                     bucket="notification"
                     title="Notifications"
-                    description="Ordered by severity, then urgency"
+                    description="Ordered by severity then urgency"
                     count={count}
                     icon={Inbox}
                   >
@@ -517,7 +523,7 @@ export default function DayPage() {
                     key={bucket}
                     bucket="security"
                     title="Security"
-                    description="Login alerts and resets first; OTPs at the bottom"
+                    description="Login alerts first, OTPs last"
                     count={count}
                     icon={ShieldAlert}
                   >
@@ -530,7 +536,7 @@ export default function DayPage() {
                     key={bucket}
                     bucket="transactional"
                     title="Transactional"
-                    description="Receipts and invoices — grouped by vendor"
+                    description="Grouped by vendor"
                     count={count}
                     icon={Receipt}
                   >
@@ -543,7 +549,7 @@ export default function DayPage() {
                     key={bucket}
                     bucket="calendar"
                     title="Calendar"
-                    description="Events in chronological order"
+                    description="Chronological event order"
                     count={count}
                     icon={CalendarDays}
                   >
