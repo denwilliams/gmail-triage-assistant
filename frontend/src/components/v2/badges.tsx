@@ -60,9 +60,21 @@ export const TRIAGE_VIA_TITLES: Record<TriageVia, string> = {
   consistent_sender: "Fast-pathed via a consistent sender profile",
 };
 
+export const TRIAGE_VIA_STYLES: Record<TriageVia, string> = {
+  ai: "bg-indigo-100 text-indigo-800 dark:bg-indigo-500/20 dark:text-indigo-200",
+  thread_reply:
+    "bg-sky-100 text-sky-800 dark:bg-sky-500/20 dark:text-sky-200",
+  consistent_sender:
+    "bg-lime-100 text-lime-800 dark:bg-lime-500/20 dark:text-lime-200",
+};
+
 export function TriageViaChip({ via }: { via: TriageVia }) {
   return (
-    <Badge variant="outline" className="text-xs" title={TRIAGE_VIA_TITLES[via]}>
+    <Badge
+      variant="outline"
+      className={cn("text-xs border-transparent", TRIAGE_VIA_STYLES[via])}
+      title={TRIAGE_VIA_TITLES[via]}
+    >
       {TRIAGE_VIA_LABELS[via]}
     </Badge>
   );

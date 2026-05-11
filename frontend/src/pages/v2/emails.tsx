@@ -25,6 +25,7 @@ import {
   SeverityUrgencyChips,
   StageBadge,
   TRIAGE_VIA_LABELS,
+  TRIAGE_VIA_STYLES,
   TriageViaChip,
 } from "@/components/v2/badges";
 
@@ -377,6 +378,7 @@ export default function V2EmailsPage() {
               key={v}
               label={TRIAGE_VIA_LABELS[v]}
               active={viaFilter === v}
+              activeClass={cn("border-transparent", TRIAGE_VIA_STYLES[v])}
               onClick={() => setQueryParam("triage_via", v)}
             />
           ))}
