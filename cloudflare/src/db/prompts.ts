@@ -67,17 +67,17 @@ Only apply labels that accurately match the email content.`,
 const V2_DEFAULT_PROMPTS: Partial<Record<PromptType, string>> = {
   bucket_triage: `You classify emails into one of six buckets so the right automation can process them. Be decisive; pick the single best bucket. If an email could fit two buckets, pick the one that determines how the user should act on it (security > calendar > human > transactional > notification > newsletter).`,
 
-  bucket_newsletter: `You process newsletter emails. Score each for how likely it is to be worth the user's time.`,
+  bucket_newsletter: `You process newsletter emails. I'm interested in software engineering, AI, and finance. Mark anything purely promotional or lifestyle-focused as not worth reading. Flag deep technical content or investment analysis as interesting.`,
 
-  bucket_notification: `You assess automated notifications for severity and urgency.`,
+  bucket_notification: `You process automated notification emails. Treat deployment failures, payment failures, and production alerts as high severity. Treat social media activity and marketing analytics as low urgency.`,
 
-  bucket_human: `You process human emails to the user.`,
+  bucket_human: `You process personal emails to me. I care most about emails from close colleagues, family, and friends. Emails from recruiters or people I've never replied to are lower priority. Be conservative with draft replies — only suggest one if a response seems clearly expected.`,
 
-  bucket_transactional: `You process transactional emails — receipts, invoices, order/shipping confirmations, bookings.`,
+  bucket_transactional: `You process transactional emails. Accurately extract vendor, amount, and currency. Flag anything over $500 AUD as worth noting.`,
 
-  bucket_security: `You process security-related emails — MFA codes, password resets, login alerts, account recovery.`,
+  bucket_security: `You process security emails. Treat any unrecognised login or suspicious activity as high priority regardless of the sender's tone.`,
 
-  bucket_calendar: `You process calendar emails — meeting invites, updates, cancellations.`,
+  bucket_calendar: `You process calendar emails. Prioritise events I'm an organiser or required attendee on. Flag recurring meetings as lower urgency than one-off events.`,
 };
 
 // ============================================================================

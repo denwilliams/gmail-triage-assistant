@@ -18,6 +18,7 @@ import type { Bucket, TriageVia } from '../types/models';
 import { getUserByID } from '../db/users';
 import { createEmailStub, emailExists } from '../db/emails';
 import { upsertSenderProfile } from '../db/sender-profiles';
+import { getSystemPrompt } from '../db/prompts';
 import { getMessage, parseAddress } from '../services/gmail';
 import { triageEmail } from '../services/ai';
 
@@ -102,11 +103,17 @@ export async function runTriage(env: Env, userId: number, messageId: string): Pr
   // ---- Path 3: AI triage ----
   const senderContext = formatSenderContextShort(sender, domain);
   const bodySample = truncateBody(gmailMsg.body);
+  const triagePromptRecord = await getSystemPrompt(env.DB, user.id, 'bucket_triage');
+  const userSystemPrompt =
+    triagePromptRecord?.isActive && triagePromptRecord?.content
+      ? triagePromptRecord.content
+      : undefined;
   const result = await triageEmail(env, {
     from: fromAddress,
     subject: gmailMsg.subject,
     bodySample,
     senderContext,
+    userSystemPrompt,
   });
   console.log(
     `[${user.email}] triage: AI → ${result.bucket} ` +
