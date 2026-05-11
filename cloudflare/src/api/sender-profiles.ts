@@ -175,20 +175,18 @@ export async function handleGenerateSenderProfile(c: AppContext) {
   }
 
   try {
-    // Fetch historical emails
+    // Fetch historical emails so we can refresh the AI summary from them.
     const emails =
       profileType === 'sender'
         ? await getHistoricalEmailsFromAddress(c.env.DB, userId, body.identifier, 25)
         : await getHistoricalEmailsFromDomain(c.env.DB, userId, body.identifier, 25);
 
-    // Build profile from historical data
-    const profile = buildProfileFromEmails(userId, profileType, body.identifier, emails);
-
-    // Preserve existing profile ID if regenerating
+    // Regenerate preserves the existing profile (rating, bucket
+    // consistency, counts, manual overrides) and only refreshes the
+    // AI-generated sender_type + summary. For first-time creation we
+    // build a profile from history.
     const existing = await getSenderProfile(c.env.DB, userId, profileType, body.identifier);
-    if (existing) {
-      profile.id = existing.id;
-    }
+    const profile = existing ?? buildProfileFromEmails(userId, profileType, body.identifier, emails);
 
     // If we have history, use AI to classify and summarize
     let aiError = '';
