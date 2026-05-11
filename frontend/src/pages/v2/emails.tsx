@@ -23,6 +23,7 @@ import {
   BucketBadge,
   InterestingScoreChip,
   SeverityUrgencyChips,
+  STAGE_STYLES,
   StageBadge,
   TRIAGE_VIA_LABELS,
   TRIAGE_VIA_STYLES,
@@ -360,6 +361,7 @@ export default function V2EmailsPage() {
               key={s}
               label={s}
               active={stageFilter === s}
+              activeClass={cn("border-transparent", STAGE_STYLES[s])}
               onClick={() => setQueryParam("pipeline_stage", s)}
             />
           ))}
