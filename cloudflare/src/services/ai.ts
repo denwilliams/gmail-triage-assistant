@@ -173,13 +173,13 @@ export async function triageEmail(
     subject: string;
     bodySample: string;
     senderContext: string;
+    userSystemPrompt?: string;
   },
 ): Promise<TriageResult> {
-  const systemPrompt = `You classify emails into one of six buckets so the
-right automation can process them. Be decisive; pick the single best
-bucket. If an email could fit two buckets, pick the one that determines
-how the user should act on it (security > calendar > human >
-transactional > notification > newsletter).
+  const systemPrompt =
+    (params.userSystemPrompt ||
+      `You classify emails into one of six buckets so the right automation can process them. Be decisive; pick the single best bucket. If an email could fit two buckets, pick the one that determines how the user should act on it (security > calendar > human > transactional > notification > newsletter).`) +
+    `
 
 ${BUCKET_DEFINITIONS}
 
