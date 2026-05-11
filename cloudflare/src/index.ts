@@ -12,7 +12,6 @@ import {
 import { processTimedLabels } from './jobs/timed-labels';
 import { runDailyDigest } from './jobs/daily-digest';
 import { runSenderRatingSweep } from './jobs/sender-rating';
-import { processEmail } from './pipeline/processor';
 import { runTriage } from './pipeline/triage';
 import { processNewsletterMessage } from './pipeline/buckets/newsletter';
 import { processNotificationMessage } from './pipeline/buckets/notification';
@@ -23,20 +22,10 @@ import { processCalendarMessage } from './pipeline/buckets/calendar';
 import { getAllActiveUsers } from './db/users';
 import { markEmailFailed } from './db/emails';
 
-// See wrangler.toml — all v2 consumers use max_retries = 3. When attempts
+// See wrangler.toml — all consumers use max_retries = 3. When attempts
 // reaches this value on a failure, the message is about to be dropped; mark
 // the email row as failed so the ops UI can surface it.
 const MAX_RETRIES = 3;
-
-const V2_QUEUES = new Set([
-  'gmail-assistant-triage',
-  'gmail-assistant-bucket-newsletter',
-  'gmail-assistant-bucket-notification',
-  'gmail-assistant-bucket-human',
-  'gmail-assistant-bucket-transactional',
-  'gmail-assistant-bucket-security',
-  'gmail-assistant-bucket-calendar',
-]);
 
 interface EmailMessage {
   userId: number;
@@ -47,11 +36,6 @@ interface BucketMessage {
   userId: number;
   messageId: string;
   bucket: string;
-}
-
-interface BackgroundJob {
-  userId: number;
-  jobType: string;
 }
 
 export default {
@@ -84,10 +68,10 @@ export default {
         msg.ack();
       } catch (e) {
         console.error(`queue[${queueName}]: message processing failed:`, e);
-        // If this is the last retry on a v2 queue, mark the email failed so
-        // it shows up in the ops UI. attempts is 1-based: 1 on first delivery.
+        // If this is the last retry, mark the email failed so it shows up in
+        // the ops UI. attempts is 1-based: 1 on first delivery.
         const attempts = (msg as unknown as { attempts?: number }).attempts ?? 1;
-        if (V2_QUEUES.has(queueName) && attempts >= MAX_RETRIES) {
+        if (attempts >= MAX_RETRIES) {
           const body = msg.body as { messageId?: string } | undefined;
           if (body?.messageId) {
             const errorMsg = e instanceof Error ? e.message : String(e);
@@ -110,14 +94,7 @@ async function dispatchQueueMessage(
   body: unknown,
 ): Promise<void> {
   switch (queueName) {
-    case 'gmail-assistant-processing': {
-      // v1 legacy single-stage processor
-      const m = body as EmailMessage;
-      await processEmail(env, m.userId, m.messageId);
-      return;
-    }
     case 'gmail-assistant-triage': {
-      // v2 stage 1
       const m = body as EmailMessage;
       await runTriage(env, m.userId, m.messageId);
       return;
@@ -151,23 +128,6 @@ async function dispatchQueueMessage(
       const m = body as BucketMessage;
       await processCalendarMessage(env, m.userId, m.messageId);
       return;
-    }
-    case 'gmail-assistant-background-jobs': {
-      const job = body as BackgroundJob;
-      switch (job.jobType) {
-        case 'morning_wrapup': await runMorningWrapup(env, job.userId); return;
-        case 'evening_wrapup': await runEveningWrapup(env, job.userId); return;
-        case 'daily_digest': await runDailyDigest(env, job.userId); return;
-        case 'daily_memory': await generateDailyMemory(env, job.userId); return;
-        case 'weekly_memory':
-          await generateWeeklyMemory(env, job.userId);
-          await generateAIPrompts(env, job.userId);
-          return;
-        case 'monthly_memory': await generateMonthlyMemory(env, job.userId); return;
-        case 'yearly_memory': await generateYearlyMemory(env, job.userId); return;
-        default:
-          throw new Error(`unknown background job type: ${job.jobType}`);
-      }
     }
     default:
       throw new Error(`unknown queue: ${queueName}`);
@@ -233,7 +193,7 @@ async function runHourlyDispatch(env: Env): Promise<void> {
     }
   }
 
-  // 3 AM local: sender rating sweep (v2 only; sweep itself filters users).
+  // 3 AM local: sender rating sweep.
   if (hour === 3) {
     try {
       await runSenderRatingSweep(env);
@@ -246,19 +206,17 @@ async function runHourlyDispatch(env: Env): Promise<void> {
   const users = await getAllActiveUsers(env.DB);
 
   for (const user of users) {
-    // 8 AM local: morning wrapup + daily digest (v2).
+    // 8 AM local: morning wrapup + daily digest.
     if (hour === 8) {
       try {
         await runMorningWrapup(env, user.id);
       } catch (err) {
         console.error(`hourly-dispatch: morning wrapup failed for ${user.email}:`, err);
       }
-      if (user.pipelineVersion === 'v2') {
-        try {
-          await runDailyDigest(env, user.id);
-        } catch (err) {
-          console.error(`hourly-dispatch: daily digest failed for ${user.email}:`, err);
-        }
+      try {
+        await runDailyDigest(env, user.id);
+      } catch (err) {
+        console.error(`hourly-dispatch: daily digest failed for ${user.email}:`, err);
       }
     }
 

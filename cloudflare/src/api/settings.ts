@@ -3,12 +3,11 @@ import type { Env } from '../types/env';
 import {
   getUserByID,
   setUserActive,
-  setUserPipelineVersion,
   updatePushoverConfig,
   updateV2Settings,
   updateWebhookConfig,
 } from '../db/users';
-import type { Bucket, PipelineVersion } from '../types/models';
+import type { Bucket } from '../types/models';
 import { BUCKETS } from '../types/models';
 
 type AppContext = Context<{ Bindings: Env; Variables: { userId: number; email: string } }>;
@@ -35,7 +34,6 @@ export async function handleGetSettings(c: AppContext) {
 
     return c.json({
       processing_enabled: user.isActive,
-      pipeline_version: user.pipelineVersion,
       pushover_user_key: maskValue(user.pushoverUserKey),
       pushover_configured: pushoverConfigured,
       webhook_url: user.webhookUrl,
@@ -85,23 +83,6 @@ export async function handleUpdateProcessing(c: AppContext) {
   } catch (e) {
     console.error('Failed to update processing setting:', e);
     return c.json({ error: 'Failed to save processing setting' }, 500);
-  }
-}
-
-export async function handleUpdatePipelineVersion(c: AppContext) {
-  const userId = c.get('userId');
-
-  const body = await c.req.json<{ version?: string }>().catch(() => null);
-  if (!body || (body.version !== 'v1' && body.version !== 'v2')) {
-    return c.json({ error: 'Invalid JSON: expected { version: "v1" | "v2" }' }, 400);
-  }
-
-  try {
-    await setUserPipelineVersion(c.env.DB, userId, body.version as PipelineVersion);
-    return c.json({ status: 'updated', pipeline_version: body.version });
-  } catch (e) {
-    console.error('Failed to update pipeline version:', e);
-    return c.json({ error: 'Failed to save pipeline version' }, 500);
   }
 }
 

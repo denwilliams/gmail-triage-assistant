@@ -134,15 +134,12 @@ activity. Additive to the daily digest.
 - Per-stage OpenAI model selection via `wrangler.toml` vars
   (`OPENAI_MODEL_TRIAGE`, `OPENAI_MODEL_HUMAN`, etc.), falling back to
   `OPENAI_MODEL` when unset.
-- Per-user `pipeline_version` flag (`v1` = legacy single-stage
-  processor, `v2` = new multi-stage pipeline). New users default to
-  `v2`; existing v1 users stay on v1 unless manually flipped.
 
 ## Database schema
 
 Migrations live in `cloudflare/migrations/`. Key tables:
 
-- `users` — OAuth tokens, Pushover/webhook config, `pipeline_version`
+- `users` — OAuth tokens, Pushover/webhook config
 - `emails` — processed emails; primary key is Gmail message ID; includes
   `bucket`, `pipeline_stage`, bucket-specific columns
 - `sender_profiles` — per-sender / per-domain profiles with rating +
