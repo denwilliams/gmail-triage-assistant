@@ -33,6 +33,12 @@ export interface ProfileResult {
   summary: string;
 }
 
+export interface ProfileEvolveResult extends ProfileResult {
+  // false when the new email matches the existing pattern and no rewrite is
+  // warranted. Callers should leave `profile.summary` alone when this is false.
+  summary_changed: boolean;
+}
+
 export interface WizardOption {
   value: string;
   label: string;
@@ -375,22 +381,56 @@ export async function bootstrapSenderProfile(
   identifier: string,
   emailSummaries: string,
 ): Promise<ProfileResult> {
-  const systemPrompt = `You are analyzing historical emails to create a sender profile.
+  const systemPrompt = `You are writing a durable sender profile that future
+triage decisions will rely on. You have THREE sources of information, in
+roughly this order of importance:
 
-Given the email history below, produce a JSON response:
+1. Your own background knowledge about the sender. The identifier may be a
+   well-known brand (GitHub, Amazon, Stripe, LinkedIn, Slack, Tidal,
+   Substack, etc.) or recognisable from its name (e.g. "Smith Real Estate"
+   is almost certainly a real-estate agent; "Jane's Kitchenware" is a
+   kitchenware retailer). Use what you know.
+2. The local-part and domain of the email address. Strong signals:
+   - no-reply@, noreply@, donotreply@, notifications@, newsletter@,
+     hello@, info@, support@, alerts@, mailer@, marketing@ → almost
+     certainly automated, not a personal correspondent.
+   - first.last@, firstname@, or a clearly human-sounding mailbox can
+     still be automated — many companies use a person's name on
+     transactional or marketing mail. Domain context wins.
+   - A personal email address (@gmail.com, @icloud.com, etc.) sending
+     branded promotional content is usually a small business / sole
+     trader operating from a personal mailbox — still treat as a
+     newsletter / transactional sender, not a human correspondent.
+   - Humans CAN send out newsletters; weigh content style alongside the
+     address.
+3. The historical email subjects / slugs / labels supplied below.
+
+Produce a JSON response:
 {
   "sender_type": "newsletter|notification|human|transactional|security|calendar|mixed",
-  "summary": "2-3 sentence description of who this sender is, what they typically send, and how their emails should be handled"
+  "summary": "2-3 sentence guide for how to treat FUTURE emails from this sender"
 }
 
-Classify sender_type as:
+sender_type values:
 - newsletter: regular informational content, digests, promotional or marketing content
 - notification: alerts about external activity or events (social media mentions, PR comments, monitoring alerts, flight delays)
 - human: personal or professional correspondence from an individual
 - transactional: messages triggered by the user's actions (order confirmations, receipts, booking confirmations, invoices)
 - security: security-sensitive messages (2FA/OTP codes, password resets, login alerts, account security notices)
 - calendar: meeting invites, event reminders, calendar updates
-- mixed: sends multiple distinct types (e.g., a domain that sends both newsletters and transactional emails)`;
+- mixed: sends multiple distinct types (e.g., a domain that sends both newsletters and transactional emails)
+
+Writing the summary:
+- It is forward-looking guidance, NOT a recap of recent emails. Read it as
+  "when a new email from this sender arrives, here's what to expect and
+  how to handle it."
+- Lead with what the sender IS (one phrase), then what they typically send,
+  then a treatment hint (e.g. "safe to archive", "watch for receipts",
+  "high-signal — surface to inbox").
+- Do NOT mention "the latest email", "this email", "no change detected",
+  "still newsletter", or anything that sounds like a per-message diff.
+- Do NOT include identifiers, counts, or stats — the UI shows those
+  separately.`;
 
   const userPrompt = `Sender/Domain: ${identifier}
 
@@ -429,25 +469,47 @@ ${emailSummaries}`;
  */
 export async function evolveProfileSummary(
   config: OpenAIConfig,
+  identifier: string,
   currentSummary: string,
   senderType: string,
   updateContext: string,
-): Promise<ProfileResult> {
-  const systemPrompt = `You are updating a sender profile after a new email was processed.
+): Promise<ProfileEvolveResult> {
+  const systemPrompt = `You are deciding whether a sender profile summary
+needs to be revised after a new email was seen.
 
-Given the current profile summary and a new email outcome, produce an updated JSON response:
+Default to NO CHANGE. The summary is forward-looking guidance for handling
+future emails — if the new email fits the existing pattern, leave it alone
+and set summary_changed=false. Only rewrite when the new email reveals a
+genuinely new pattern or behaviour shift that future triage should know
+about (e.g. the sender now sends transactional emails in addition to
+newsletters, or has changed cadence dramatically).
+
+When you DO rewrite, the same rules as the initial bootstrap apply:
+
+1. Apply your own background knowledge of the sender. The identifier may
+   be a well-known brand or recognisable from its name (e.g. "Smith Real
+   Estate", "Jane's Kitchenware"). Use what you know.
+2. Read the local-part as a signal: no-reply@, notifications@,
+   newsletter@, mailer@, etc. are automated; a first.last@ mailbox is
+   more likely human but not guaranteed. Humans CAN send newsletters
+   from personal addresses.
+3. The summary is FUTURE-LOOKING guidance, not a per-message diff.
+   - Lead with what the sender IS, then what they typically send, then a
+     treatment hint.
+   - Do NOT write "no change detected", "still newsletter", "the latest
+     email", or anything that reads as an audit log entry.
+   - Do NOT include counts or stats — the UI shows those separately.
+4. Update sender_type only if the new email is a clear category shift.
+
+Return:
 {
+  "summary_changed": boolean,
   "sender_type": "newsletter|notification|human|transactional|security|calendar|mixed",
-  "summary": "updated 2-3 sentence summary"
-}
+  "summary": "2-3 sentence forward-looking guide; if summary_changed=false, repeat the current summary verbatim"
+}`;
 
-Rules:
-- Reinforce patterns that continue
-- Note any changes in behavior
-- Keep it to 2-3 sentences max
-- Update sender_type only if behavior has clearly shifted`;
-
-  const userPrompt = `Current sender type: ${senderType}
+  const userPrompt = `Sender/Domain: ${identifier}
+Current sender_type: ${senderType}
 Current summary: ${currentSummary}
 
 ${updateContext}`;
@@ -462,21 +524,25 @@ ${updateContext}`;
     response_format: structuredFormat('profile_update', 'Updated sender profile classification and summary', {
       type: 'object',
       properties: {
+        summary_changed: {
+          type: 'boolean',
+          description: 'False when the new email fits the existing pattern and the summary should be left as-is',
+        },
         sender_type: {
           type: 'string',
           description: 'Classification: newsletter, notification, human, transactional, security, calendar, or mixed',
         },
         summary: {
           type: 'string',
-          description: 'Updated 2-3 sentence summary',
+          description: 'Forward-looking 2-3 sentence guidance; verbatim copy of the current summary when summary_changed=false',
         },
       },
-      required: ['sender_type', 'summary'],
+      required: ['summary_changed', 'sender_type', 'summary'],
       additionalProperties: false,
     }),
   });
 
-  return JSON.parse(content) as ProfileResult;
+  return JSON.parse(content) as ProfileEvolveResult;
 }
 
 /**

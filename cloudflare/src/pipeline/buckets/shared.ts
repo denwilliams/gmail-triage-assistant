@@ -41,6 +41,11 @@ import {
   ensureFreshToken,
   loadSenderAndDomainProfiles,
 } from '../shared';
+import {
+  bootstrapSenderProfile,
+  evolveProfileSummary,
+  type OpenAIConfig,
+} from '../../services/openai';
 
 export interface BucketContext {
   env: Env;
@@ -312,6 +317,12 @@ export async function runBucketProcessor(
   // ---- Update sender + domain profile stats ----
   await updateProfileStats(env, sender, outcome);
   await updateProfileStats(env, domain, outcome);
+
+  // ---- Maybe refresh the AI-generated summary ----
+  // Cadence: first email (bootstrap a fresh summary) and then every 5th
+  // email seen (evolve with a smart "no change" skip in the prompt itself).
+  await maybeRefreshProfileSummary(env, bucket, sender, outcome, gmailMsg);
+  await maybeRefreshProfileSummary(env, bucket, domain, outcome, gmailMsg);
 }
 
 async function updateProfileStats(
@@ -336,5 +347,72 @@ async function updateProfileStats(
     await upsertSenderProfile(env.DB, profile);
   } catch (err) {
     console.error(`updateProfileStats: failed to save ${profile.identifier}:`, err);
+  }
+}
+
+const SUMMARY_REFRESH_INTERVAL = 5;
+
+function shouldRefreshSummary(profile: SenderProfile): boolean {
+  const count = profile.emailCount;
+  if (count < 1) return false;
+  if (!profile.summary) return true;
+  return count % SUMMARY_REFRESH_INTERVAL === 0;
+}
+
+async function maybeRefreshProfileSummary(
+  env: Env,
+  bucket: Bucket,
+  profile: SenderProfile | null,
+  outcome: BucketOutcome,
+  gmailMsg: GmailMessage,
+): Promise<void> {
+  if (!profile) return;
+  if (!env.OPENAI_API_KEY) return;
+  if (!shouldRefreshSummary(profile)) return;
+
+  const openaiConfig: OpenAIConfig = {
+    apiKey: env.OPENAI_API_KEY,
+    model: env.OPENAI_MODEL,
+    baseUrl: env.OPENAI_BASE_URL,
+  };
+
+  const newEmailContext = `New email seen (bucket: ${bucket}):
+Subject: ${gmailMsg.subject}
+Slug: ${outcome.slug}
+Keywords: ${JSON.stringify(outcome.keywords)}
+Summary: ${outcome.summary}
+Labels applied: ${JSON.stringify(outcome.labels)}
+Archived: ${outcome.bypassInbox}
+Notified: ${outcome.notificationMessage !== ''}`;
+
+  try {
+    if (!profile.summary) {
+      const emailLine =
+        `- Subject: ${gmailMsg.subject} | Slug: ${outcome.slug} | ` +
+        `Labels: ${outcome.labels.join(', ')} | Archived: ${outcome.bypassInbox}`;
+      const result = await bootstrapSenderProfile(
+        openaiConfig,
+        profile.identifier,
+        emailLine,
+      );
+      profile.senderType = result.sender_type;
+      profile.summary = result.summary;
+      await upsertSenderProfile(env.DB, profile);
+      return;
+    }
+
+    const result = await evolveProfileSummary(
+      openaiConfig,
+      profile.identifier,
+      profile.summary,
+      profile.senderType,
+      newEmailContext,
+    );
+    if (!result.summary_changed) return;
+    profile.senderType = result.sender_type;
+    profile.summary = result.summary;
+    await upsertSenderProfile(env.DB, profile);
+  } catch (err) {
+    console.error(`maybeRefreshProfileSummary: ${profile.identifier} failed:`, err);
   }
 }
