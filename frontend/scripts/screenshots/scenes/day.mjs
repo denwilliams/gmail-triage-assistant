@@ -234,4 +234,10 @@ export default [
     name: "day-overview",
     path: "/day",
   },
+  {
+    // Wider viewport to exercise the xl breakpoint (3-column masonry).
+    name: "day-overview-wide",
+    path: "/day",
+    viewport: { width: 1600, height: 1100 },
+  },
 ];

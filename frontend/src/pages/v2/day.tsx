@@ -126,7 +126,9 @@ function SectionShell({
   children: React.ReactNode;
 }) {
   return (
-    <Card>
+    // mb-4 + break-inside-avoid let the parent's multi-column layout flow
+    // sections cleanly without splitting a card across columns.
+    <Card className="mb-4 break-inside-avoid">
       <CardHeader className="pb-3">
         <div className="flex items-center gap-3">
           <span
@@ -463,7 +465,10 @@ export default function DayPage() {
       )}
 
       {view && view.total > 0 && (
-        <div className="space-y-4">
+        // CSS columns instead of a grid — sections are uneven in height, and
+        // columns flow them masonry-style without leaving gaps under the
+        // shorter cards.
+        <div className="gap-4 md:columns-2 xl:columns-3">
           {orderedBuckets.map((bucket) => {
             const count = view.bucket_totals[bucket] ?? 0;
             switch (bucket) {
