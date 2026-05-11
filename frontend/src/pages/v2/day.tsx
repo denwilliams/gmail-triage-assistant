@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { api } from "@/lib/api";
 import type {
@@ -34,42 +34,45 @@ import {
   UserRound,
 } from "lucide-react";
 
-function todayUTC(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
 function isValidDate(s: string | undefined): s is string {
   return !!s && /^\d{4}-\d{2}-\d{2}$/.test(s);
 }
 
-function formatDate(date: string): string {
-  const d = new Date(`${date}T00:00:00Z`);
+function formatDate(date: string, tz?: string): string {
+  // Render the date in the server's configured timezone so the label matches
+  // the day boundaries used to query.
+  const d = new Date(`${date}T12:00:00Z`);
   return d.toLocaleDateString(undefined, {
     weekday: "long",
     year: "numeric",
     month: "long",
     day: "numeric",
-    timeZone: "UTC",
+    timeZone: tz,
   });
 }
 
-function formatTime(iso: string): string {
+function formatTime(iso: string, tz?: string): string {
   return new Date(iso).toLocaleTimeString(undefined, {
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: tz,
   });
 }
 
-function formatEventTime(iso: string | null | undefined): string {
+function formatEventTime(iso: string | null | undefined, tz?: string): string {
   if (!iso) return "—";
-  const d = new Date(iso);
-  return d.toLocaleString(undefined, {
+  return new Date(iso).toLocaleString(undefined, {
     month: "short",
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: tz,
   });
 }
+
+// Set from the server response so dates render in env.TIMEZONE.
+const TimezoneCtx = createContext<string | undefined>(undefined);
+const useTZ = () => useContext(TimezoneCtx);
 
 function senderDisplay(addr: string): { name: string; email: string } {
   const m = addr.match(/^\s*"?([^"<]+?)"?\s*<([^>]+)>\s*$/);
@@ -86,13 +89,14 @@ function EmailLine({
   email: DayEmail;
   meta?: React.ReactNode;
 }) {
+  const tz = useTZ();
   return (
     <li className="flex items-start gap-3 py-2 first:pt-0 last:pb-0">
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
           <span className="truncate text-sm font-medium">{email.subject || "(no subject)"}</span>
           <span className="text-xs text-muted-foreground tabular-nums">
-            {formatTime(email.processed_at)}
+            {formatTime(email.processed_at, tz)}
           </span>
           {meta}
         </div>
@@ -323,6 +327,7 @@ function TransactionalSection({ groups }: { groups: DayVendorGroup[] }) {
 }
 
 function CalendarSection({ emails }: { emails: DayEmail[] }) {
+  const tz = useTZ();
   return (
     <ul className="divide-y">
       {emails.map((e) => (
@@ -332,7 +337,7 @@ function CalendarSection({ emails }: { emails: DayEmail[] }) {
           meta={
             <>
               <span className="text-xs text-muted-foreground tabular-nums">
-                {formatEventTime(e.event_starts_at)}
+                {formatEventTime(e.event_starts_at, tz)}
               </span>
               {e.event_location && (
                 <span className="text-xs text-muted-foreground truncate">
@@ -352,7 +357,9 @@ function CalendarSection({ emails }: { emails: DayEmail[] }) {
 export default function DayPage() {
   const params = useParams();
   const navigate = useNavigate();
-  const date = isValidDate(params.date) ? params.date : todayUTC();
+  // Date param is optional. When absent, the server resolves to its
+  // configured-timezone "today".
+  const dateParam = isValidDate(params.date) ? params.date : undefined;
 
   const [view, setView] = useState<DayView | null>(null);
   const [loading, setLoading] = useState(true);
@@ -363,7 +370,7 @@ export default function DayPage() {
     setLoading(true);
     setError(null);
     api
-      .getDay(date)
+      .getDay(dateParam)
       .then((v) => {
         if (!cancelled) setView(v);
       })
@@ -376,9 +383,10 @@ export default function DayPage() {
     return () => {
       cancelled = true;
     };
-  }, [date]);
+  }, [dateParam]);
 
-  const isToday = date === todayUTC();
+  const date = view?.date ?? dateParam ?? "";
+  const isToday = view ? view.date === view.today : !dateParam;
   const orderedBuckets: Bucket[] = useMemo(
     () => ["human", "newsletter", "notification", "security", "transactional", "calendar"],
     [],
@@ -390,30 +398,36 @@ export default function DayPage() {
   }
 
   return (
+    <TimezoneCtx.Provider value={view?.timezone}>
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
             size="sm"
-            onClick={() => navigate(`/day/${view?.prev_date ?? date}`)}
+            onClick={() => view && navigate(`/day/${view.prev_date}`)}
             disabled={!view}
             aria-label="Previous day"
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <div>
-            <h1 className="text-2xl font-bold tabular-nums">{formatDate(date)}</h1>
+            <h1 className="text-2xl font-bold tabular-nums">
+              {date ? formatDate(date, view?.timezone) : "—"}
+            </h1>
             <p className="text-xs text-muted-foreground">
               {isToday ? "Today" : date}
               {view ? ` · ${view.total} emails` : ""}
+              {view?.timezone && view.timezone !== "UTC" && (
+                <span className="ml-1">({view.timezone})</span>
+              )}
             </p>
           </div>
           <Button
             variant="outline"
             size="sm"
-            onClick={() => navigate(`/day/${view?.next_date ?? date}`)}
-            disabled={!view || view.next_date > todayUTC()}
+            onClick={() => view && navigate(`/day/${view.next_date}`)}
+            disabled={!view || view.next_date > view.today}
             aria-label="Next day"
           >
             <ChevronRight className="h-4 w-4" />
@@ -423,14 +437,14 @@ export default function DayPage() {
           <input
             type="date"
             value={date}
-            max={todayUTC()}
+            max={view?.today}
             onChange={(e) => {
               if (e.target.value) navigate(`/day/${e.target.value}`);
             }}
             className="rounded-md border bg-background px-2 py-1 text-sm"
           />
           {!isToday && (
-            <Button variant="ghost" size="sm" onClick={() => navigate(`/day/${todayUTC()}`)}>
+            <Button variant="ghost" size="sm" onClick={() => navigate(`/day`)}>
               Today
             </Button>
           )}
@@ -537,5 +551,6 @@ export default function DayPage() {
         </div>
       )}
     </div>
+    </TimezoneCtx.Provider>
   );
 }

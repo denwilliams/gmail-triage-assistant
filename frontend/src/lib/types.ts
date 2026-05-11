@@ -580,6 +580,8 @@ export interface DayVendorGroup {
 
 export interface DayView {
   date: string;
+  today: string;
+  timezone: string;
   prev_date: string;
   next_date: string;
   total: number;

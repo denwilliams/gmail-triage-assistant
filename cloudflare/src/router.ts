@@ -105,7 +105,9 @@ api.get('/digests', handleListDigests);
 api.get('/digests/:date', handleGetDigest);
 api.post('/digests/generate', handleGenerateDigestNow);
 
-// On-the-fly per-day email view (separate from digests)
+// On-the-fly per-day email view (separate from digests). No-date variant
+// resolves to "today" in env.TIMEZONE on the server.
+api.get('/days', handleGetDay);
 api.get('/days/:date', handleGetDay);
 
 // Stats
