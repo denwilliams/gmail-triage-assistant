@@ -23,8 +23,10 @@ import {
   BucketBadge,
   InterestingScoreChip,
   SeverityUrgencyChips,
+  STAGE_STYLES,
   StageBadge,
   TRIAGE_VIA_LABELS,
+  TRIAGE_VIA_STYLES,
   TriageViaChip,
 } from "@/components/v2/badges";
 
@@ -359,6 +361,7 @@ export default function V2EmailsPage() {
               key={s}
               label={s}
               active={stageFilter === s}
+              activeClass={cn("border-transparent", STAGE_STYLES[s])}
               onClick={() => setQueryParam("pipeline_stage", s)}
             />
           ))}
@@ -377,6 +380,7 @@ export default function V2EmailsPage() {
               key={v}
               label={TRIAGE_VIA_LABELS[v]}
               active={viaFilter === v}
+              activeClass={cn("border-transparent", TRIAGE_VIA_STYLES[v])}
               onClick={() => setQueryParam("triage_via", v)}
             />
           ))}
