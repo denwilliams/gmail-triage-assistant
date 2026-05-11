@@ -307,7 +307,7 @@ export default function V2SettingsPage() {
             onChange={(e) =>
               setDraft({ ...draft, identity: e.target.value.slice(0, USER_IDENTITY_MAX_LEN) })
             }
-            placeholder={`Free-form. For example:\n\nMy name is Dennis. Also goes by Den, Denlie.\nEmail aliases: dennis@oldjob.com, dennis.smith@personal.com\nI work as a software engineer at Acme.`}
+            placeholder={`Free-form. For example:\n\nMy name is Alex. Also goes by Al.\nEmail aliases: alex@work.example.com, alex.smith@personal.example.com\nI work as a software engineer at Example Corp.`}
             rows={6}
             className="font-mono text-xs"
           />
