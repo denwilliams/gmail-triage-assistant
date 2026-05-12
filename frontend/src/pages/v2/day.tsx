@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { api } from "@/lib/api";
 import type {
@@ -74,19 +74,24 @@ function formatEventTime(iso: string | null | undefined, tz?: string): string {
 const TimezoneCtx = createContext<string | undefined>(undefined);
 const useTZ = () => useContext(TimezoneCtx);
 
-// Per-breakpoint visual ordering of bucket sections. Static class strings so
-// Tailwind can extract them. Layouts:
-//   1-col (base): humans, calendar, security, transactional, newsletters, notifications
-//   2-col (md):   humans|calendar / transactional|security / newsletters|notifications
-//   3-col (xl):   humans|calendar|security / transactional|newsletters|notifications
-const BUCKET_ORDER: Record<Bucket, string> = {
-  human:         "order-1 md:order-1 xl:order-1",
-  calendar:      "order-2 md:order-2 xl:order-2",
-  security:      "order-3 md:order-4 xl:order-3",
-  transactional: "order-4 md:order-3 xl:order-4",
-  newsletter:    "order-5 md:order-5 xl:order-5",
-  notification:  "order-6 md:order-6 xl:order-6",
-};
+// Per-breakpoint section assignment to columns. Each layout renders all six
+// sections in a separate DOM subtree, hidden via `hidden` at the wrong
+// breakpoints. This is required because there is no native masonry layout in
+// stable browsers: a CSS grid would size each row by the tallest cell,
+// leaving gaps under shorter cards. Splitting into independent flex columns
+// lets each column pack tightly.
+const LAYOUT_1COL: Bucket[] = [
+  "human", "calendar", "security", "transactional", "newsletter", "notification",
+];
+const LAYOUT_2COL: Bucket[][] = [
+  ["human", "transactional", "newsletter"],
+  ["calendar", "security", "notification"],
+];
+const LAYOUT_3COL: Bucket[][] = [
+  ["human", "transactional"],
+  ["calendar", "newsletter"],
+  ["security", "notification"],
+];
 
 function senderDisplay(addr: string): { name: string; email: string } {
   const m = addr.match(/^\s*"?([^"<]+?)"?\s*<([^>]+)>\s*$/);
@@ -128,19 +133,33 @@ function EmailLine({
 // pages stay scannable; the wider breakpoints get more room.
 const COLLAPSED_HEIGHT = "max-h-64 md:max-h-[28rem]";
 
-function CollapsibleBody({ children }: { children: React.ReactNode }) {
-  const [expanded, setExpanded] = useState(false);
+function CollapsibleBody({
+  children,
+  expanded,
+  onToggle,
+}: {
+  children: React.ReactNode;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
   const [overflows, setOverflows] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   // Only measure while collapsed. Once we know content overflows we keep the
-  // button visible so users can collapse again after expanding.
+  // button visible so users can collapse again after expanding. Three copies
+  // of each section render across breakpoints (mobile/2-col/3-col) — the
+  // hidden ones have clientHeight=0 and won't trigger overflow until they
+  // become visible and ResizeObserver fires.
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el || expanded) return;
     const check = () => {
       if (!ref.current) return;
-      setOverflows(ref.current.scrollHeight > ref.current.clientHeight + 4);
+      const { scrollHeight, clientHeight } = ref.current;
+      // clientHeight is 0 for display:none ancestors — skip those so we don't
+      // mark a hidden instance as non-overflowing.
+      if (clientHeight === 0) return;
+      setOverflows(scrollHeight > clientHeight + 4);
     };
     check();
     const ro = new ResizeObserver(check);
@@ -170,7 +189,7 @@ function CollapsibleBody({ children }: { children: React.ReactNode }) {
           variant="ghost"
           size="sm"
           className="mt-2 h-7 w-full text-xs"
-          onClick={() => setExpanded((e) => !e)}
+          onClick={onToggle}
         >
           {expanded ? "Show less" : "Show more"}
         </Button>
@@ -185,6 +204,8 @@ function SectionShell({
   description,
   count,
   icon: Icon,
+  expanded,
+  onToggle,
   children,
 }: {
   bucket: Bucket;
@@ -192,6 +213,8 @@ function SectionShell({
   description: string;
   count: number;
   icon: React.ComponentType<{ className?: string }>;
+  expanded: boolean;
+  onToggle: () => void;
   children: React.ReactNode;
 }) {
   return (
@@ -226,7 +249,9 @@ function SectionShell({
         {count === 0 ? (
           <p className="text-sm text-muted-foreground">Nothing in this bucket today.</p>
         ) : (
-          <CollapsibleBody>{children}</CollapsibleBody>
+          <CollapsibleBody expanded={expanded} onToggle={onToggle}>
+            {children}
+          </CollapsibleBody>
         )}
       </CardContent>
     </Card>
@@ -461,16 +486,115 @@ export default function DayPage() {
 
   const date = view?.date ?? dateParam ?? "";
   const isToday = view ? view.date === view.today : !dateParam;
-  // Source order matches the 1-col / 3-col reading order; per-breakpoint
-  // overrides in BUCKET_ORDER swap a few cells for the 2-col layout.
-  const orderedBuckets: Bucket[] = useMemo(
-    () => ["human", "calendar", "security", "transactional", "newsletter", "notification"],
-    [],
-  );
+  // Expanded state is lifted to the parent so toggling on one breakpoint stays
+  // in sync as the user resizes between mobile / 2-col / 3-col layouts (each
+  // breakpoint renders its own copy of every section).
+  const [expandedState, setExpandedState] = useState<Partial<Record<Bucket, boolean>>>({});
+  const toggleExpanded = (b: Bucket) =>
+    setExpandedState((s) => ({ ...s, [b]: !s[b] }));
 
   // Ensure no rogue bucket sneaks in.
-  for (const b of orderedBuckets) {
+  for (const b of LAYOUT_1COL) {
     if (!BUCKET_OPTIONS.includes(b)) throw new Error(`unknown bucket ${b}`);
+  }
+
+  function renderSection(bucket: Bucket): React.ReactNode {
+    if (!view) return null;
+    const count = view.bucket_totals[bucket] ?? 0;
+    const expanded = !!expandedState[bucket];
+    const onToggle = () => toggleExpanded(bucket);
+    switch (bucket) {
+      case "human":
+        return (
+          <SectionShell
+            key={bucket}
+            bucket="human"
+            title="Humans"
+            description="Grouped by sender"
+            count={count}
+            icon={UserRound}
+            expanded={expanded}
+            onToggle={onToggle}
+          >
+            <HumanSection groups={view.sections.human.groups} />
+          </SectionShell>
+        );
+      case "newsletter":
+        return (
+          <SectionShell
+            key={bucket}
+            bucket="newsletter"
+            title="Newsletters"
+            description="Ordered by interestingness"
+            count={count}
+            icon={Sparkles}
+            expanded={expanded}
+            onToggle={onToggle}
+          >
+            <NewsletterSection emails={view.sections.newsletter.emails} />
+          </SectionShell>
+        );
+      case "notification":
+        return (
+          <SectionShell
+            key={bucket}
+            bucket="notification"
+            title="Notifications"
+            description="Ordered by severity then urgency"
+            count={count}
+            icon={Inbox}
+            expanded={expanded}
+            onToggle={onToggle}
+          >
+            <NotificationSection emails={view.sections.notification.emails} />
+          </SectionShell>
+        );
+      case "security":
+        return (
+          <SectionShell
+            key={bucket}
+            bucket="security"
+            title="Security"
+            description="Login alerts first, OTPs last"
+            count={count}
+            icon={ShieldAlert}
+            expanded={expanded}
+            onToggle={onToggle}
+          >
+            <SecuritySection emails={view.sections.security.emails} />
+          </SectionShell>
+        );
+      case "transactional":
+        return (
+          <SectionShell
+            key={bucket}
+            bucket="transactional"
+            title="Transactional"
+            description="Grouped by vendor"
+            count={count}
+            icon={Receipt}
+            expanded={expanded}
+            onToggle={onToggle}
+          >
+            <TransactionalSection groups={view.sections.transactional.groups} />
+          </SectionShell>
+        );
+      case "calendar":
+        return (
+          <SectionShell
+            key={bucket}
+            bucket="calendar"
+            title="Calendar"
+            description="Chronological event order"
+            count={count}
+            icon={CalendarDays}
+            expanded={expanded}
+            onToggle={onToggle}
+          >
+            <CalendarSection emails={view.sections.calendar.emails} />
+          </SectionShell>
+        );
+    }
   }
 
   return (
@@ -539,103 +663,34 @@ export default function DayPage() {
       )}
 
       {view && view.total > 0 && (
-        // Grid (not CSS columns) so each cell sits in a fixed slot. items-start
-        // keeps shorter cells at their natural height instead of stretching to
-        // the tallest row member; max-heights on each card's body keep rows
-        // visually balanced.
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-start">
-          {orderedBuckets.map((bucket) => {
-            const count = view.bucket_totals[bucket] ?? 0;
-            const orderCls = BUCKET_ORDER[bucket];
-            switch (bucket) {
-              case "human":
-                return (
-                  <div key={bucket} className={orderCls}>
-                    <SectionShell
-                      bucket="human"
-                      title="Humans"
-                      description="Grouped by sender"
-                      count={count}
-                      icon={UserRound}
-                    >
-                      <HumanSection groups={view.sections.human.groups} />
-                    </SectionShell>
-                  </div>
-                );
-              case "newsletter":
-                return (
-                  <div key={bucket} className={orderCls}>
-                    <SectionShell
-                      bucket="newsletter"
-                      title="Newsletters"
-                      description="Ordered by interestingness"
-                      count={count}
-                      icon={Sparkles}
-                    >
-                      <NewsletterSection emails={view.sections.newsletter.emails} />
-                    </SectionShell>
-                  </div>
-                );
-              case "notification":
-                return (
-                  <div key={bucket} className={orderCls}>
-                    <SectionShell
-                      bucket="notification"
-                      title="Notifications"
-                      description="Ordered by severity then urgency"
-                      count={count}
-                      icon={Inbox}
-                    >
-                      <NotificationSection emails={view.sections.notification.emails} />
-                    </SectionShell>
-                  </div>
-                );
-              case "security":
-                return (
-                  <div key={bucket} className={orderCls}>
-                    <SectionShell
-                      bucket="security"
-                      title="Security"
-                      description="Login alerts first, OTPs last"
-                      count={count}
-                      icon={ShieldAlert}
-                    >
-                      <SecuritySection emails={view.sections.security.emails} />
-                    </SectionShell>
-                  </div>
-                );
-              case "transactional":
-                return (
-                  <div key={bucket} className={orderCls}>
-                    <SectionShell
-                      bucket="transactional"
-                      title="Transactional"
-                      description="Grouped by vendor"
-                      count={count}
-                      icon={Receipt}
-                    >
-                      <TransactionalSection groups={view.sections.transactional.groups} />
-                    </SectionShell>
-                  </div>
-                );
-              case "calendar":
-                return (
-                  <div key={bucket} className={orderCls}>
-                    <SectionShell
-                      bucket="calendar"
-                      title="Calendar"
-                      description="Chronological event order"
-                      count={count}
-                      icon={CalendarDays}
-                    >
-                      <CalendarSection emails={view.sections.calendar.emails} />
-                    </SectionShell>
-                  </div>
-                );
-            }
-            return null;
-          })}
-        </div>
+        // Three breakpoint-specific layouts, each rendered to the DOM and
+        // hidden via `hidden` at the wrong width. Per-column flexbox lets each
+        // column pack tightly without leaving gaps under shorter cards (which
+        // is unavoidable with a regular CSS grid).
+        <>
+          {/* Mobile: single column */}
+          <div className="md:hidden flex flex-col gap-4">
+            {LAYOUT_1COL.map((b) => renderSection(b))}
+          </div>
+
+          {/* 2-col (md to xl) */}
+          <div className="hidden md:grid xl:hidden grid-cols-2 gap-4 items-start">
+            {LAYOUT_2COL.map((col, i) => (
+              <div key={i} className="flex flex-col gap-4">
+                {col.map((b) => renderSection(b))}
+              </div>
+            ))}
+          </div>
+
+          {/* 3-col (xl and up) */}
+          <div className="hidden xl:grid grid-cols-3 gap-4 items-start">
+            {LAYOUT_3COL.map((col, i) => (
+              <div key={i} className="flex flex-col gap-4">
+                {col.map((b) => renderSection(b))}
+              </div>
+            ))}
+          </div>
+        </>
       )}
     </div>
     </TimezoneCtx.Provider>
