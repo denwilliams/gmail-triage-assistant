@@ -17,6 +17,7 @@ import LegacyPromptWizardPage from "@/pages/prompt-wizard";
 import PromptsPage from "@/pages/prompts";
 import DigestsPage from "@/pages/digests";
 import V2DashboardPage from "@/pages/v2/dashboard";
+import V2DayPage from "@/pages/v2/day";
 import V2EmailsPage from "@/pages/v2/emails";
 import V2SendersPage from "@/pages/v2/senders";
 import V2BucketDispatch from "@/pages/v2/buckets/index";
@@ -32,6 +33,8 @@ export default function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route element={<AppLayout />}>
             <Route path="/dashboard" element={<V2DashboardPage />} />
+            <Route path="/day" element={<V2DayPage />} />
+            <Route path="/day/:date" element={<V2DayPage />} />
             <Route path="/emails" element={<V2EmailsPage />} />
             <Route path="/senders" element={<V2SendersPage />} />
             <Route path="/buckets/:bucket" element={<V2BucketDispatch />} />

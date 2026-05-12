@@ -543,6 +543,59 @@ export interface WizardContinueResponse {
   prompts: WizardPrompts;
 }
 
+export interface DayEmail {
+  id: string;
+  from_address: string;
+  subject: string;
+  summary: string;
+  processed_at: string;
+  thread_id: string | null;
+  interesting_score: number | null;
+  interesting_reasons: string[];
+  severity: string | null;
+  urgency: string | null;
+  vendor: string | null;
+  document_type: string | null;
+  amount: string | null;
+  action_type: string | null;
+  is_otp: boolean | null;
+  event_title: string | null;
+  event_starts_at: string | null;
+  event_ends_at: string | null;
+  event_location: string | null;
+  bypassed_inbox: boolean;
+}
+
+export interface DaySenderGroup {
+  from_address: string;
+  rating: number | null;
+  rating_manual: boolean;
+  emails: DayEmail[];
+}
+
+export interface DayVendorGroup {
+  vendor: string;
+  emails: DayEmail[];
+}
+
+export interface DayView {
+  date: string;
+  today: string;
+  timezone: string;
+  prev_date: string;
+  next_date: string;
+  total: number;
+  bucket_totals: Record<Bucket, number>;
+  sections: {
+    human: { groups: DaySenderGroup[] };
+    newsletter: { emails: DayEmail[] };
+    notification: { emails: DayEmail[] };
+    security: { emails: DayEmail[] };
+    transactional: { groups: DayVendorGroup[] };
+    calendar: { emails: DayEmail[] };
+  };
+}
+
 export interface DashboardTimeseries {
   daily_volume: DayCount[];
   daily_bypass_rate: DayRate[];
