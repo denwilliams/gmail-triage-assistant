@@ -231,13 +231,22 @@ registerHandler(`/days/${yesterday}`, () => ({ ...dayView, date: yesterday }));
 
 export default [
   {
-    name: "day-overview",
-    path: "/day",
-  },
-  {
-    // Wider viewport to exercise the xl breakpoint (3-column masonry).
-    name: "day-overview-wide",
+    // 3-column desktop layout (xl breakpoint, ≥1280px).
+    name: "day-3col",
     path: "/day",
     viewport: { width: 1600, height: 1100 },
+  },
+  {
+    // 2-column tablet layout (md breakpoint, ≥768px and <1280px).
+    name: "day-2col",
+    path: "/day",
+    viewport: { width: 1100, height: 1400 },
+  },
+  {
+    // 1-column mobile layout (<768px). Sections heavily cropped with
+    // expand buttons.
+    name: "day-1col",
+    path: "/day",
+    viewport: { width: 480, height: 1400 },
   },
 ];

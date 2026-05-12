@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { api } from "@/lib/api";
 import type {
@@ -74,6 +74,20 @@ function formatEventTime(iso: string | null | undefined, tz?: string): string {
 const TimezoneCtx = createContext<string | undefined>(undefined);
 const useTZ = () => useContext(TimezoneCtx);
 
+// Per-breakpoint visual ordering of bucket sections. Static class strings so
+// Tailwind can extract them. Layouts:
+//   1-col (base): humans, calendar, security, transactional, newsletters, notifications
+//   2-col (md):   humans|calendar / transactional|security / newsletters|notifications
+//   3-col (xl):   humans|calendar|security / transactional|newsletters|notifications
+const BUCKET_ORDER: Record<Bucket, string> = {
+  human:         "order-1 md:order-1 xl:order-1",
+  calendar:      "order-2 md:order-2 xl:order-2",
+  security:      "order-3 md:order-4 xl:order-3",
+  transactional: "order-4 md:order-3 xl:order-4",
+  newsletter:    "order-5 md:order-5 xl:order-5",
+  notification:  "order-6 md:order-6 xl:order-6",
+};
+
 function senderDisplay(addr: string): { name: string; email: string } {
   const m = addr.match(/^\s*"?([^"<]+?)"?\s*<([^>]+)>\s*$/);
   if (m) return { name: m[1].trim(), email: m[2].trim() };
@@ -110,6 +124,61 @@ function EmailLine({
   );
 }
 
+// Collapsed max-heights — mobile is intentionally short so single-column
+// pages stay scannable; the wider breakpoints get more room.
+const COLLAPSED_HEIGHT = "max-h-64 md:max-h-[28rem]";
+
+function CollapsibleBody({ children }: { children: React.ReactNode }) {
+  const [expanded, setExpanded] = useState(false);
+  const [overflows, setOverflows] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  // Only measure while collapsed. Once we know content overflows we keep the
+  // button visible so users can collapse again after expanding.
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || expanded) return;
+    const check = () => {
+      if (!ref.current) return;
+      setOverflows(ref.current.scrollHeight > ref.current.clientHeight + 4);
+    };
+    check();
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [expanded]);
+
+  return (
+    <>
+      <div
+        ref={ref}
+        className={cn(
+          "relative",
+          !expanded && cn("overflow-hidden", COLLAPSED_HEIGHT),
+        )}
+      >
+        {children}
+        {!expanded && overflows && (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-card to-transparent"
+          />
+        )}
+      </div>
+      {overflows && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="mt-2 h-7 w-full text-xs"
+          onClick={() => setExpanded((e) => !e)}
+        >
+          {expanded ? "Show less" : "Show more"}
+        </Button>
+      )}
+    </>
+  );
+}
+
 function SectionShell({
   bucket,
   title,
@@ -126,10 +195,7 @@ function SectionShell({
   children: React.ReactNode;
 }) {
   return (
-    // mb-4 + break-inside-avoid let the parent's multi-column layout flow
-    // sections cleanly without splitting a card across columns.
-    // py-3 + gap-2 tighten the card so the header doesn't dominate.
-    <Card className="mb-4 break-inside-avoid py-3 gap-2">
+    <Card className="py-3 gap-2">
       <CardHeader className="pb-1 gap-0.5">
         <div className="flex items-center gap-2">
           <span
@@ -160,7 +226,7 @@ function SectionShell({
         {count === 0 ? (
           <p className="text-sm text-muted-foreground">Nothing in this bucket today.</p>
         ) : (
-          children
+          <CollapsibleBody>{children}</CollapsibleBody>
         )}
       </CardContent>
     </Card>
@@ -395,8 +461,10 @@ export default function DayPage() {
 
   const date = view?.date ?? dateParam ?? "";
   const isToday = view ? view.date === view.today : !dateParam;
+  // Source order matches the 1-col / 3-col reading order; per-breakpoint
+  // overrides in BUCKET_ORDER swap a few cells for the 2-col layout.
   const orderedBuckets: Bucket[] = useMemo(
-    () => ["human", "newsletter", "notification", "security", "transactional", "calendar"],
+    () => ["human", "calendar", "security", "transactional", "newsletter", "notification"],
     [],
   );
 
@@ -471,90 +539,98 @@ export default function DayPage() {
       )}
 
       {view && view.total > 0 && (
-        // CSS columns instead of a grid — sections are uneven in height, and
-        // columns flow them masonry-style without leaving gaps under the
-        // shorter cards.
-        <div className="gap-4 md:columns-2 xl:columns-3">
+        // Grid (not CSS columns) so each cell sits in a fixed slot. items-start
+        // keeps shorter cells at their natural height instead of stretching to
+        // the tallest row member; max-heights on each card's body keep rows
+        // visually balanced.
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-start">
           {orderedBuckets.map((bucket) => {
             const count = view.bucket_totals[bucket] ?? 0;
+            const orderCls = BUCKET_ORDER[bucket];
             switch (bucket) {
               case "human":
                 return (
-                  <SectionShell
-                    key={bucket}
-                    bucket="human"
-                    title="Humans"
-                    description="Grouped by sender"
-                    count={count}
-                    icon={UserRound}
-                  >
-                    <HumanSection groups={view.sections.human.groups} />
-                  </SectionShell>
+                  <div key={bucket} className={orderCls}>
+                    <SectionShell
+                      bucket="human"
+                      title="Humans"
+                      description="Grouped by sender"
+                      count={count}
+                      icon={UserRound}
+                    >
+                      <HumanSection groups={view.sections.human.groups} />
+                    </SectionShell>
+                  </div>
                 );
               case "newsletter":
                 return (
-                  <SectionShell
-                    key={bucket}
-                    bucket="newsletter"
-                    title="Newsletters"
-                    description="Ordered by interestingness"
-                    count={count}
-                    icon={Sparkles}
-                  >
-                    <NewsletterSection emails={view.sections.newsletter.emails} />
-                  </SectionShell>
+                  <div key={bucket} className={orderCls}>
+                    <SectionShell
+                      bucket="newsletter"
+                      title="Newsletters"
+                      description="Ordered by interestingness"
+                      count={count}
+                      icon={Sparkles}
+                    >
+                      <NewsletterSection emails={view.sections.newsletter.emails} />
+                    </SectionShell>
+                  </div>
                 );
               case "notification":
                 return (
-                  <SectionShell
-                    key={bucket}
-                    bucket="notification"
-                    title="Notifications"
-                    description="Ordered by severity then urgency"
-                    count={count}
-                    icon={Inbox}
-                  >
-                    <NotificationSection emails={view.sections.notification.emails} />
-                  </SectionShell>
+                  <div key={bucket} className={orderCls}>
+                    <SectionShell
+                      bucket="notification"
+                      title="Notifications"
+                      description="Ordered by severity then urgency"
+                      count={count}
+                      icon={Inbox}
+                    >
+                      <NotificationSection emails={view.sections.notification.emails} />
+                    </SectionShell>
+                  </div>
                 );
               case "security":
                 return (
-                  <SectionShell
-                    key={bucket}
-                    bucket="security"
-                    title="Security"
-                    description="Login alerts first, OTPs last"
-                    count={count}
-                    icon={ShieldAlert}
-                  >
-                    <SecuritySection emails={view.sections.security.emails} />
-                  </SectionShell>
+                  <div key={bucket} className={orderCls}>
+                    <SectionShell
+                      bucket="security"
+                      title="Security"
+                      description="Login alerts first, OTPs last"
+                      count={count}
+                      icon={ShieldAlert}
+                    >
+                      <SecuritySection emails={view.sections.security.emails} />
+                    </SectionShell>
+                  </div>
                 );
               case "transactional":
                 return (
-                  <SectionShell
-                    key={bucket}
-                    bucket="transactional"
-                    title="Transactional"
-                    description="Grouped by vendor"
-                    count={count}
-                    icon={Receipt}
-                  >
-                    <TransactionalSection groups={view.sections.transactional.groups} />
-                  </SectionShell>
+                  <div key={bucket} className={orderCls}>
+                    <SectionShell
+                      bucket="transactional"
+                      title="Transactional"
+                      description="Grouped by vendor"
+                      count={count}
+                      icon={Receipt}
+                    >
+                      <TransactionalSection groups={view.sections.transactional.groups} />
+                    </SectionShell>
+                  </div>
                 );
               case "calendar":
                 return (
-                  <SectionShell
-                    key={bucket}
-                    bucket="calendar"
-                    title="Calendar"
-                    description="Chronological event order"
-                    count={count}
-                    icon={CalendarDays}
-                  >
-                    <CalendarSection emails={view.sections.calendar.emails} />
-                  </SectionShell>
+                  <div key={bucket} className={orderCls}>
+                    <SectionShell
+                      bucket="calendar"
+                      title="Calendar"
+                      description="Chronological event order"
+                      count={count}
+                      icon={CalendarDays}
+                    >
+                      <CalendarSection emails={view.sections.calendar.emails} />
+                    </SectionShell>
+                  </div>
                 );
             }
             return null;
