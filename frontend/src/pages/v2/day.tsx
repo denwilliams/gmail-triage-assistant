@@ -101,6 +101,13 @@ function senderDisplay(addr: string): { name: string; email: string } {
 
 // ----- Building blocks -----------------------------------------------------
 
+// Mirrors cloudflare/src/services/digest.ts:linkToEmail — prefer the thread
+// view, fall back to the single-message URL.
+function gmailLink(email: DayEmail): string {
+  const id = email.thread_id || email.id;
+  return `https://mail.google.com/mail/u/0/#all/${id}`;
+}
+
 function EmailLine({
   email,
   meta,
@@ -113,7 +120,15 @@ function EmailLine({
     <li className="flex items-start gap-3 py-2 first:pt-0 last:pb-0">
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-          <span className="truncate text-sm font-medium">{email.subject || "(no subject)"}</span>
+          <a
+            href={gmailLink(email)}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="truncate text-sm font-medium hover:underline"
+            title="Open in Gmail"
+          >
+            {email.subject || "(no subject)"}
+          </a>
           <span className="text-xs text-muted-foreground tabular-nums">
             {formatTime(email.processed_at, tz)}
           </span>
