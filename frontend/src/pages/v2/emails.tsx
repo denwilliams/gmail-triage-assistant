@@ -4,8 +4,10 @@ import type {
   Bucket,
   Email,
   PipelineStage,
+  SenderProfile,
   TriageVia,
 } from "@/lib/types";
+import { ProfileDetailDialog } from "@/components/v2/sender-profile-dialog";
 import { api } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -101,10 +103,12 @@ function EmailDetailDialog({
   email,
   open,
   onOpenChange,
+  onSenderClick,
 }: {
   email: Email;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onSenderClick: (address: string) => void;
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -114,7 +118,13 @@ function EmailDetailDialog({
             <span className="flex-1">{email.subject}</span>
           </DialogTitle>
           <DialogDescription className="text-left">
-            {email.from_address}
+            <button
+              type="button"
+              onClick={() => onSenderClick(email.from_address)}
+              className="hover:underline"
+            >
+              {email.from_address}
+            </button>
           </DialogDescription>
           <div className="flex flex-wrap items-center gap-1.5 pt-1">
             {email.bucket && <BucketBadge bucket={email.bucket} />}
@@ -259,6 +269,15 @@ export default function V2EmailsPage() {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
+  const [senderProfile, setSenderProfile] = useState<SenderProfile | null>(null);
+
+  const openSenderModal = (address: string) => {
+    const m = address.match(/^\s*"?([^"<]+?)"?\s*<([^>]+)>\s*$/);
+    const email = m ? m[2].trim() : address;
+    api.getSenderProfiles(email).then((res) => {
+      if (res.sender) setSenderProfile(res.sender);
+    });
+  };
 
   const buildFilters = () => ({
     v2_only: true,
@@ -420,6 +439,16 @@ export default function V2EmailsPage() {
           onOpenChange={(open) => {
             if (!open) closeEmail();
           }}
+          onSenderClick={openSenderModal}
+        />
+      )}
+
+      {senderProfile && (
+        <ProfileDetailDialog
+          profile={senderProfile}
+          open={!!senderProfile}
+          onOpenChange={(open) => { if (!open) setSenderProfile(null); }}
+          onUpdated={(updated) => setSenderProfile(updated)}
         />
       )}
     </div>
