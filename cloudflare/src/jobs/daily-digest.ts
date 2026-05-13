@@ -175,7 +175,7 @@ export async function runDailyDigest(env: Env, userId: number): Promise<void> {
   }
 
   const composed = composeDigest({ digestDate, intro, sections });
-  const subject = `Daily digest — ${digestDate}`;
+  const subject = `Daily digest - ${digestDate}`;
 
   let sentAt: string | null = null;
   let gmailMessageId: string | null = null;
