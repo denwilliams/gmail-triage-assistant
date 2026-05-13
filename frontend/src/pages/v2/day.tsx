@@ -333,7 +333,13 @@ function HumanSection({
   );
 }
 
-function NewsletterSection({ emails }: { emails: DayEmail[] }) {
+function NewsletterSection({
+  emails,
+  onSenderClick,
+}: {
+  emails: DayEmail[];
+  onSenderClick: (email: string) => void;
+}) {
   return (
     <ul className="divide-y">
       {emails.map((e) => (
@@ -342,9 +348,13 @@ function NewsletterSection({ emails }: { emails: DayEmail[] }) {
           email={e}
           meta={
             <>
-              <span className="text-xs text-muted-foreground truncate">
+              <button
+                type="button"
+                onClick={() => onSenderClick(senderDisplay(e.from_address).email)}
+                className="text-xs text-muted-foreground truncate hover:underline"
+              >
                 {senderDisplay(e.from_address).name}
-              </span>
+              </button>
               {e.interesting_score !== null && (
                 <InterestingScoreChip
                   score={e.interesting_score}
@@ -359,7 +369,13 @@ function NewsletterSection({ emails }: { emails: DayEmail[] }) {
   );
 }
 
-function NotificationSection({ emails }: { emails: DayEmail[] }) {
+function NotificationSection({
+  emails,
+  onSenderClick,
+}: {
+  emails: DayEmail[];
+  onSenderClick: (email: string) => void;
+}) {
   return (
     <ul className="divide-y">
       {emails.map((e) => (
@@ -368,9 +384,13 @@ function NotificationSection({ emails }: { emails: DayEmail[] }) {
           email={e}
           meta={
             <>
-              <span className="text-xs text-muted-foreground truncate">
+              <button
+                type="button"
+                onClick={() => onSenderClick(senderDisplay(e.from_address).email)}
+                className="text-xs text-muted-foreground truncate hover:underline"
+              >
                 {senderDisplay(e.from_address).name}
-              </span>
+              </button>
               <SeverityUrgencyChips severity={e.severity} urgency={e.urgency} />
             </>
           }
@@ -380,7 +400,13 @@ function NotificationSection({ emails }: { emails: DayEmail[] }) {
   );
 }
 
-function SecuritySection({ emails }: { emails: DayEmail[] }) {
+function SecuritySection({
+  emails,
+  onSenderClick,
+}: {
+  emails: DayEmail[];
+  onSenderClick: (email: string) => void;
+}) {
   return (
     <ul className="divide-y">
       {emails.map((e) => (
@@ -389,9 +415,13 @@ function SecuritySection({ emails }: { emails: DayEmail[] }) {
           email={e}
           meta={
             <>
-              <span className="text-xs text-muted-foreground truncate">
+              <button
+                type="button"
+                onClick={() => onSenderClick(senderDisplay(e.from_address).email)}
+                className="text-xs text-muted-foreground truncate hover:underline"
+              >
                 {senderDisplay(e.from_address).name}
-              </span>
+              </button>
               {e.action_type && (
                 <span className="rounded bg-red-100 px-1.5 py-0.5 text-[11px] font-medium uppercase text-red-800 dark:bg-red-500/25 dark:text-red-200">
                   {e.action_type.replace(/_/g, " ")}
@@ -563,7 +593,7 @@ export default function DayPage() {
             expanded={expanded}
             onToggle={onToggle}
           >
-            <NewsletterSection emails={view.sections.newsletter.emails} />
+            <NewsletterSection emails={view.sections.newsletter.emails} onSenderClick={openSenderModal} />
           </SectionShell>
         );
       case "notification":
@@ -578,7 +608,7 @@ export default function DayPage() {
             expanded={expanded}
             onToggle={onToggle}
           >
-            <NotificationSection emails={view.sections.notification.emails} />
+            <NotificationSection emails={view.sections.notification.emails} onSenderClick={openSenderModal} />
           </SectionShell>
         );
       case "security":
@@ -593,7 +623,7 @@ export default function DayPage() {
             expanded={expanded}
             onToggle={onToggle}
           >
-            <SecuritySection emails={view.sections.security.emails} />
+            <SecuritySection emails={view.sections.security.emails} onSenderClick={openSenderModal} />
           </SectionShell>
         );
       case "transactional":
