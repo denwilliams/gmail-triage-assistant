@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router";
+import { useNavigate, useParams } from "react-router";
 import { api } from "@/lib/api";
 import type {
   Bucket,
@@ -7,7 +7,9 @@ import type {
   DaySenderGroup,
   DayVendorGroup,
   DayView,
+  SenderProfile,
 } from "@/lib/types";
+import { ProfileDetailDialog } from "@/components/v2/sender-profile-dialog";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -275,7 +277,13 @@ function SectionShell({
 
 // ----- Bucket renderers ----------------------------------------------------
 
-function HumanSection({ groups }: { groups: DaySenderGroup[] }) {
+function HumanSection({
+  groups,
+  onSenderClick,
+}: {
+  groups: DaySenderGroup[];
+  onSenderClick: (email: string) => void;
+}) {
   return (
     <ul className="space-y-4">
       {groups.map((g) => {
@@ -283,9 +291,10 @@ function HumanSection({ groups }: { groups: DaySenderGroup[] }) {
         return (
           <li key={g.from_address} className="space-y-1.5">
             <div className="flex items-baseline justify-between gap-3">
-              <Link
-                to={`/senders?identifier=${encodeURIComponent(display.email)}&type=sender`}
-                className="truncate text-sm font-semibold hover:underline"
+              <button
+                type="button"
+                onClick={() => onSenderClick(display.email)}
+                className="truncate text-left text-sm font-semibold hover:underline"
                 title={g.from_address}
               >
                 {display.name}
@@ -294,7 +303,7 @@ function HumanSection({ groups }: { groups: DaySenderGroup[] }) {
                     &lt;{display.email}&gt;
                   </span>
                 )}
-              </Link>
+              </button>
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 {g.rating !== null && (
                   <span
@@ -479,6 +488,14 @@ export default function DayPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [senderProfile, setSenderProfile] = useState<SenderProfile | null>(null);
+
+  const openSenderModal = (email: string) => {
+    api.getSenderProfiles(email).then((res) => {
+      if (res.sender) setSenderProfile(res.sender);
+    });
+  };
+
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
@@ -531,7 +548,7 @@ export default function DayPage() {
             expanded={expanded}
             onToggle={onToggle}
           >
-            <HumanSection groups={view.sections.human.groups} />
+            <HumanSection groups={view.sections.human.groups} onSenderClick={openSenderModal} />
           </SectionShell>
         );
       case "newsletter":
@@ -613,6 +630,7 @@ export default function DayPage() {
   }
 
   return (
+    <>
     <TimezoneCtx.Provider value={view?.timezone}>
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -709,5 +727,15 @@ export default function DayPage() {
       )}
     </div>
     </TimezoneCtx.Provider>
+
+    {senderProfile && (
+      <ProfileDetailDialog
+        profile={senderProfile}
+        open={!!senderProfile}
+        onOpenChange={(open) => { if (!open) setSenderProfile(null); }}
+        onUpdated={(updated) => setSenderProfile(updated)}
+      />
+    )}
+    </>
   );
 }
