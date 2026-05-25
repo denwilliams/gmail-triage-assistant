@@ -42,28 +42,7 @@ database_name = "gmail-assistant"
 database_id = "b0b06d59-0fa8-4633-8e79-770c91ee3791"
 
 # ----------------------------------------------------------------------------
-# Queues — v1 (legacy single-stage processor)
-# ----------------------------------------------------------------------------
-[[queues.producers]]
-queue = "gmail-assistant-processing"
-binding = "EMAIL_QUEUE"
-
-[[queues.producers]]
-queue = "gmail-assistant-background-jobs"
-binding = "BACKGROUND_QUEUE"
-
-[[queues.consumers]]
-queue = "gmail-assistant-processing"
-max_batch_size = 5
-max_retries = 3
-
-[[queues.consumers]]
-queue = "gmail-assistant-background-jobs"
-max_batch_size = 1
-max_retries = 3
-
-# ----------------------------------------------------------------------------
-# Queues — v2 pipeline
+# Queues — pipeline
 # ----------------------------------------------------------------------------
 [[queues.producers]]
 queue = "gmail-assistant-triage"
@@ -134,9 +113,9 @@ max_retries = 3
 # daily/weekly/monthly/yearly jobs at the right local hour.
 #
 # Scheduled local-time jobs (Australia/Sydney):
-#   - 03:00 AEST — sender rating sweep (v2)
+#   - 03:00 AEST — sender rating sweep
 #   - 00/06/12/18 AEST — timed label sweep
-#   - 08:00 AEST — morning wrapup + daily digest (v2)
+#   - 08:00 AEST — morning wrapup + daily digest
 #   - 17:00 AEST — evening wrapup + daily memory
 #   - 18:00 Sat AEST — weekly memory + AI prompt generation
 #   - 19:00 on 1st AEST — monthly memory

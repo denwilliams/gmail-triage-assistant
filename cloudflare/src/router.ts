@@ -10,7 +10,6 @@ import { handleGetPrompts, handleUpdatePrompt, handleInitDefaults, handleGetDefa
 import { handleGetMemories, handleGenerateMemory, handleGenerateAIPrompts } from './api/memories';
 import {
   handleGetSettings,
-  handleUpdatePipelineVersion,
   handleUpdateProcessing,
   handleUpdatePushover,
   handleUpdateV2Settings,
@@ -89,7 +88,6 @@ api.post('/memories/generate-ai-prompts', handleGenerateAIPrompts);
 // Settings
 api.get('/settings', handleGetSettings);
 api.put('/settings/processing', handleUpdateProcessing);
-api.put('/settings/pipeline-version', handleUpdatePipelineVersion);
 api.put('/settings/pushover', handleUpdatePushover);
 api.put('/settings/webhook', handleUpdateWebhook);
 api.put('/settings/v2', handleUpdateV2Settings);

@@ -16,7 +16,6 @@ export interface UserRow {
   webhook_url: string;
   webhook_header_key: string;
   webhook_header_value: string;
-  pipeline_version: string;
   // v2 settings (migration 0005)
   v2_newsletter_threshold: number;
   v2_human_rating_threshold: number;
@@ -168,8 +167,6 @@ export interface NotificationRow {
 // Application-level types (parsed JSON, real booleans)
 // ============================================================================
 
-export type PipelineVersion = 'v1' | 'v2';
-
 export interface User {
   id: number;
   email: string;
@@ -184,7 +181,6 @@ export interface User {
   webhookUrl: string;
   webhookHeaderKey: string;
   webhookHeaderValue: string;
-  pipelineVersion: PipelineVersion;
   // v2 settings (migration 0005) — all have defaults matching prior hardcoded values.
   v2NewsletterThreshold: number;       // 0..10, default 6
   v2HumanRatingThreshold: number;      // 0..99, default 40

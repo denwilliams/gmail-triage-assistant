@@ -184,11 +184,6 @@ export const api = {
       method: "PUT",
       body: JSON.stringify({ enabled }),
     }),
-  updatePipelineVersion: (version: "v1" | "v2") =>
-    request<{ status: string; pipeline_version: string }>("/settings/pipeline-version", {
-      method: "PUT",
-      body: JSON.stringify({ version }),
-    }),
   updateV2Settings: (body: import("./types").V2SettingsUpdate) =>
     request<{
       status: string;
