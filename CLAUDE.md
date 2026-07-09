@@ -22,6 +22,18 @@ The deployed system runs entirely on **Cloudflare Workers**. See
 - **Frontend**: React SPA (Vite + TypeScript + React Router v7 +
   shadcn/ui + Tailwind CSS) in `frontend/`, built to `frontend/dist` and
   served by the Worker via the `[assets]` binding
+- **PWA mail client**: second React SPA in `pwa/` (Vite + TypeScript,
+  hand-rolled CSS sharing the dashboard's design tokens), built to
+  `frontend/dist/m` and served at `/m/` — an installable, mobile-first
+  alternative to the Gmail app. Home is a highlights feed (humans first
+  with per-email collapse, cross-bucket needs-attention, one-line
+  summaries per remaining bucket); each bucket has a content-specific
+  focused view; reading view fetches the full Gmail body (rendered in a
+  sandboxed iframe) with inline reply sent via the user's own Gmail
+  token. Time ranges: calendar Day/Week/Month (navigable with ‹ ›) and
+  rolling 24h/7d/28d. API in `cloudflare/src/api/pwa.ts` under
+  `/api/v1/m/*`; per-email app state (`is_read`, `archived_at`,
+  `collapsed`) added in migration `0009_pwa_state.sql`.
 - **Auth**: OAuth with Google (client ID + secret, stored as Worker
   secrets). Optional domain/email allowlist via `ALLOWED_DOMAIN` and
   `ALLOWED_EMAILS` vars.
@@ -43,6 +55,9 @@ npm run migrate      # apply migrations to local D1
 
 # Frontend (in another terminal)
 cd frontend && npm run dev  # Vite, proxies /api + /auth to the Worker
+
+# PWA mail client (optional, another terminal)
+cd pwa && npm run dev       # Vite, proxies /api + /auth to the Worker
 ```
 
 Deploy: `cd cloudflare && npm run deploy` (builds the SPA, then

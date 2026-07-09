@@ -327,6 +327,140 @@ export async function sendHtmlMessage(
   return { id: data.id };
 }
 
+// ---------- PWA mail client helpers ----------
+
+export interface GmailMessageContent {
+  threadId: string;
+  /** Raw From: header with display name preserved. */
+  fromHeader: string;
+  /** Raw Reply-To: header when present. */
+  replyTo: string;
+  subject: string;
+  messageIdHeader: string | null;
+  references: string;
+  text: string;
+  html: string;
+  internalDate: number;
+}
+
+/**
+ * Recursively collect the first text/plain and text/html bodies from a MIME
+ * tree. multipart/alternative nests both under one parent.
+ */
+function extractBodies(payload: any, out: { text?: string; html?: string }): void {
+  if (payload.body?.data) {
+    if (payload.mimeType === 'text/plain' && !out.text) out.text = payload.body.data;
+    if (payload.mimeType === 'text/html' && !out.html) out.html = payload.body.data;
+  }
+  for (const part of payload.parts ?? []) {
+    extractBodies(part, out);
+  }
+}
+
+/** Decode base64url into a UTF-8 string (atob alone mangles multibyte chars). */
+function base64urlDecodeUtf8(data: string): string {
+  const base64 = data.replace(/-/g, '+').replace(/_/g, '/');
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return new TextDecoder().decode(bytes);
+}
+
+/**
+ * Fetch a message with both text and HTML bodies plus the headers needed to
+ * compose a threaded reply.
+ */
+export async function getMessageContent(
+  accessToken: string,
+  messageId: string,
+): Promise<GmailMessageContent> {
+  const res = await fetch(`${GMAIL_BASE}/messages/${messageId}?format=full`, {
+    headers: authHeaders(accessToken),
+  });
+  if (!res.ok) {
+    throw new Error(`Gmail get message error: ${res.status} ${await res.text()}`);
+  }
+  const raw = (await res.json()) as any;
+
+  const headers: { name: string; value: string }[] = raw.payload?.headers ?? [];
+  const header = (name: string) =>
+    headers.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value ?? '';
+
+  const bodies: { text?: string; html?: string } = {};
+  extractBodies(raw.payload ?? {}, bodies);
+
+  return {
+    threadId: raw.threadId,
+    fromHeader: header('From'),
+    replyTo: header('Reply-To'),
+    subject: header('Subject'),
+    messageIdHeader: header('Message-ID') || header('Message-Id') || null,
+    references: header('References'),
+    text: bodies.text ? base64urlDecodeUtf8(bodies.text) : '',
+    html: bodies.html ? base64urlDecodeUtf8(bodies.html) : '',
+    internalDate: parseInt(raw.internalDate, 10),
+  };
+}
+
+/**
+ * Send a plain-text reply on an existing thread. Threads correctly in both
+ * Gmail (threadId) and other clients (In-Reply-To / References).
+ */
+export async function sendReply(
+  accessToken: string,
+  params: {
+    threadId: string;
+    to: string;
+    subject: string;
+    inReplyTo: string | null;
+    references: string;
+    body: string;
+  },
+): Promise<{ id: string }> {
+  const subject = /^re:/i.test(params.subject) ? params.subject : `Re: ${params.subject}`;
+  const lines = [
+    `To: ${params.to}`,
+    `Subject: ${subject}`,
+  ];
+  if (params.inReplyTo) {
+    lines.push(`In-Reply-To: ${params.inReplyTo}`);
+    const refs = params.references
+      ? `${params.references} ${params.inReplyTo}`
+      : params.inReplyTo;
+    lines.push(`References: ${refs}`);
+  }
+  lines.push('Content-Type: text/plain; charset=UTF-8', '', params.body);
+  const encoded = base64urlEncode(lines.join('\r\n'));
+
+  const res = await fetch(`${GMAIL_BASE}/messages/send`, {
+    method: 'POST',
+    headers: { ...authHeaders(accessToken), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ threadId: params.threadId, raw: encoded }),
+  });
+  if (!res.ok) {
+    throw new Error(`Gmail send error: ${res.status} ${await res.text()}`);
+  }
+  return (await res.json()) as { id: string };
+}
+
+/** Mark a message read/unread by toggling the UNREAD label. */
+export async function setMessageRead(
+  accessToken: string,
+  messageId: string,
+  read: boolean,
+): Promise<void> {
+  if (read) {
+    await removeLabels(accessToken, messageId, ['UNREAD']);
+  } else {
+    await addLabels(accessToken, messageId, ['UNREAD']);
+  }
+}
+
+/** Restore a message to the inbox (undo archive). */
+export async function unarchiveMessage(accessToken: string, messageId: string): Promise<void> {
+  await addLabels(accessToken, messageId, ['INBOX']);
+}
+
 /** Trash a message (move to Gmail trash). */
 export async function trashMessage(accessToken: string, messageId: string): Promise<void> {
   const res = await fetch(`${GMAIL_BASE}/messages/${messageId}/trash`, {

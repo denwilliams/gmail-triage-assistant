@@ -42,6 +42,17 @@ import {
   handleGetPipelineOps,
   handlePipelineRetry,
 } from './api/pipeline';
+import {
+  handleGetPwaEmails,
+  handleGetPwaEmailContent,
+  handlePwaReply,
+  handlePwaArchive,
+  handlePwaUnarchive,
+  handlePwaTrash,
+  handlePwaSetRead,
+  handlePwaSetCollapsed,
+  handlePwaSetBucket,
+} from './api/pwa';
 
 // Define custom variables type for auth context
 type AppEnv = { Bindings: Env; Variables: { userId: number; email: string } };
@@ -138,10 +149,32 @@ api.post('/prompt-wizard/continue', handlePromptWizardContinue);
 api.get('/export', handleExport);
 api.post('/import', handleImport);
 
+// PWA mail client (served at /m/)
+api.get('/m/emails', handleGetPwaEmails);
+api.get('/m/emails/:id/content', handleGetPwaEmailContent);
+api.post('/m/emails/:id/reply', handlePwaReply);
+api.post('/m/emails/:id/archive', handlePwaArchive);
+api.post('/m/emails/:id/unarchive', handlePwaUnarchive);
+api.post('/m/emails/:id/trash', handlePwaTrash);
+api.post('/m/emails/:id/read', handlePwaSetRead);
+api.post('/m/emails/:id/collapsed', handlePwaSetCollapsed);
+api.post('/m/emails/:id/bucket', handlePwaSetBucket);
+
 app.route('/api/v1', api);
 
-// SPA fallback — serve static assets for all non-API/auth routes
+// SPA fallback — serve static assets for all non-API/auth routes.
+// The PWA is a second SPA under /m/: deep routes without a file extension
+// resolve to its index.html instead of falling through to the dashboard SPA
+// (the assets binding's single-page-application handling only knows about the
+// root index.html).
 app.all('*', async (c) => {
+  const url = new URL(c.req.url);
+  if (url.pathname === '/m' || url.pathname.startsWith('/m/')) {
+    if (!/\.[a-zA-Z0-9]+$/.test(url.pathname)) {
+      url.pathname = '/m';
+      return c.env.ASSETS.fetch(new Request(url.toString(), c.req.raw));
+    }
+  }
   return c.env.ASSETS.fetch(c.req.raw);
 });
 

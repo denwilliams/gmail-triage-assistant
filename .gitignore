@@ -55,4 +55,6 @@ logs/
 
 # Frontend
 frontend/node_modules/
+pwa/node_modules/
 frontend/dist/
+pwa/tsconfig.tsbuildinfo
