@@ -47,4 +47,10 @@ export interface Env {
   // dispatcher to decide when to fire daily/weekly/monthly/yearly jobs.
   // Defaults to "UTC" when unset.
   TIMEZONE?: string;
+
+  // Gates the unattended trash step in the timed-labels sweep (jobs/timed-labels.ts).
+  // Anything other than "true" (including unset) disables it; deletion then only
+  // happens via the manual review page (api/delete-review.ts). Archive labels
+  // (📥/*) are unaffected — they're non-destructive and always run.
+  AUTO_DELETE_ENABLED?: string;
 }

@@ -314,6 +314,36 @@ export interface UserSettings {
   v2_calendar_imminent_minutes: number;
   v2_notify_buckets: Partial<Record<Bucket, boolean>>;
   user_identity: string;
+  auto_delete_enabled: boolean;
+}
+
+export interface DeleteReviewRow {
+  id: string;
+  subject: string;
+  from: string;
+  tier: string;
+  due: boolean;
+  processed_at: string | null;
+}
+
+export interface DeleteReviewTierCount {
+  tier: string;
+  total: number;
+  due: number;
+}
+
+export interface DeleteReviewResponse {
+  rows: DeleteReviewRow[];
+  tiers: DeleteReviewTierCount[];
+  total: number;
+  due_total: number;
+}
+
+export interface RunDeleteSweepResponse {
+  status: string;
+  trashed: number;
+  remaining: number;
+  errors: number;
 }
 
 export interface V2SettingsUpdate {

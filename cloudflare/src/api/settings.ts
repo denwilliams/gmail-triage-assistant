@@ -47,6 +47,7 @@ export async function handleGetSettings(c: AppContext) {
       v2_calendar_imminent_minutes: user.v2CalendarImminentMinutes,
       v2_notify_buckets: user.v2NotifyBuckets,
       user_identity: user.userIdentity,
+      auto_delete_enabled: c.env.AUTO_DELETE_ENABLED === 'true',
     });
   } catch (e) {
     console.error('Failed to load settings:', e);

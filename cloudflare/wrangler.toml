@@ -17,6 +17,11 @@ OPENAI_BASE_URL = "https://api.openai.com/v1"
 SERVER_URL = "https://gmail-assistant.loke.tools"
 TIMEZONE = "Australia/Sydney"
 
+# Gates the unattended trash step in the timed-labels sweep. "true" re-enables
+# automatic deletion of 🗑️/* labeled emails; anything else (including unset)
+# means deletion only happens via the manual review page in the UI.
+AUTO_DELETE_ENABLED = "true"
+
 # Per-stage model overrides. Unset → falls back to OPENAI_MODEL. Easy to A/B
 # swap models without code changes.
 # OPENAI_MODEL_TRIAGE        = "gpt-5-nano"

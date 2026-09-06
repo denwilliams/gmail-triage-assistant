@@ -82,6 +82,31 @@ export async function getEmailByID(db: D1Database, emailId: string): Promise<Ema
   return row ? mapEmail(row) : null;
 }
 
+/**
+ * Bulk-fetch emails by ID for the current user, e.g. to hydrate subject/sender
+ * for a list of Gmail message IDs from a label sweep. Chunks the IN(...)
+ * clause at 100 bindings. Order is not guaranteed — callers should re-key by ID.
+ */
+export async function getEmailsByIDs(
+  db: D1Database,
+  userId: number,
+  emailIds: string[],
+): Promise<Email[]> {
+  if (emailIds.length === 0) return [];
+  const CHUNK_SIZE = 100;
+  const emails: Email[] = [];
+  for (let i = 0; i < emailIds.length; i += CHUNK_SIZE) {
+    const chunk = emailIds.slice(i, i + CHUNK_SIZE);
+    const placeholders = chunk.map(() => '?').join(',');
+    const { results } = await db
+      .prepare(`SELECT ${EMAIL_COLUMNS} FROM emails WHERE user_id = ? AND id IN (${placeholders})`)
+      .bind(userId, ...chunk)
+      .all<EmailRow>();
+    emails.push(...results.map(mapEmail));
+  }
+  return emails;
+}
+
 export async function createEmail(db: D1Database, email: Email): Promise<void> {
   await db
     .prepare(

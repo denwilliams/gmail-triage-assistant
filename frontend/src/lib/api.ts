@@ -168,6 +168,18 @@ export const api = {
       method: "POST",
     }),
 
+  getDeleteReview: () =>
+    request<import("./types").DeleteReviewResponse>("/delete-review"),
+  exemptFromDelete: (messageIds: string[]) =>
+    request<{ status: string; exempted: number }>("/delete-review/exempt", {
+      method: "POST",
+      body: JSON.stringify({ message_ids: messageIds }),
+    }),
+  runDeleteSweep: () =>
+    request<import("./types").RunDeleteSweepResponse>("/delete-review/run", {
+      method: "POST",
+    }),
+
   startPromptWizard: () =>
     request<import("./types").WizardStartResponse>("/prompt-wizard/start", {
       method: "POST",

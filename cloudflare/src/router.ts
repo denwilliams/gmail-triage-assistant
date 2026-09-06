@@ -42,6 +42,11 @@ import {
   handleGetPipelineOps,
   handlePipelineRetry,
 } from './api/pipeline';
+import {
+  handleGetDeleteReview,
+  handleExemptFromDelete,
+  handleRunDeleteSweep,
+} from './api/delete-review';
 
 // Define custom variables type for auth context
 type AppEnv = { Bindings: Env; Variables: { userId: number; email: string } };
@@ -122,6 +127,11 @@ api.get('/stats/threshold/human-rating', handleGetHumanRatingThresholdDistributi
 api.get('/pipeline/config', handleGetPipelineConfig);
 api.get('/pipeline/ops', handleGetPipelineOps);
 api.post('/pipeline/retry/:id', handlePipelineRetry);
+
+// Delete review — manual, reviewed alternative to the unattended trash sweep
+api.get('/delete-review', handleGetDeleteReview);
+api.post('/delete-review/exempt', handleExemptFromDelete);
+api.post('/delete-review/run', handleRunDeleteSweep);
 
 // Sender profiles
 api.get('/sender-profiles/all', handleGetAllSenderProfiles);

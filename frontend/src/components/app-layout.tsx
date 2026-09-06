@@ -13,6 +13,7 @@ import {
   Archive,
   MessageSquare,
   CalendarDays,
+  Trash2,
 } from "lucide-react";
 
 const navItems = [
@@ -21,6 +22,7 @@ const navItems = [
   { to: "/emails", label: "Emails", icon: Mail },
   { to: "/senders", label: "Senders", icon: Users },
   { to: "/pipeline", label: "Pipeline", icon: Activity },
+  { to: "/delete-review", label: "Delete review", icon: Trash2 },
   { to: "/digests", label: "Digests", icon: Inbox },
   { to: "/prompts", label: "Prompts", icon: MessageSquare },
   { to: "/settings", label: "Settings", icon: Settings },

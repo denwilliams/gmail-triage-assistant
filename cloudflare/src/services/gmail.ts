@@ -205,6 +205,33 @@ export async function archiveMessage(accessToken: string, messageId: string): Pr
   }
 }
 
+/**
+ * Add/remove labels on many messages in one call. Gmail caps batchModify at
+ * 1000 IDs per request, so chunk larger batches.
+ */
+export async function batchModifyMessages(
+  accessToken: string,
+  messageIds: string[],
+  labels: { addLabelIds?: string[]; removeLabelIds?: string[] },
+): Promise<void> {
+  const CHUNK_SIZE = 1000;
+  for (let i = 0; i < messageIds.length; i += CHUNK_SIZE) {
+    const chunk = messageIds.slice(i, i + CHUNK_SIZE);
+    const res = await fetch(`${GMAIL_BASE}/messages/batchModify`, {
+      method: 'POST',
+      headers: { ...authHeaders(accessToken), 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ids: chunk,
+        addLabelIds: labels.addLabelIds ?? [],
+        removeLabelIds: labels.removeLabelIds ?? [],
+      }),
+    });
+    if (!res.ok) {
+      throw new Error(`Gmail batch modify error: ${res.status} ${await res.text()}`);
+    }
+  }
+}
+
 /** List all labels for the authenticated user. */
 export async function listLabels(accessToken: string): Promise<GmailLabel[]> {
   const res = await fetch(`${GMAIL_BASE}/labels`, {
@@ -354,37 +381,32 @@ export async function removeLabels(
   }
 }
 
-/** List message IDs with a specific label. */
+/** List all message IDs with a specific label, following pagination to completion. */
 export async function listMessagesByLabel(
   accessToken: string,
   labelId: string,
   query?: string,
 ): Promise<Array<{ id: string }>> {
-  let url = `${GMAIL_BASE}/messages?labelIds=${labelId}&maxResults=100`;
-  if (query) url += `&q=${encodeURIComponent(query)}`;
-  const res = await fetch(url, {
-    headers: authHeaders(accessToken),
-  });
-  if (!res.ok) {
-    throw new Error(`Gmail list by label error: ${res.status} ${await res.text()}`);
-  }
-  const data = (await res.json()) as { messages?: { id: string }[] };
-  return data.messages ?? [];
-}
+  const messages: Array<{ id: string }> = [];
+  let pageToken: string | undefined;
 
-/** Get message metadata (minimal format for date checking). */
-export async function getMessageMetadata(
-  accessToken: string,
-  messageId: string,
-): Promise<{ id: string; internalDate: number }> {
-  const res = await fetch(`${GMAIL_BASE}/messages/${messageId}?format=minimal`, {
-    headers: authHeaders(accessToken),
-  });
-  if (!res.ok) {
-    throw new Error(`Gmail get metadata error: ${res.status} ${await res.text()}`);
-  }
-  const data = (await res.json()) as { id: string; internalDate: string };
-  return { id: data.id, internalDate: parseInt(data.internalDate, 10) };
+  do {
+    let url = `${GMAIL_BASE}/messages?labelIds=${labelId}&maxResults=500`;
+    if (query) url += `&q=${encodeURIComponent(query)}`;
+    if (pageToken) url += `&pageToken=${pageToken}`;
+
+    const res = await fetch(url, {
+      headers: authHeaders(accessToken),
+    });
+    if (!res.ok) {
+      throw new Error(`Gmail list by label error: ${res.status} ${await res.text()}`);
+    }
+    const data = (await res.json()) as { messages?: { id: string }[]; nextPageToken?: string };
+    if (data.messages) messages.push(...data.messages);
+    pageToken = data.nextPageToken;
+  } while (pageToken);
+
+  return messages;
 }
 
 /** Create a draft reply to a message in the same thread. */

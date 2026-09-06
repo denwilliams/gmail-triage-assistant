@@ -3,33 +3,34 @@ import { getAllActiveUsers, updateUserToken } from '../db/users';
 import {
   getLabelId,
   listMessagesByLabel,
-  getMessageMetadata,
   removeLabels,
   archiveMessage,
   trashMessage,
   refreshAccessToken,
 } from '../services/gmail';
 
-interface TimedLabel {
+export interface TimedLabel {
   name: string;
-  maxAgeMs: number;
+  /** Gmail `older_than:` operator value, e.g. "30d". */
+  olderThan: string;
 }
 
 const ARCHIVE_LABELS: TimedLabel[] = [
-  { name: '📥/1d', maxAgeMs: 1 * 24 * 60 * 60 * 1000 },
-  { name: '📥/1w', maxAgeMs: 7 * 24 * 60 * 60 * 1000 },
-  { name: '📥/1m', maxAgeMs: 30 * 24 * 60 * 60 * 1000 },
-  { name: '📥/1y', maxAgeMs: 365 * 24 * 60 * 60 * 1000 },
+  { name: '📥/1d', olderThan: '1d' },
+  { name: '📥/1w', olderThan: '7d' },
+  { name: '📥/1m', olderThan: '30d' },
+  { name: '📥/1y', olderThan: '365d' },
 ];
 
-const DELETE_LABELS: TimedLabel[] = [
-  { name: '🗑️/1d', maxAgeMs: 1 * 24 * 60 * 60 * 1000 },
-  { name: '🗑️/1w', maxAgeMs: 7 * 24 * 60 * 60 * 1000 },
-  { name: '🗑️/1m', maxAgeMs: 30 * 24 * 60 * 60 * 1000 },
-  { name: '🗑️/1y', maxAgeMs: 365 * 24 * 60 * 60 * 1000 },
+export const DELETE_LABELS: TimedLabel[] = [
+  { name: '🗑️/1d', olderThan: '1d' },
+  { name: '🗑️/1w', olderThan: '7d' },
+  { name: '🗑️/1m', olderThan: '30d' },
+  { name: '🗑️/1y', olderThan: '365d' },
 ];
 
 export async function processTimedLabels(env: Env): Promise<void> {
+  const autoDeleteEnabled = env.AUTO_DELETE_ENABLED === 'true';
   const users = await getAllActiveUsers(env.DB);
 
   for (const user of users) {
@@ -53,14 +54,17 @@ export async function processTimedLabels(env: Env): Promise<void> {
         }
       }
 
-      // Process archive labels
+      // Process archive labels (non-destructive — always on)
       for (const tl of ARCHIVE_LABELS) {
         await processLabel(accessToken, tl, false);
       }
 
-      // Process delete labels
-      for (const tl of DELETE_LABELS) {
-        await processLabel(accessToken, tl, true);
+      // Process delete labels — only when explicitly enabled. Deletion is
+      // otherwise left to the manual review page (see api/delete-review.ts).
+      if (autoDeleteEnabled) {
+        for (const tl of DELETE_LABELS) {
+          await processLabel(accessToken, tl, true);
+        }
       }
 
       // Process archive-after-read
@@ -93,35 +97,46 @@ async function processArchiveAfterRead(accessToken: string): Promise<void> {
   }
 }
 
+/**
+ * Message IDs under `labelId` currently past `tl`'s age cutoff, using Gmail's
+ * `older_than:` search operator so age filtering happens server-side rather
+ * than via a per-message metadata fetch.
+ */
+export async function listDueMessageIds(
+  accessToken: string,
+  labelId: string,
+  tl: TimedLabel,
+): Promise<string[]> {
+  const messages = await listMessagesByLabel(accessToken, labelId, `older_than:${tl.olderThan}`);
+  return messages.map((m) => m.id);
+}
+
+/** Resolve a timed label by name and return its currently-due message IDs. */
+export async function listDueMessages(accessToken: string, tl: TimedLabel): Promise<string[]> {
+  const labelId = await getLabelId(accessToken, tl.name);
+  if (!labelId) return [];
+  return listDueMessageIds(accessToken, labelId, tl);
+}
+
 async function processLabel(accessToken: string, tl: TimedLabel, trash: boolean): Promise<void> {
-  // Find the label ID
   const labelId = await getLabelId(accessToken, tl.name);
   if (!labelId) return; // Label doesn't exist yet, nothing to process
 
-  // List messages with this label
-  const messages = await listMessagesByLabel(accessToken, labelId);
-  if (messages.length === 0) return;
+  const dueIds = await listDueMessageIds(accessToken, labelId, tl);
 
-  const cutoff = Date.now() - tl.maxAgeMs;
-
-  for (const msg of messages) {
+  for (const id of dueIds) {
     try {
-      // Get message date
-      const metadata = await getMessageMetadata(accessToken, msg.id);
+      // Remove the timed label first
+      await removeLabels(accessToken, id, [labelId]);
 
-      if (metadata.internalDate < cutoff) {
-        // Remove the timed label first
-        await removeLabels(accessToken, msg.id, [labelId]);
-
-        if (trash) {
-          await trashMessage(accessToken, msg.id);
-        } else {
-          await archiveMessage(accessToken, msg.id);
-        }
+      if (trash) {
+        await trashMessage(accessToken, id);
+      } else {
+        await archiveMessage(accessToken, id);
       }
     } catch (e) {
       // Log and continue -- don't let one message failure block others
-      console.error(`timed-labels: failed to process message ${msg.id}:`, e);
+      console.error(`timed-labels: failed to process message ${id}:`, e);
     }
   }
 }

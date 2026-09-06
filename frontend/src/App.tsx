@@ -22,6 +22,7 @@ import V2EmailsPage from "@/pages/v2/emails";
 import V2SendersPage from "@/pages/v2/senders";
 import V2BucketDispatch from "@/pages/v2/buckets/index";
 import V2PipelinePage from "@/pages/v2/pipeline";
+import V2DeleteReviewPage from "@/pages/v2/delete-review";
 import V2SettingsPage from "@/pages/v2/settings";
 
 export default function App() {
@@ -39,6 +40,7 @@ export default function App() {
             <Route path="/senders" element={<V2SendersPage />} />
             <Route path="/buckets/:bucket" element={<V2BucketDispatch />} />
             <Route path="/pipeline" element={<V2PipelinePage />} />
+            <Route path="/delete-review" element={<V2DeleteReviewPage />} />
             <Route path="/digests" element={<DigestsPage />} />
             <Route path="/prompts" element={<PromptsPage />} />
             <Route path="/settings" element={<V2SettingsPage />} />
