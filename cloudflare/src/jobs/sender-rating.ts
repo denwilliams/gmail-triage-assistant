@@ -91,8 +91,6 @@ export async function runSenderRatingSweep(env: Env): Promise<void> {
   console.log(`sender-rating-sweep: ${users.length} active users`);
 
   for (const user of users) {
-    if (user.pipelineVersion !== 'v2') continue;
-
     try {
       const { profiles } = await getAllSenderProfiles(
         env.DB,

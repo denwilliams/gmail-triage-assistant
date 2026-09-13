@@ -301,7 +301,6 @@ export interface DefaultPromptsResponse {
 
 export interface UserSettings {
   processing_enabled: boolean;
-  pipeline_version: "v1" | "v2";
   pushover_user_key: string;
   pushover_configured: boolean;
   webhook_url: string;

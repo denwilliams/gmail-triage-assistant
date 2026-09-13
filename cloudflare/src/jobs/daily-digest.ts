@@ -136,10 +136,6 @@ async function buildQuietHumansSection(
 export async function runDailyDigest(env: Env, userId: number): Promise<void> {
   const user = await getUserByID(env.DB, userId);
   if (!user) throw new Error(`user ${userId} not found`);
-  if (user.pipelineVersion !== 'v2') {
-    console.log(`[${user.email}] daily-digest: skipping — pipeline_version=${user.pipelineVersion}`);
-    return;
-  }
   if (!user.isActive) {
     console.log(`[${user.email}] daily-digest: user inactive`);
     return;

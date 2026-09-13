@@ -9,11 +9,6 @@
 // picks `OPENAI_MODEL_<STAGE>` with a fallback to `OPENAI_MODEL`. This keeps
 // model choice a deploy-time decision (wrangler.toml vars) rather than a
 // code change.
-//
-// The v1 processor still lives in services/openai.ts and is unchanged — this
-// file is additive. Once v2 is confirmed in prod, the v1-specific exports
-// (analyzeEmail, determineActions, bootstrapSenderProfile, etc.) can be
-// deleted.
 // ============================================================================
 
 import type { Env } from '../types/env';

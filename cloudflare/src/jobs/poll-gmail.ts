@@ -32,12 +32,10 @@ export async function pollGmail(env: Env): Promise<void> {
       const messages = await getMessagesSince(accessToken, sinceMs, 50);
       console.log(`poll-gmail: user ${user.email} — ${messages.length} new messages`);
 
-      // Queue each message for processing. v2 users go through the new
-      // multi-stage triage queue; v1 users keep the monolithic processor.
-      const targetQueue = user.pipelineVersion === 'v2' ? env.TRIAGE_QUEUE : env.EMAIL_QUEUE;
+      // Queue each message for the multi-stage triage pipeline.
       let newestDate = sinceMs;
       for (const msg of messages) {
-        await targetQueue.send({ userId: user.id, messageId: msg.id });
+        await env.TRIAGE_QUEUE.send({ userId: user.id, messageId: msg.id });
         if (msg.internalDate > newestDate) {
           newestDate = msg.internalDate;
         }

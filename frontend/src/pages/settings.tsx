@@ -24,9 +24,6 @@ export default function SettingsPage() {
   // Processing toggle
   const [processingToggling, setProcessingToggling] = useState(false);
 
-  // Pipeline version toggle
-  const [pipelineToggling, setPipelineToggling] = useState(false);
-
   // Export/Import state
   const [includeEmails, setIncludeEmails] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -207,58 +204,6 @@ export default function SettingsPage() {
               Email processing is off. New emails will not be analyzed, labeled, or archived.
             </div>
           )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Pipeline Version</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            <strong>v1</strong> — the original single-stage processor.
-            <br />
-            <strong>v2</strong> — multi-stage pipeline that triages into buckets
-            (newsletter, notification, human, transactional, security, calendar)
-            and processes each with bucket-specific rules. Includes a daily
-            email digest and auto-learned sender ratings.
-          </p>
-
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              role="switch"
-              aria-checked={settings?.pipeline_version === "v2"}
-              onClick={async () => {
-                if (!settings) return;
-                setPipelineToggling(true);
-                try {
-                  const newValue = settings.pipeline_version === "v2" ? "v1" : "v2";
-                  await api.updatePipelineVersion(newValue);
-                  setSettings({ ...settings, pipeline_version: newValue });
-                } catch (err) {
-                  console.error("Failed to toggle pipeline version:", err);
-                } finally {
-                  setPipelineToggling(false);
-                }
-              }}
-              disabled={pipelineToggling}
-              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${
-                settings?.pipeline_version === "v2"
-                  ? "bg-blue-600"
-                  : "bg-gray-200 dark:bg-gray-700"
-              }`}
-            >
-              <span
-                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition-transform ${
-                  settings?.pipeline_version === "v2" ? "translate-x-5" : "translate-x-0"
-                }`}
-              />
-            </button>
-            <span className="text-sm font-medium">
-              {settings?.pipeline_version === "v2" ? "v2 — multi-stage pipeline" : "v1 — legacy single-stage"}
-            </span>
-          </div>
         </CardContent>
       </Card>
 

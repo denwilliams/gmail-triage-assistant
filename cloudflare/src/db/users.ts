@@ -1,4 +1,4 @@
-import type { Bucket, PipelineVersion, User, UserRow } from '../types/models';
+import type { Bucket, User, UserRow } from '../types/models';
 
 function safeParseNotifyBuckets(text: string): Partial<Record<Bucket, boolean>> {
   try {
@@ -27,7 +27,6 @@ function mapUser(row: UserRow): User {
     webhookUrl: row.webhook_url,
     webhookHeaderKey: row.webhook_header_key,
     webhookHeaderValue: row.webhook_header_value,
-    pipelineVersion: (row.pipeline_version as PipelineVersion) ?? 'v1',
     v2NewsletterThreshold: row.v2_newsletter_threshold ?? 6,
     v2HumanRatingThreshold: row.v2_human_rating_threshold ?? 40,
     v2CalendarImminentMinutes: row.v2_calendar_imminent_minutes ?? 60,
@@ -36,18 +35,6 @@ function mapUser(row: UserRow): User {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
-}
-
-export async function setUserPipelineVersion(
-  db: D1Database,
-  userId: number,
-  version: PipelineVersion,
-): Promise<void> {
-  const now = new Date().toISOString();
-  await db
-    .prepare('UPDATE users SET pipeline_version = ?, updated_at = ? WHERE id = ?')
-    .bind(version, now, userId)
-    .run();
 }
 
 export async function createUser(
@@ -63,8 +50,8 @@ export async function createUser(
     .prepare(
       `INSERT INTO users (email, google_id, access_token, refresh_token, token_expiry, is_active,
         pushover_user_key, pushover_app_token, webhook_url, webhook_header_key, webhook_header_value,
-        pipeline_version, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, 0, '', '', '', '', '', 'v2', ?, ?)
+        created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, 0, '', '', '', '', '', ?, ?)
        RETURNING *`,
     )
     .bind(email, googleId, accessToken, refreshToken, tokenExpiry, now, now)

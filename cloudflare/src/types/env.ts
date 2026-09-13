@@ -2,11 +2,7 @@ export interface Env {
   ASSETS: Fetcher;
   DB: D1Database;
 
-  // v1 queues
-  EMAIL_QUEUE: Queue;
-  BACKGROUND_QUEUE: Queue;
-
-  // v2 pipeline queues
+  // Pipeline queues
   TRIAGE_QUEUE: Queue;
   BUCKET_NEWSLETTER_QUEUE: Queue;
   BUCKET_NOTIFICATION_QUEUE: Queue;
