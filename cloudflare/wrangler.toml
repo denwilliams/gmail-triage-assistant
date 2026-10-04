@@ -12,7 +12,7 @@ binding = "ASSETS"
 
 [vars]
 GOOGLE_REDIRECT_URL = "https://gmail-assistant.loke.tools/auth/callback"
-OPENAI_MODEL = "gpt-5-nano"
+OPENAI_MODEL = "gpt-6-luna"
 OPENAI_BASE_URL = "https://api.openai.com/v1"
 SERVER_URL = "https://gmail-assistant.loke.tools"
 TIMEZONE = "Australia/Sydney"
@@ -24,15 +24,15 @@ AUTO_DELETE_ENABLED = "true"
 
 # Per-stage model overrides. Unset → falls back to OPENAI_MODEL. Easy to A/B
 # swap models without code changes.
-# OPENAI_MODEL_TRIAGE        = "gpt-5-nano"
-# OPENAI_MODEL_NEWSLETTER    = "gpt-5-nano"
-# OPENAI_MODEL_NOTIFICATION  = "gpt-5-nano"
+# OPENAI_MODEL_TRIAGE        = "gpt-6-luna"
+# OPENAI_MODEL_NEWSLETTER    = "gpt-6-luna"
+# OPENAI_MODEL_NOTIFICATION  = "gpt-6-luna"
 # OPENAI_MODEL_HUMAN         = "gpt-5-mini"
-# OPENAI_MODEL_TRANSACTIONAL = "gpt-5-nano"
-# OPENAI_MODEL_SECURITY      = "gpt-5-nano"
-# OPENAI_MODEL_CALENDAR      = "gpt-5-nano"
-# OPENAI_MODEL_SUMMARY       = "gpt-5-nano"
-# OPENAI_MODEL_SENDER_RATING = "gpt-5-nano"
+# OPENAI_MODEL_TRANSACTIONAL = "gpt-6-luna"
+# OPENAI_MODEL_SECURITY      = "gpt-6-luna"
+# OPENAI_MODEL_CALENDAR      = "gpt-6-luna"
+# OPENAI_MODEL_SUMMARY       = "gpt-6-luna"
+# OPENAI_MODEL_SENDER_RATING = "gpt-6-luna"
 
 [[d1_databases]]
 binding = "DB"
